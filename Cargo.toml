@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "common",
+    "daemon",
+    "tools",
+    "worker",
+]
