@@ -12,6 +12,17 @@ table! {
 }
 
 table! {
+    queue (id) {
+        id -> Integer,
+        package_id -> Integer,
+        queued_at -> Timestamp,
+        worker_id -> Nullable<Integer>,
+        started_at -> Nullable<Timestamp>,
+        last_ping -> Nullable<Timestamp>,
+    }
+}
+
+table! {
     workers (id) {
         id -> Integer,
         key -> Text,
@@ -22,7 +33,11 @@ table! {
     }
 }
 
+joinable!(queue -> packages (package_id));
+joinable!(queue -> workers (worker_id));
+
 allow_tables_to_appear_in_same_query!(
     packages,
+    queue,
     workers,
 );

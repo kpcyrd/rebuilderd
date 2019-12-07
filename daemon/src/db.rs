@@ -50,7 +50,7 @@ impl Connection for SqliteConnectionWrap {
     fn establish(database_url: &str) -> ConnectionResult<Self> {
         let c = SqliteConnection::establish(database_url)?;
         // TODO: wal doesn't work yet
-        // c.batch_execute("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON").unwrap();
+        // c.batch_execute("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 60000; PRAGMA foreign_keys = ON").unwrap();
         Ok(Self(c))
     }
 

@@ -10,9 +10,17 @@ CREATE TABLE packages (
     CONSTRAINT packages_unique UNIQUE (name, distro, suite, architecture)
 );
 
--- CREATE TABLE queue (
---     id SERIAL PRIMARY KEY,
--- );
+CREATE TABLE queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    package_id INTEGER NOT NULL,
+    queued_at DATETIME NOT NULL,
+    worker_id INTEGER,
+    started_at DATETIME,
+    last_ping DATETIME,
+    FOREIGN KEY(package_id) REFERENCES packages(id),
+    FOREIGN KEY(worker_id) REFERENCES workers(id),
+    CONSTRAINT queue_unique UNIQUE (package_id)
+);
 
 CREATE TABLE workers (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

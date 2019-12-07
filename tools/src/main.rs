@@ -19,8 +19,8 @@ struct Args {
 #[derive(Debug, StructOpt)]
 enum SubCommand {
     Status,
-    Queue,
     Pkgs(Pkgs),
+    Queue(Queue),
 }
 
 #[derive(Debug, StructOpt)]
@@ -44,11 +44,24 @@ struct PkgsList {
     #[structopt(long)]
     pub name: Option<String>,
     #[structopt(long)]
+    pub status: Option<String>,
+    #[structopt(long)]
     pub distro: Option<String>,
     #[structopt(long)]
     pub suite: Option<String>,
     #[structopt(long)]
     pub architecture: Option<String>,
+}
+
+#[derive(Debug, StructOpt)]
+enum Queue {
+    Ls(QueueList),
+}
+
+#[derive(Debug, StructOpt)]
+struct QueueList {
+    #[structopt(long)]
+    all: bool,
 }
 
 async fn run() -> Result<()> {
@@ -58,11 +71,15 @@ async fn run() -> Result<()> {
     match args.subcommand {
         SubCommand::Status => {
             for worker in client.list_workers().await? {
-                let label = format!("{:?} ({})", worker.key, worker.addr);
-                println!("{:-30} => {:?}", label, worker.status);
+                let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
+                let status = if let Some(status) = worker.status {
+                    format!("{:?}", status).bold()
+                } else {
+                    "idle".blue()
+                };
+                println!("{:-40} => {}", label, status);
             }
         },
-        SubCommand::Queue => (),
         SubCommand::Pkgs(Pkgs::Sync(sync)) => {
             let pkgs = match sync.distro {
                 Distro::Archlinux => schedule::archlinux::sync(&sync.suite, &sync.source).await?,
@@ -84,6 +101,7 @@ async fn run() -> Result<()> {
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {
                 name: ls.name,
+                status: ls.status,
                 distro: ls.distro,
                 suite: ls.suite,
                 architecture: ls.architecture,
@@ -103,6 +121,37 @@ async fn run() -> Result<()> {
                     pkg.suite,
                     pkg.architecture,
                     pkg.url,
+                );
+            }
+        },
+        SubCommand::Queue(Queue::Ls(ls)) => {
+            let mut pkgs = client.list_queue(&ListQueue {
+            }).await?;
+
+            if !ls.all {
+                pkgs.truncate(25);
+            }
+
+            for q in pkgs {
+                let pkg = q.package;
+
+                let started_at = if let Some(started_at) = q.started_at {
+                    started_at.format("%Y-%m-%d %H:%M:%S").to_string()
+                } else {
+                    String::new()
+                };
+                let pkg_str = format!("{} {}",
+                    pkg.name.bold(),
+                    pkg.version,
+                );
+
+                println!("{} {:-60} {:19} {:?} {:?} {:?}",
+                    q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
+                    pkg_str,
+                    started_at,
+                    pkg.distro,
+                    pkg.suite,
+                    pkg.architecture,
                 );
             }
         },

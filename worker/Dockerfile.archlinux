@@ -1,0 +1,13 @@
+FROM archlinux
+WORKDIR /usr/src/rebuilderd
+RUN pacman -Suy cargo
+COPY . .
+RUN cd worker; cargo build --release
+
+FROM archlinux
+ENV HTTP_ADDR=0.0.0.0:8080
+#RUN apk add --no-cache libgcc openssl
+COPY --from=0 \
+    /usr/src/rebuilderd/target/release/rebuilderd-worker \
+    /usr/local/bin/
+CMD ["rebuilderd"]

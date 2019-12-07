@@ -20,22 +20,6 @@ pub async fn list_workers(
     web::Json(workers)
 }
 
-#[post("/api/v0/job/fetch")]
-pub async fn fetch_work(
-    req: HttpRequest,
-    query: web::Json<WorkQuery>,
-    pool: web::Data<Pool>,
-) -> impl Responder {
-    let connection = pool.get().unwrap();
-    let status = None;
-
-    let ci = req.peer_addr().expect("can't determine client ip");
-    let worker = models::NewWorker::new(query.into_inner(), ci.ip(), status);
-    worker.insert(connection.as_ref()).unwrap();
-
-    web::Json(JobAssignment::Nothing)
-}
-
 use diesel::SqliteConnection;
 
 fn run_sync(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()> {
@@ -77,6 +61,9 @@ fn run_sync(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()
         }
     }
 
+    // TODO: consider starting a transaction here
+    let mut queue = Vec::<i32>::new();
+
     info!("new packages: {:?}", new_pkgs.len());
     let new_pkgs = new_pkgs.into_iter()
         .map(|(_, v)| models::NewPackage::from_api(import.distro, v))
@@ -84,18 +71,34 @@ fn run_sync(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()
     for pkgs in new_pkgs.chunks(1_000) {
         debug!("new: {:?}", pkgs.len());
         models::NewPackage::insert_batch(pkgs, connection)?;
+
+
+        // this is needed because diesel doesn't return ids when inserting into sqlite
+        // this is obviously slow and needs to be refactored
+        for pkg in pkgs {
+            let pkg = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, &pkg.architecture, connection)?;
+            queue.push(pkg.id);
+        }
     }
 
     info!("updated_pkgs packages: {:?}", updated_pkgs.len());
     for (_, pkg) in updated_pkgs {
         debug!("update: {:?}", pkg);
         pkg.update(connection)?;
+        queue.push(pkg.id);
     }
 
     info!("deleted packages: {:?}", deleted_pkgs.len());
     for (_, pkg) in deleted_pkgs {
         debug!("delete: {:?}", pkg);
         models::Package::delete(pkg.id, connection)?;
+    }
+
+    info!("queueing new jobs");
+    // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
+    for pkgs in queue.chunks(1_000) {
+        debug!("queue: {:?}", pkgs.len());
+        models::Queued::queue_batch(pkgs, connection)?;
     }
     info!("successfully updated state");
 
@@ -125,9 +128,9 @@ fn opt_filter(this: &String, filter: &Option<String>) -> bool {
     false
 }
 
-#[post("/api/v0/pkgs/list")]
+#[get("/api/v0/pkgs/list")]
 pub async fn list_pkgs(
-    query: web::Json<ListPkgs>,
+    query: web::Query<ListPkgs>,
     pool: web::Data<Pool>,
 ) -> impl Responder {
     let connection = pool.get().unwrap();
@@ -135,6 +138,9 @@ pub async fn list_pkgs(
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref()).unwrap() {
         if opt_filter(&pkg.name, &query.name) {
+            continue;
+        }
+        if opt_filter(&pkg.status, &query.status) {
             continue;
         }
         if opt_filter(&pkg.distro, &query.distro) {
@@ -161,4 +167,80 @@ pub async fn list_pkgs(
     }
 
     web::Json(pkgs)
+}
+
+#[post("/api/v0/queue/list")]
+pub async fn list_queue(
+    _query: web::Json<ListQueue>,
+    pool: web::Data<Pool>,
+) -> impl Responder {
+    let connection = pool.get().unwrap();
+    let queue = models::Queued::list(connection.as_ref()).unwrap();
+    let queue: Vec<QueueItem> = queue.into_iter()
+        .map(|x| x.into_api_item(connection.as_ref()))
+        .collect::<Result<_>>().unwrap();
+    web::Json(queue)
+}
+
+#[post("/api/v0/queue/pop")]
+pub async fn pop_queue(
+    req: HttpRequest,
+    query: web::Json<WorkQuery>,
+    pool: web::Data<Pool>,
+) -> impl Responder {
+    let connection = pool.get().unwrap();
+    let ci = req.peer_addr().expect("can't determine client ip");
+
+    // TODO: determine worker id
+    let worker_id = 1;
+
+    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker_id, connection.as_ref()).unwrap() {
+
+
+        // TODO: claim item correctly
+
+
+        let status = format!("working hard on {} {}", item.package.name, item.package.version);
+        (JobAssignment::Rebuild(item), Some(status))
+    } else {
+        (JobAssignment::Nothing, None)
+    };
+
+    let worker = models::NewWorker::new(query.into_inner(), ci.ip(), status);
+    worker.insert(connection.as_ref()).unwrap();
+
+    web::Json(resp)
+}
+
+#[post("/api/v0/build/ping")]
+pub async fn ping_build(
+    item: web::Json<QueueItem>,
+    pool: web::Data<Pool>,
+) -> impl Responder {
+    let connection = pool.get().unwrap();
+
+    let mut item = models::Queued::get_id(item.id, connection.as_ref()).unwrap();
+    item.ping_job(connection.as_ref()).unwrap();
+
+    web::Json(())
+}
+
+#[post("/api/v0/build/report")]
+pub async fn report_build(
+    report: web::Json<BuildReport>,
+    pool: web::Data<Pool>,
+) -> impl Responder {
+    let connection = pool.get().unwrap();
+
+    let mut pkg = models::Package::get_by_api(&report.pkg, connection.as_ref()).unwrap();
+    let status = match report.status {
+        BuildStatus::Good => Status::Good,
+        _ => Status::Bad,
+    };
+    pkg.update_status_safely(status, connection.as_ref()).unwrap();
+
+    // TODO: remove package from queue
+    // TODO: set worker idle(?)
+
+    web::Json(())
 }

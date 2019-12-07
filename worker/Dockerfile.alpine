@@ -8,7 +8,7 @@ RUN cd tools; cargo build --release
 
 FROM alpine:3.10
 ENV HTTP_ADDR=0.0.0.0:8080
-RUN apk add --no-cache libgcc openssl dpkg
+RUN apk add --no-cache libgcc openssl
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd \
     /usr/src/rebuilderd/target/release/rebuildctl \

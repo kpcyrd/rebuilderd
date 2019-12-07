@@ -5,20 +5,21 @@ services:
     build: .
     ports:
     - 127.0.0.1:8080:8080
-  archlinux-worker:
-    build: worker/
-
-  db:
-    image: postgres:12-alpine
-    ports:
-    - 127.0.0.1:5432:5432
-    environment:
-    - POSTGRES_DB=ghost
-  smtp:
+  worker-alpine:
     build:
       context: .
-      dockerfile: smtp/Dockerfile
-  api:
+      dockerfile: worker/Dockerfile.alpine
+    env:
+    - REBUILDER_ADDR=http://daemon:8080
+  worker-archlinux:
     build:
       context: .
-      dockerfile: api/Dockerfile
+      dockerfile: worker/Dockerfile.archlinux
+    env:
+    - REBUILDER_ADDR=http://daemon:8080
+  worker-debian:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile.debian
+    env:
+    - REBUILDER_ADDR=http://daemon:8080

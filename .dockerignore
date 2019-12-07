@@ -1,0 +1,7 @@
+Dockerfile
+.dockerignore
+.gitignore
+target/
+worker/build
+worker/cache
+daemon/rebuilderd.db*

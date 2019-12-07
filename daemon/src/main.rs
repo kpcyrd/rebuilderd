@@ -56,11 +56,13 @@ fn run() -> Result<()> {
         App::new()
             .data(pool.clone())
             .service(api::list_workers)
-            .service(api::fetch_work)
             .service(api::list_pkgs)
-            // .service(api::sync_work)
+            .service(api::list_queue)
+            .service(api::pop_queue)
+            .service(api::ping_build)
+            .service(api::report_build)
             .service(
-                web::resource("/api/v0/job/sync").data(
+                web::resource("/api/v0/pkgs/sync").data(
                     // change json extractor configuration
                     web::Json::<SuiteImport>::configure(|cfg| {
                         cfg.limit(256 * 1024 * 1024)
