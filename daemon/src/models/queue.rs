@@ -66,19 +66,6 @@ impl Queued {
         self.update(connection)
     }
 
-    pub fn free_stale_jobs(connection: &SqliteConnection) -> Result<()> {
-        use crate::schema::queue::columns::*;
-
-        let now = Utc::now().naive_utc();
-        let deadline = now - Duration::seconds(PING_DEADLINE);
-
-        diesel::update(queue::table.filter(last_ping.lt(deadline)))
-            .set(worker_id.eq(Option::<i32>::None))
-            .execute(connection)?;
-
-        Ok(())
-    }
-
     pub fn delete(&self, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::queue::columns::*;
         diesel::delete(queue::table
@@ -128,6 +115,21 @@ impl Queued {
     pub fn requeue(&self, connection: &SqliteConnection) -> Result<()> {
         diesel::update(queue::table)
             .filter(queue::id.eq(self.id))
+            .set((
+                queue::worker_id.eq(Option::<i32>::None),
+                queue::started_at.eq(Option::<NaiveDateTime>::None),
+                queue::last_ping.eq(Option::<NaiveDateTime>::None),
+            ))
+            .execute(connection)?;
+
+        Ok(())
+    }
+
+    pub fn free_stale_jobs(connection: &SqliteConnection) -> Result<()> {
+        let now = Utc::now().naive_utc();
+        let deadline = now - Duration::seconds(PING_DEADLINE);
+
+        diesel::update(queue::table.filter(queue::last_ping.lt(deadline)))
             .set((
                 queue::worker_id.eq(Option::<i32>::None),
                 queue::started_at.eq(Option::<NaiveDateTime>::None),
