@@ -9,17 +9,17 @@ services:
     build:
       context: .
       dockerfile: worker/Dockerfile.alpine
-    env:
+    environment:
     - REBUILDER_ADDR=http://daemon:8080
   worker-archlinux:
     build:
       context: .
       dockerfile: worker/Dockerfile.archlinux
-    env:
+    environment:
     - REBUILDER_ADDR=http://daemon:8080
   worker-debian:
     build:
       context: .
       dockerfile: worker/Dockerfile.debian
-    env:
+    environment:
     - REBUILDER_ADDR=http://daemon:8080

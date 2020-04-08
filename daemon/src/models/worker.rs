@@ -1,8 +1,10 @@
 use crate::schema::*;
 use rebuilderd_common::api;
+use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
 use diesel::prelude::*;
 use chrono::prelude::*;
+use chrono::Duration;
 use serde::{Serialize, Deserialize};
 use std::net::IpAddr;
 
@@ -32,6 +34,25 @@ impl Worker {
         let results = workers.filter(online.eq(true))
             .load::<Worker>(connection)?;
         Ok(results)
+    }
+
+    pub fn mark_stale_workers_offline(connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::workers::columns::*;
+
+        let now = Utc::now().naive_utc();
+        let deadline = now - Duration::seconds(PING_DEADLINE);
+
+        diesel::update(workers::table.filter(last_ping.lt(deadline)))
+            .set(online.eq(false))
+            // TODO: set status to None
+            .execute(connection)?;
+        Ok(())
+    }
+
+    pub fn bump_last_ping(&mut self) {
+        let now = Utc::now().naive_utc();
+        self.last_ping = now;
+        self.online = true;
     }
 
     pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
@@ -65,27 +86,27 @@ pub struct NewWorker {
     pub online: bool,
 }
 
-
 impl NewWorker {
     pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
+        /*
         if let Some(mut worker) = Worker::get(&self.key, connection)? {
             worker.status = self.status.clone();
             worker.last_ping = self.last_ping;
             worker.online = true;
             return worker.update(connection);
         }
-
+        */
         diesel::insert_into(workers::table)
             .values(self)
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn new(query: api::WorkQuery, addr: IpAddr, status: Option<String>) -> NewWorker {
+    pub fn new(key: String, addr: IpAddr, status: Option<String>) -> NewWorker {
         let now: DateTime<Utc> = Utc::now();
 
         NewWorker {
-            key: query.key,
+            key,
             addr: addr.to_string(),
             status,
             last_ping: now.naive_utc(),

@@ -17,8 +17,8 @@ CREATE TABLE queue (
     worker_id INTEGER,
     started_at DATETIME,
     last_ping DATETIME,
-    FOREIGN KEY(package_id) REFERENCES packages(id),
-    FOREIGN KEY(worker_id) REFERENCES workers(id),
+    FOREIGN KEY(package_id) REFERENCES packages(id) ON DELETE CASCADE,
+    FOREIGN KEY(worker_id) REFERENCES workers(id) ON DELETE SET NULL,
     CONSTRAINT queue_unique UNIQUE (package_id)
 );
 

@@ -1,13 +1,12 @@
 FROM rust:buster
 WORKDIR /usr/src/rebuilderd
-#RUN apk add --no-cache musl-dev openssl-dev
+RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
 COPY . .
 RUN cd worker; cargo build --release
 
 FROM debian:buster
-ENV HTTP_ADDR=0.0.0.0:8080
-#RUN apk add --no-cache libgcc openssl
+RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd-worker \
     /usr/local/bin/
-ENTRYPOINT ["rebuilderd-worker"]
+CMD ["rebuilderd-worker"]

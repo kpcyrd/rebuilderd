@@ -1,9 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -xe
-N=2
-wget -O /dev/null -- "$1"
-for x in `seq $N`; do
-    echo "pretending to build $x/$N ..."
-    sleep 10
-done
-exit 1
+dir=$(mktemp -dt rebuild.XXXXXXXXXX)
+trap 'rm -r "$dir"' EXIT
+wget -P "${dir}" -- "${1}"
+file=$(basename "${1}")
+repro -- "${dir}/${file}"

@@ -1,7 +1,9 @@
 use crate::schema::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::config::*;
 use diesel::prelude::*;
 use chrono::prelude::*;
+use chrono::Duration;
 use serde::{Serialize, Deserialize};
 use rebuilderd_common::api::QueueItem;
 use crate::models::Package;
@@ -63,12 +65,46 @@ impl Queued {
         self.update(connection)
     }
 
-    pub fn list(connection: &SqliteConnection) -> Result<Vec<Queued>> {
+    pub fn free_stale_jobs(connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::queue::columns::*;
+
+        let now = Utc::now().naive_utc();
+        let deadline = now - Duration::seconds(PING_DEADLINE);
+
+        // TODO: figure out how to set to null
+        /*
+        diesel::update(queue::table.filter(last_ping.lt(deadline)))
+            .set(worker_id.null())
+            .execute(connection)?;
+        */
+
+        Ok(())
+    }
+
+    pub fn delete(&self, connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::queue::columns::*;
+        diesel::delete(queue::table
+            .filter(id.eq(self.id))
+        ).execute(connection)?;
+        Ok(())
+    }
+
+    pub fn list(limit: Option<i64>, connection: &SqliteConnection) -> Result<Vec<Queued>> {
         use crate::schema::queue::dsl::*;
-        let results = queue
+
+        let query = Box::new(queue
             .filter(worker_id.is_null())
-            .order_by((queued_at, id))
-            .load::<Queued>(connection)?;
+            .order_by((queued_at, id)));
+
+        let results = if let Some(limit) = limit {
+            query
+                .limit(limit)
+                .load::<Queued>(connection)?
+        } else {
+            query
+                .load::<Queued>(connection)?
+        };
+
         Ok(results)
     }
 

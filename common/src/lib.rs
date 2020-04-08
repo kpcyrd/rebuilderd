@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 
 pub mod api;
+pub mod config;
 pub mod errors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]

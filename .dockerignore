@@ -1,7 +1,10 @@
 Dockerfile
+worker/Dockerfile*
 .dockerignore
+.git
 .gitignore
 target/
 worker/build
 worker/cache
 daemon/rebuilderd.db*
+contrib

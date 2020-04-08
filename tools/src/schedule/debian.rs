@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use rebuilderd_common::PkgRelease;
 use rebuilderd_common::Distro;
 use crate::schedule::url_or_path;
+use crate::PkgsSync;
 
 // TODO: support more archs
 pub fn any_architectures() -> Vec<String> {
@@ -21,6 +22,7 @@ pub struct Pkg {
     version: String,
     directory: String,
     architecture: String,
+    uploaders: Vec<String>,
 }
 
 impl Pkg {
@@ -33,6 +35,20 @@ impl Pkg {
 
         Ok(directory.to_string())
     }
+
+    fn from_maintainer(&self, maintainer: &Option<String>) -> bool {
+        if let Some(maintainer) = &maintainer {
+            for uploader in &self.uploaders {
+                if uploader.starts_with(maintainer) {
+                    return true;
+                }
+            }
+
+            false
+        } else {
+            true
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -42,6 +58,7 @@ pub struct NewPkg {
     version: Option<String>,
     directory: Option<String>,
     architecture: Option<String>,
+    uploaders: Vec<String>,
     // skip everything that has this set
     extra_source_only: bool,
 }
@@ -57,6 +74,7 @@ impl TryInto<Pkg> for NewPkg {
             version: self.version.ok_or_else(|| format_err!("Missing version field"))?,
             directory: self.directory.ok_or_else(|| format_err!("Missing directory field"))?,
             architecture: self.architecture.ok_or_else(|| format_err!("Missing architecture field"))?,
+            uploaders: self.uploaders,
         })
     }
 }
@@ -89,6 +107,13 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
                 "Version" => pkg.version = Some(b[2..].to_string()),
                 "Directory" => pkg.directory = Some(b[2..].to_string()),
                 "Architecture" => pkg.architecture = Some(b[2..].to_string()),
+                "Uploaders" => {
+                    let mut uploaders = Vec::new();
+                    for uploader in b[2..].split(", ") {
+                        uploaders.push(uploader.to_string());
+                    }
+                    pkg.uploaders = uploaders;
+                },
                 "Extra-Source-Only" => if &b[2..] == "yes" {
                     pkg.extra_source_only = true;
                 },
@@ -115,13 +140,17 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
     }
 }
 
-pub async fn sync(suite: &str, file: &str) -> Result<Vec<PkgRelease>> {
+pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     let client = reqwest::Client::new();
-    let bytes = url_or_path(&client, file).await?;
+    let bytes = url_or_path(&client, &sync.source).await?;
 
     info!("Decompressing...");
     let mut pkgs = Vec::new();
     for pkg in extract_pkgs(&bytes)? {
+        if !pkg.from_maintainer(&sync.maintainer) {
+            continue;
+        }
+
         let directory = pkg.buildinfo_path()?;
         for bin in &pkg.binary {
             for arch in expand_architectures(&pkg.architecture)? {
@@ -136,7 +165,7 @@ pub async fn sync(suite: &str, file: &str) -> Result<Vec<PkgRelease>> {
                     version: pkg.version.to_string(),
                     status: Status::Unknown,
                     distro: Distro::Debian.to_string(),
-                    suite: suite.to_string(),
+                    suite: sync.suite.to_string(),
                     architecture: arch,
                     url,
                 });
@@ -146,16 +175,3 @@ pub async fn sync(suite: &str, file: &str) -> Result<Vec<PkgRelease>> {
 
     Ok(pkgs)
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_filename_to_buildinfo() {
-        let x = filename_to_buildinfo("pool/main/z/zzzeeksphinx/python3-zzzeeksphinx_1.0.20-3_all.deb").unwrap();
-        assert_eq!(x, "https://buildinfos.debian.net/buildinfo-pool/z/zzzeeksphinx/zzzeeksphinx_1.0.20-3_all.buildinfo");
-    }
-}
-*/

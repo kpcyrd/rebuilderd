@@ -1,13 +1,12 @@
 FROM archlinux
 WORKDIR /usr/src/rebuilderd
-RUN pacman -Suy cargo
+RUN pacman -Suy --noconfirm gcc cargo openssl libsodium
 COPY . .
 RUN cd worker; cargo build --release
 
 FROM archlinux
-ENV HTTP_ADDR=0.0.0.0:8080
-#RUN apk add --no-cache libgcc openssl
+RUN pacman -Suy --noconfirm archlinux-repro openssl libsodium
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd-worker \
     /usr/local/bin/
-CMD ["rebuilderd"]
+CMD ["rebuilderd-worker"]

@@ -1,5 +1,6 @@
 use env_logger::Env;
 use structopt::StructOpt;
+use structopt::clap::AppSettings;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::thread;
@@ -7,10 +8,16 @@ use std::time::Duration;
 use rebuilderd_common::Distro;
 use std::process::Command;
 use std::sync::mpsc;
+use rebuilderd_common::config::*;
+use std::path::PathBuf;
+
+pub mod home;
 
 #[derive(Debug, StructOpt)]
-//#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+#[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
+    #[structopt(short="H")]
+    pub home_dir: Option<PathBuf>,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
 }
@@ -31,7 +38,6 @@ struct Build {
 
 #[derive(Debug, StructOpt)]
 struct Connect {
-    pub key: String,
     pub endpoint: String,
 }
 
@@ -49,11 +55,11 @@ fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
     Ok(status.success())
 }
 
-async fn heartbeat_rebuild(client: &Client, distro: &Distro, input: &str) -> Result<bool> {
+async fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
     let (tx, rx) = mpsc::channel();
     let t = {
         let distro = distro.clone();
-        let input = input.to_string();
+        let input = item.package.url.to_string();
         thread::spawn(move || {
             let res = rebuild(&distro, &input);
             tx.send(res).ok();
@@ -61,13 +67,10 @@ async fn heartbeat_rebuild(client: &Client, distro: &Distro, input: &str) -> Res
     };
 
     let result = loop {
-        if let Ok(result) = rx.recv_timeout(Duration::from_secs(60)) {
+        if let Ok(result) = rx.recv_timeout(Duration::from_secs(PING_INTERVAL)) {
             break result?;
         }
-        // TODO: this should be some kind of ticket for authentication
-        let ticket = BuildTicket {
-        };
-        if let Err(err) = client.ping_build(&ticket).await {
+        if let Err(err) = client.ping_build(item).await {
             warn!("Failed to ping: {}", err);
         }
     };
@@ -79,22 +82,23 @@ async fn heartbeat_rebuild(client: &Client, distro: &Distro, input: &str) -> Res
 async fn run() -> Result<()> {
     let args = Args::from_args();
 
-    let client = Client::new();
     match args.subcommand {
         SubCommand::Connect(connect) => {
+            let profile = home::load(args.home_dir)?;
+
+            let client = profile.new_client(connect.endpoint);
             loop {
                 info!("requesting work");
                 match client.pop_queue(&WorkQuery {
-                    key: connect.key.clone(),
                 }).await {
                     Ok(JobAssignment::Nothing) => {
                         info!("no pending tasks, sleeping...");
-                        thread::sleep(Duration::from_secs(60 * 10));
+                        thread::sleep(Duration::from_secs(IDLE_DELAY));
                     },
                     Ok(JobAssignment::Rebuild(rb)) => {
                         info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
                         let distro = rb.package.distro.parse::<Distro>()?;
-                        let status = match heartbeat_rebuild(&client, &distro, &rb.package.url).await {
+                        let status = match heartbeat_rebuild(&client, &distro, &rb).await {
                             Ok(res) => {
                                 if res {
                                     info!("Package successfully verified");
@@ -110,16 +114,17 @@ async fn run() -> Result<()> {
                             },
                         };
                         let report = BuildReport {
-                            pkg: rb.package,
+                            queue: rb,
                             status,
                         };
                         client.report_build(&report).await?;
                     },
                     Err(err) => {
                         error!("failed to query for work: {}", err);
+                        thread::sleep(Duration::from_secs(API_ERROR_DELAY));
                     },
                 }
-                thread::sleep(Duration::from_secs(5));
+                thread::sleep(Duration::from_secs(WORKER_DELAY));
             }
         },
         SubCommand::Build(_) => (),

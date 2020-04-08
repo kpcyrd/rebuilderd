@@ -2,23 +2,48 @@ use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease};
+use reqwest::RequestBuilder;
+
+pub const WORKER_HEADER: &str = "X-Worker-Key";
 
 pub struct Client {
-    endpoint: &'static str,
+    endpoint: String,
     client: reqwest::Client,
+    worker_key: Option<String>,
 }
 
 impl Client {
-    pub fn new() -> Client {
+    pub fn new(endpoint: String) -> Client {
         let client = reqwest::Client::new();
         Client {
-            endpoint: "http://127.0.0.1:8080",
+            endpoint,
             client,
+            worker_key: None,
         }
     }
 
+    pub fn worker_key<I: Into<String>>(&mut self, key: I) {
+        self.worker_key = Some(key.into());
+    }
+
+    pub fn get(&self, path: &'static str) -> RequestBuilder {
+        let mut req = self.client.get(&format!("{}{}", self.endpoint, path));
+        if let Some(worker_key) = &self.worker_key {
+            req = req.header(WORKER_HEADER, worker_key);
+        }
+        req
+    }
+
+    pub fn post(&self, path: &'static str) -> RequestBuilder {
+        let mut req = self.client.post(&format!("{}{}", self.endpoint, path));
+        if let Some(worker_key) = &self.worker_key {
+            req = req.header(WORKER_HEADER, worker_key);
+        }
+        req
+    }
+
     pub async fn list_workers(&self) -> Result<Vec<Worker>> {
-        let workers = self.client.get(&format!("{}/api/v0/workers", self.endpoint))
+        let workers = self.get("/api/v0/workers")
             .send()
             .await?
             .error_for_status()?
@@ -29,7 +54,7 @@ impl Client {
     }
 
     pub async fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
-        self.client.post(&format!("{}/api/v0/pkgs/sync", self.endpoint))
+        self.post("/api/v0/pkgs/sync")
             .json(import)
             .send()
             .await?
@@ -38,7 +63,7 @@ impl Client {
     }
 
     pub async fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
-        let pkgs = self.client.get(&format!("{}/api/v0/pkgs/list", self.endpoint))
+        let pkgs = self.get("/api/v0/pkgs/list")
             .query(list)
             .send()
             .await?
@@ -49,7 +74,7 @@ impl Client {
     }
 
     pub async fn list_queue(&self, list: &ListQueue) -> Result<Vec<QueueItem>> {
-        let pkgs = self.client.post(&format!("{}/api/v0/queue/list", self.endpoint))
+        let pkgs = self.post("/api/v0/queue/list")
             .json(list)
             .send()
             .await?
@@ -60,7 +85,7 @@ impl Client {
     }
 
     pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
-        let assignment = self.client.post(&format!("{}/api/v0/queue/pop", self.endpoint))
+        let assignment = self.post("/api/v0/queue/pop")
             .json(query)
             .send()
             .await?
@@ -70,8 +95,8 @@ impl Client {
         Ok(assignment)
     }
 
-    pub async fn ping_build(&self, ticket: &BuildTicket) -> Result<()> {
-        self.client.post(&format!("{}/api/v0/build/ping", self.endpoint))
+    pub async fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
+        self.post("/api/v0/build/ping")
             .json(ticket)
             .send()
             .await?
@@ -80,7 +105,7 @@ impl Client {
     }
 
     pub async fn report_build(&self, ticket: &BuildReport) -> Result<()> {
-        self.client.post(&format!("{}/api/v0/build/report", self.endpoint))
+        self.post("/api/v0/build/report")
             .json(ticket)
             .send()
             .await?
@@ -103,10 +128,8 @@ pub struct Worker {
     pub online: bool,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorkQuery {
-    pub key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -144,10 +167,7 @@ pub struct QueueItem {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListQueue {
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BuildTicket {
+    pub limit: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -159,6 +179,6 @@ pub enum BuildStatus {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
-    pub pkg: PkgRelease,
+    pub queue: QueueItem,
     pub status: BuildStatus,
 }

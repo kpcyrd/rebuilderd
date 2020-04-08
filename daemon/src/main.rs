@@ -2,45 +2,17 @@
 #[macro_use] extern crate diesel_migrations;
 
 use env_logger::Env;
-// use structopt::StructOpt;
 use rebuilderd_common::errors::*;
 use actix_web::{web, App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
 use rebuilderd_common::api::SuiteImport;
 
-mod api;
-mod db;
-mod schema;
-mod models;
-mod versions;
-
-/*
-#[derive(Debug, StructOpt)]
-//#[structopt(global_settings = &[AppSettings::ColoredHelp])]
-struct Args {
-    #[structopt(subcommand)]
-    pub subcommand: SubCommand,
-}
-
-#[derive(Debug, StructOpt)]
-enum SubCommand {
-    /// Rebuild an individual package
-    Build(Build),
-    /// Connect to a central rebuilderd daemon for work
-    Connect(Connect),
-}
-
-#[derive(Debug, StructOpt)]
-struct Build {
-    pub distro: rebuilderd_common::Distro,
-    pub inputs: Vec<String>,
-}
-
-#[derive(Debug, StructOpt)]
-struct Connect {
-    pub endpoint: String,
-}
-*/
+pub mod api;
+pub mod db;
+pub mod schema;
+pub mod sync;
+pub mod models;
+pub mod versions;
 
 async fn run() -> Result<()> {
     dotenv::dotenv().ok();

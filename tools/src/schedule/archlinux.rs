@@ -6,6 +6,7 @@ use rebuilderd_common::PkgRelease;
 use rebuilderd_common::Distro;
 use rebuilderd_common::Status;
 use crate::schedule::url_or_path;
+use crate::PkgsSync;
 
 #[derive(Debug)]
 pub struct Pkg {
@@ -13,6 +14,17 @@ pub struct Pkg {
     filename: String,
     version: String,
     architecture: String,
+    packager: String,
+}
+
+impl Pkg {
+    fn from_maintainer(&self, maintainer: &Option<String>) -> bool {
+        if let Some(maintainer) = &maintainer {
+            self.packager.starts_with(maintainer)
+        } else {
+            true
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -21,6 +33,7 @@ pub struct NewPkg {
     filename: Vec<String>,
     version: Vec<String>,
     architecture: Vec<String>,
+    packager: Vec<String>,
 }
 
 use std::convert::TryInto;
@@ -33,6 +46,7 @@ impl TryInto<Pkg> for NewPkg {
             filename: self.filename.get(0).ok_or_else(|| format_err!("Missing filename field"))?.to_string(),
             version: self.version.get(0).ok_or_else(|| format_err!("Missing version field"))?.to_string(),
             architecture: self.architecture.get(0).ok_or_else(|| format_err!("Missing architecture field"))?.to_string(),
+            packager: self.packager.get(0).ok_or_else(|| format_err!("Missing packager field"))?.to_string(),
         })
     }
 }
@@ -75,6 +89,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
                     "%NAME%" => pkg.name = values,
                     "%VERSION%" => pkg.version = values,
                     "%ARCH%" => pkg.architecture = values,
+                    "%PACKAGER%" => pkg.packager = values,
                     _ => (),
                 }
             }
@@ -86,23 +101,27 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
     Ok(pkgs)
 }
 
-pub async fn sync(suite: &str, file: &str) -> Result<Vec<PkgRelease>> {
+pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     let client = reqwest::Client::new();
-    let bytes = url_or_path(&client, file).await?;
+    let bytes = url_or_path(&client, &sync.source).await?;
 
     info!("Parsing index...");
     let mut pkgs = Vec::new();
     for pkg in extract_pkgs(&bytes)? {
+        if !pkg.from_maintainer(&sync.maintainer) {
+            continue;
+        }
+
         let url = format!("https://mirrors.kernel.org/archlinux/{}/os/{}/{}",
-            suite,
-            pkg.architecture,
+            sync.suite,
+            sync.architecture,
             pkg.filename);
         pkgs.push(PkgRelease {
             name: pkg.name,
             version: pkg.version,
             status: Status::Unknown,
             distro: Distro::Archlinux.to_string(),
-            suite: suite.to_string(),
+            suite: sync.suite.to_string(),
             architecture: pkg.architecture,
             url,
         });

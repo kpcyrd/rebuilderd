@@ -30,9 +30,11 @@ enum Pkgs {
 }
 
 #[derive(Debug, StructOpt)]
-struct PkgsSync {
+pub struct PkgsSync {
     #[structopt(long="print-json")]
     pub print_json: bool,
+    #[structopt(long)]
+    pub maintainer: Option<String>,
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,
@@ -67,7 +69,7 @@ struct QueueList {
 async fn run() -> Result<()> {
     let args = Args::from_args();
 
-    let client = Client::new();
+    let client = Client::new("http://127.0.0.1:8080".into());
     match args.subcommand {
         SubCommand::Status => {
             for worker in client.list_workers().await? {
@@ -82,8 +84,8 @@ async fn run() -> Result<()> {
         },
         SubCommand::Pkgs(Pkgs::Sync(sync)) => {
             let pkgs = match sync.distro {
-                Distro::Archlinux => schedule::archlinux::sync(&sync.suite, &sync.source).await?,
-                Distro::Debian => schedule::debian::sync(&sync.suite, &sync.source).await?,
+                Distro::Archlinux => schedule::archlinux::sync(&sync).await?,
+                Distro::Debian => schedule::debian::sync(&sync).await?,
             };
 
             if sync.print_json {
@@ -125,12 +127,14 @@ async fn run() -> Result<()> {
             }
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
-            let mut pkgs = client.list_queue(&ListQueue {
+            let limit = if !ls.all {
+                Some(25)
+            } else {
+                None
+            };
+            let pkgs = client.list_queue(&ListQueue {
+                limit,
             }).await?;
-
-            if !ls.all {
-                pkgs.truncate(25);
-            }
 
             for q in pkgs {
                 let pkg = q.package;
