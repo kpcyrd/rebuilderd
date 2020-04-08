@@ -58,21 +58,32 @@ struct PkgsList {
 #[derive(Debug, StructOpt)]
 enum Queue {
     Ls(QueueList),
+    Push(QueuePush)
 }
 
 #[derive(Debug, StructOpt)]
 struct QueueList {
     #[structopt(long)]
-    all: bool,
+    head: bool,
 }
 
-async fn run() -> Result<()> {
+#[derive(Debug, StructOpt)]
+struct QueuePush {
+    distro: String,
+    suite: String,
+    architecture: String,
+
+    name: String,
+    version: Option<String>,
+}
+
+fn run() -> Result<()> {
     let args = Args::from_args();
 
     let client = Client::new("http://127.0.0.1:8080".into());
     match args.subcommand {
         SubCommand::Status => {
-            for worker in client.list_workers().await? {
+            for worker in client.list_workers()? {
                 let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
@@ -84,8 +95,8 @@ async fn run() -> Result<()> {
         },
         SubCommand::Pkgs(Pkgs::Sync(sync)) => {
             let pkgs = match sync.distro {
-                Distro::Archlinux => schedule::archlinux::sync(&sync).await?,
-                Distro::Debian => schedule::debian::sync(&sync).await?,
+                Distro::Archlinux => schedule::archlinux::sync(&sync)?,
+                Distro::Debian => schedule::debian::sync(&sync)?,
             };
 
             if sync.print_json {
@@ -97,7 +108,7 @@ async fn run() -> Result<()> {
                     suite: sync.suite,
                     architecture: sync.architecture,
                     pkgs,
-                }).await?;
+                })?;
             }
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
@@ -107,7 +118,7 @@ async fn run() -> Result<()> {
                 distro: ls.distro,
                 suite: ls.suite,
                 architecture: ls.architecture,
-            }).await?;
+            })?;
             for pkg in pkgs {
                 let status_str = format!("[{}]", pkg.status.fancy()).bold();
 
@@ -127,14 +138,14 @@ async fn run() -> Result<()> {
             }
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
-            let limit = if !ls.all {
+            let limit = if ls.head {
                 Some(25)
             } else {
                 None
             };
             let pkgs = client.list_queue(&ListQueue {
                 limit,
-            }).await?;
+            })?;
 
             for q in pkgs {
                 let pkg = q.package;
@@ -159,17 +170,25 @@ async fn run() -> Result<()> {
                 );
             }
         },
+        SubCommand::Queue(Queue::Push(push)) => {
+            client.push_queue(&PushQueue {
+                name: push.name,
+                version: push.version,
+                distro: push.distro,
+                suite: push.suite,
+                architecture: push.architecture,
+            })?;
+        },
     }
 
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or("info"));
 
-    if let Err(err) = run().await {
+    if let Err(err) = run() {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);

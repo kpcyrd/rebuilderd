@@ -1,15 +1,13 @@
 use rebuilderd_common::errors::*;
-use reqwest::Client;
+use reqwest::blocking::Client;
 use std::fs;
 
-pub async fn url_or_path(client: &Client, path: &str) -> Result<Vec<u8>> {
+pub fn url_or_path(client: &Client, path: &str) -> Result<Vec<u8>> {
     let bytes = if path.starts_with("https://") || path.starts_with("http://") {
         info!("Downloading {:?}...", path);
         client.get(path)
-            .send()
-            .await?
-            .bytes()
-            .await?
+            .send()?
+            .bytes()?
             .to_vec()
     } else {
         info!("Reading {:?}...", path);

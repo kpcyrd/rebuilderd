@@ -135,9 +135,9 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
     }
 }
 
-pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
-    let client = reqwest::Client::new();
-    let bytes = url_or_path(&client, &sync.source).await?;
+pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
+    let client = reqwest::blocking::Client::new();
+    let bytes = url_or_path(&client, &sync.source)?;
 
     info!("Decompressing...");
     let mut pkgs = Vec::new();

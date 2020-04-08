@@ -91,7 +91,6 @@ impl Queued {
         use crate::schema::queue::dsl::*;
 
         let query = Box::new(queue
-            .filter(worker_id.is_null())
             .order_by((queued_at, id)));
 
         let results = if let Some(limit) = limit {

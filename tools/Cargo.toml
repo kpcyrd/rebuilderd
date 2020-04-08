@@ -10,7 +10,6 @@ edition = "2018"
 rebuilderd-common = { path="../common" }
 structopt = "0.3"
 env_logger = "0.7"
-tokio = { version="0.2", features=["macros"] }
 reqwest = { version="0.10.0", features=["json"] }
 chrono = { version = "0.4", features=["serde"] }
 rust-lzma = "0.5.1"

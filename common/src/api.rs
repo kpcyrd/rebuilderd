@@ -2,19 +2,19 @@ use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease};
-use reqwest::RequestBuilder;
+use reqwest::blocking::{Client as HttpClient, RequestBuilder};
 
 pub const WORKER_HEADER: &str = "X-Worker-Key";
 
 pub struct Client {
     endpoint: String,
-    client: reqwest::Client,
+    client: HttpClient,
     worker_key: Option<String>,
 }
 
 impl Client {
     pub fn new(endpoint: String) -> Client {
-        let client = reqwest::Client::new();
+        let client = HttpClient::new();
         Client {
             endpoint,
             client,
@@ -42,73 +42,71 @@ impl Client {
         req
     }
 
-    pub async fn list_workers(&self) -> Result<Vec<Worker>> {
+    pub fn list_workers(&self) -> Result<Vec<Worker>> {
         let workers = self.get("/api/v0/workers")
-            .send()
-            .await?
+            .send()?
             .error_for_status()?
-            .json()
-            .await?;
+            .json()?;
 
         Ok(workers)
     }
 
-    pub async fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
+    pub fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
         self.post("/api/v0/pkgs/sync")
             .json(import)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?;
         Ok(())
     }
 
-    pub async fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
+    pub fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
         let pkgs = self.get("/api/v0/pkgs/list")
             .query(list)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?
-            .json()
-            .await?;
+            .json()?;
         Ok(pkgs)
     }
 
-    pub async fn list_queue(&self, list: &ListQueue) -> Result<Vec<QueueItem>> {
+    pub fn list_queue(&self, list: &ListQueue) -> Result<Vec<QueueItem>> {
         let pkgs = self.post("/api/v0/queue/list")
             .json(list)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?
-            .json()
-            .await?;
+            .json()?;
         Ok(pkgs)
     }
 
-    pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
+    pub fn push_queue(&self, push: &PushQueue) -> Result<()> {
+        self.post("/api/v0/queue/push")
+            .json(push)
+            .send()?
+            .error_for_status()?
+            .json()?;
+        Ok(())
+    }
+
+    pub fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
         let assignment = self.post("/api/v0/queue/pop")
             .json(query)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?
-            .json()
-            .await?;
+            .json()?;
         Ok(assignment)
     }
 
-    pub async fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
+    pub fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
         self.post("/api/v0/build/ping")
             .json(ticket)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?;
         Ok(())
     }
 
-    pub async fn report_build(&self, ticket: &BuildReport) -> Result<()> {
+    pub fn report_build(&self, ticket: &BuildReport) -> Result<()> {
         self.post("/api/v0/build/report")
             .json(ticket)
-            .send()
-            .await?
+            .send()?
             .error_for_status()?;
         Ok(())
     }
@@ -168,6 +166,15 @@ pub struct QueueItem {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListQueue {
     pub limit: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PushQueue {
+    pub name: String,
+    pub version: Option<String>,
+    pub distro: String,
+    pub suite: String,
+    pub architecture: String, // TODO: what do we do if this is any?
 }
 
 #[derive(Debug, Serialize, Deserialize)]

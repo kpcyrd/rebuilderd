@@ -55,7 +55,7 @@ fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
     Ok(status.success())
 }
 
-async fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
+fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
     let (tx, rx) = mpsc::channel();
     let t = {
         let distro = distro.clone();
@@ -70,7 +70,7 @@ async fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -
         if let Ok(result) = rx.recv_timeout(Duration::from_secs(PING_INTERVAL)) {
             break result?;
         }
-        if let Err(err) = client.ping_build(item).await {
+        if let Err(err) = client.ping_build(item) {
             warn!("Failed to ping: {}", err);
         }
     };
@@ -79,7 +79,7 @@ async fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -
     Ok(result)
 }
 
-async fn run() -> Result<()> {
+fn run() -> Result<()> {
     let args = Args::from_args();
 
     match args.subcommand {
@@ -89,8 +89,7 @@ async fn run() -> Result<()> {
             let client = profile.new_client(connect.endpoint);
             loop {
                 info!("requesting work");
-                match client.pop_queue(&WorkQuery {
-                }).await {
+                match client.pop_queue(&WorkQuery {}) {
                     Ok(JobAssignment::Nothing) => {
                         info!("no pending tasks, sleeping...");
                         thread::sleep(Duration::from_secs(IDLE_DELAY));
@@ -98,7 +97,7 @@ async fn run() -> Result<()> {
                     Ok(JobAssignment::Rebuild(rb)) => {
                         info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
                         let distro = rb.package.distro.parse::<Distro>()?;
-                        let status = match heartbeat_rebuild(&client, &distro, &rb).await {
+                        let status = match heartbeat_rebuild(&client, &distro, &rb) {
                             Ok(res) => {
                                 if res {
                                     info!("Package successfully verified");
@@ -117,7 +116,7 @@ async fn run() -> Result<()> {
                             queue: rb,
                             status,
                         };
-                        client.report_build(&report).await?;
+                        client.report_build(&report)?;
                     },
                     Err(err) => {
                         error!("failed to query for work: {}", err);
@@ -133,12 +132,11 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or("info"));
 
-    if let Err(err) = run().await {
+    if let Err(err) = run() {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);

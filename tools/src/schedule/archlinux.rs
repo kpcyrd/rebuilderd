@@ -101,9 +101,9 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
     Ok(pkgs)
 }
 
-pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
-    let client = reqwest::Client::new();
-    let bytes = url_or_path(&client, &sync.source).await?;
+pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
+    let client = reqwest::blocking::Client::new();
+    let bytes = url_or_path(&client, &sync.source)?;
 
     info!("Parsing index...");
     let mut pkgs = Vec::new();

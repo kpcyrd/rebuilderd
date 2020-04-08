@@ -117,6 +117,23 @@ fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> 
     }
 }
 
+#[post("/api/v0/queue/push")]
+pub async fn push_queue(
+    query: web::Json<PushQueue>,
+    pool: web::Data<Pool>,
+) -> Result<impl Responder> {
+    let query = query.into_inner();
+    let connection = pool.get().unwrap();
+
+    let pkg = models::Package::get_by(&query.name, &query.distro, &query.suite, &query.architecture, connection.as_ref())?;
+    let version = query.version.unwrap_or(pkg.version);
+
+    let item = models::NewQueued::new(pkg.id, version);
+    item.insert(connection.as_ref())?;
+
+    Ok(web::Json(()))
+}
+
 #[post("/api/v0/queue/pop")]
 pub async fn pop_queue(
     req: HttpRequest,
@@ -153,20 +170,25 @@ pub async fn ping_build(
     req: HttpRequest,
     item: web::Json<QueueItem>,
     pool: web::Data<Pool>,
-) -> impl Responder {
-    let connection = pool.get().unwrap();
+) -> Result<impl Responder> {
+    let connection = pool.get()?;
 
-    let worker = get_worker_from_request(&req, connection.as_ref()).unwrap();
-    let mut item = models::Queued::get_id(item.id, connection.as_ref()).unwrap();
+    let worker = get_worker_from_request(&req, connection.as_ref())?;
+    debug!("ping from worker: {:?}", worker);
+    let mut item = models::Queued::get_id(item.id, connection.as_ref())?;
+    debug!("trying to ping item: {:?}", item);
 
     if item.worker_id != Some(worker.id) {
-        panic!("Trying to write to item we didn't assign")
+        bail!("Trying to write to item we didn't assign")
     }
 
-    item.ping_job(connection.as_ref()).unwrap();
-    worker.update(connection.as_ref()).unwrap();
+    debug!("updating database (item)");
+    item.ping_job(connection.as_ref())?;
+    debug!("updating database (worker)");
+    worker.update(connection.as_ref())?;
+    debug!("successfully pinged job");
 
-    web::Json(())
+    Ok(web::Json(()))
 }
 
 #[post("/api/v0/build/report")]

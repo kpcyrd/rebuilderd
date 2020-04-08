@@ -31,6 +31,7 @@ async fn run() -> Result<()> {
             .service(api::list_workers)
             .service(api::list_pkgs)
             .service(api::list_queue)
+            .service(api::push_queue)
             .service(api::pop_queue)
             .service(api::ping_build)
             .service(api::report_build)
@@ -52,7 +53,8 @@ async fn run() -> Result<()> {
 #[actix_rt::main]
 async fn main() {
     env_logger::init_from_env(Env::default()
-        .default_filter_or("info"));
+        .default_filter_or("actix_web=debug,rebuilderd=debug,info"));
+        // .default_filter_or("actix_web=debug,info"));
 
     if let Err(err) = run().await {
         eprintln!("Error: {}", err);
