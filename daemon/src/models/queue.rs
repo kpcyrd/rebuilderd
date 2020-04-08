@@ -13,6 +13,7 @@ use crate::models::Package;
 pub struct Queued {
     pub id: i32,
     pub package_id: i32,
+    pub version: String,
     pub queued_at: NaiveDateTime,
     pub worker_id: Option<i32>,
     pub started_at: Option<NaiveDateTime>,
@@ -71,12 +72,9 @@ impl Queued {
         let now = Utc::now().naive_utc();
         let deadline = now - Duration::seconds(PING_DEADLINE);
 
-        // TODO: figure out how to set to null
-        /*
         diesel::update(queue::table.filter(last_ping.lt(deadline)))
-            .set(worker_id.null())
+            .set(worker_id.eq(Option::<i32>::None))
             .execute(connection)?;
-        */
 
         Ok(())
     }
@@ -116,9 +114,9 @@ impl Queued {
         Ok(())
     }
 
-    pub fn queue_batch(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
+    pub fn queue_batch(pkgs: &[(i32, String)], connection: &SqliteConnection) -> Result<()> {
         let pkgs = pkgs.iter()
-            .map(|id| NewQueued::new(*id))
+            .map(|(id, version)| NewQueued::new(*id, version.to_string()))
             .collect::<Vec<_>>();
 
         diesel::insert_into(queue::table)
@@ -159,6 +157,7 @@ impl Queued {
 #[table_name="queue"]
 pub struct NewQueued {
     pub package_id: i32,
+    pub version: String,
     pub queued_at: NaiveDateTime,
     /*
     pub worker_id: Option<i32>,
@@ -168,10 +167,11 @@ pub struct NewQueued {
 }
 
 impl NewQueued {
-    pub fn new(package_id: i32) -> NewQueued {
+    pub fn new(package_id: i32, version: String) -> NewQueued {
         let now: DateTime<Utc> = Utc::now();
         NewQueued {
             package_id,
+            version,
             queued_at: now.naive_utc(),
             /*
             worker_id: None,

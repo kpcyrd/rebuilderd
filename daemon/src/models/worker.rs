@@ -43,9 +43,12 @@ impl Worker {
         let deadline = now - Duration::seconds(PING_DEADLINE);
 
         diesel::update(workers::table.filter(last_ping.lt(deadline)))
-            .set(online.eq(false))
-            // TODO: set status to None
+            .set((
+                online.eq(false),
+                status.eq(None as Option::<String>),
+            ))
             .execute(connection)?;
+
         Ok(())
     }
 
@@ -60,6 +63,16 @@ impl Worker {
         diesel::update(workers::table.filter(id.eq(self.id)))
             .set(self)
             .execute(connection)?;
+
+        // workaround until we can have a model that can update to null at the same time
+        if self.status.is_none() {
+            diesel::update(workers::table.filter(id.eq(self.id)))
+                .set(
+                    status.eq(None as Option::<String>),
+                )
+                .execute(connection)?;
+        }
+
         Ok(())
     }
 }

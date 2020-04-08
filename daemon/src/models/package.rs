@@ -110,7 +110,7 @@ impl Package {
     }
 }
 
-#[derive(Insertable, PartialEq, Debug)]
+#[derive(Insertable, PartialEq, Debug, Clone)]
 #[table_name="packages"]
 pub struct NewPackage {
     pub name: String,

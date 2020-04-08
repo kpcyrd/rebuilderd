@@ -15,6 +15,7 @@ table! {
     queue (id) {
         id -> Integer,
         package_id -> Integer,
+        version -> Text,
         queued_at -> Timestamp,
         worker_id -> Nullable<Integer>,
         started_at -> Nullable<Timestamp>,

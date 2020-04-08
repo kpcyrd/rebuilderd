@@ -13,13 +13,14 @@ CREATE TABLE packages (
 CREATE TABLE queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     package_id INTEGER NOT NULL,
+    version VARCHAR NOT NULL,
     queued_at DATETIME NOT NULL,
     worker_id INTEGER,
     started_at DATETIME,
     last_ping DATETIME,
     FOREIGN KEY(package_id) REFERENCES packages(id) ON DELETE CASCADE,
     FOREIGN KEY(worker_id) REFERENCES workers(id) ON DELETE SET NULL,
-    CONSTRAINT queue_unique UNIQUE (package_id)
+    CONSTRAINT queue_unique UNIQUE (package_id, version)
 );
 
 CREATE TABLE workers (

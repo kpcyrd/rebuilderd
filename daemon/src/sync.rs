@@ -48,7 +48,7 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
     }
 
     // TODO: consider starting a transaction here
-    let mut queue = Vec::<i32>::new();
+    let mut queue = Vec::<(i32, String)>::new();
 
     info!("new packages: {:?}", new_pkgs.len());
     let new_pkgs = new_pkgs.into_iter()
@@ -63,7 +63,7 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
         // this is obviously slow and needs to be refactored
         for pkg in pkgs {
             let pkg = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, &pkg.architecture, connection)?;
-            queue.push(pkg.id);
+            queue.push((pkg.id, pkg.version));
         }
     }
 
@@ -71,7 +71,7 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
     for (_, pkg) in updated_pkgs {
         debug!("update: {:?}", pkg);
         pkg.update(connection)?;
-        queue.push(pkg.id);
+        queue.push((pkg.id, pkg.version.clone()));
     }
 
     info!("deleted packages: {:?}", deleted_pkgs.len());

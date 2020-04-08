@@ -38,13 +38,8 @@ impl Pkg {
 
     fn from_maintainer(&self, maintainer: &Option<String>) -> bool {
         if let Some(maintainer) = &maintainer {
-            for uploader in &self.uploaders {
-                if uploader.starts_with(maintainer) {
-                    return true;
-                }
-            }
-
-            false
+            self.uploaders.iter()
+                .any(|uploader| uploader.starts_with(maintainer))
         } else {
             true
         }
