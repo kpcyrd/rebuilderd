@@ -92,6 +92,19 @@ impl Queued {
         Ok(())
     }
 
+    pub fn requeue(&self, connection: &SqliteConnection) -> Result<()> {
+        diesel::update(queue::table)
+            .filter(queue::id.eq(self.id))
+            .set((
+                queue::worker_id.eq(Option::<i32>::None),
+                queue::started_at.eq(Option::<NaiveDateTime>::None),
+                queue::last_ping.eq(Option::<NaiveDateTime>::None),
+            ))
+            .execute(connection)?;
+
+        Ok(())
+    }
+
     pub fn into_api_item(self, connection: &SqliteConnection) -> Result<QueueItem> {
         let pkg = Package::get_id(self.package_id, connection)?;
 

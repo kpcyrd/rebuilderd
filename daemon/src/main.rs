@@ -4,9 +4,9 @@
 use env_logger::Env;
 // use structopt::StructOpt;
 use rebuilderd_common::errors::*;
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, FromRequest};
+use actix_web::middleware::Logger;
 use rebuilderd_common::api::SuiteImport;
-use actix_web::FromRequest;
 
 mod api;
 mod db;
@@ -42,7 +42,7 @@ struct Connect {
 }
 */
 
-fn run() -> Result<()> {
+async fn run() -> Result<()> {
     dotenv::dotenv().ok();
 
     let bind = std::env::var("HTTP_ADDR")
@@ -54,6 +54,7 @@ fn run() -> Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .data(pool.clone())
             .service(api::list_workers)
             .service(api::list_pkgs)
@@ -71,15 +72,17 @@ fn run() -> Result<()> {
                 .route(web::post().to(api::sync_work))
             )
     }).bind(bind)?
-    .run()?;
+    .run()
+    .await?;
     Ok(())
 }
 
-fn main() {
+#[actix_rt::main]
+async fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or("info"));
 
-    if let Err(err) = run() {
+    if let Err(err) = run().await {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);

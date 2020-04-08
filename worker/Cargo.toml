@@ -10,4 +10,4 @@ edition = "2018"
 rebuilderd-common = { path="../common" }
 structopt = "0.3"
 env_logger = "0.7"
-tokio = "0.2.0-alpha.6"
+tokio = { version="0.2", features=["macros"] }
