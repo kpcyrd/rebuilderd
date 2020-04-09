@@ -68,7 +68,7 @@ impl Client {
         Ok(pkgs)
     }
 
-    pub fn list_queue(&self, list: &ListQueue) -> Result<Vec<QueueItem>> {
+    pub fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
         let pkgs = self.post("/api/v0/queue/list")
             .json(list)
             .send()?
@@ -151,6 +151,12 @@ pub struct ListPkgs {
     pub distro: Option<String>,
     pub suite: Option<String>,
     pub architecture: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct QueueList {
+    pub now: NaiveDateTime,
+    pub queue: Vec<QueueItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -5,6 +5,7 @@ use structopt::clap::AppSettings;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::utils;
 use colored::*;
 
 pub mod schedule;
@@ -147,7 +148,7 @@ fn run() -> Result<()> {
                 limit,
             })?;
 
-            for q in pkgs {
+            for q in pkgs.queue {
                 let pkg = q.package;
 
                 let started_at = if let Some(started_at) = q.started_at {
@@ -160,9 +161,17 @@ fn run() -> Result<()> {
                     pkg.version,
                 );
 
-                println!("{} {:-60} {:19} {:?} {:?} {:?}",
+                let running = if let Some(started_at) = q.started_at {
+                    let duration = (pkgs.now - started_at).num_seconds();
+                    utils::secs_to_human(duration)
+                } else {
+                    String::new()
+                };
+
+                println!("{} {:-60} {:11} {:19} {:?} {:?} {:?}",
                     q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
                     pkg_str,
+                    running,
                     started_at,
                     pkg.distro,
                     pkg.suite,

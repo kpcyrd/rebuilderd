@@ -24,7 +24,7 @@ pub fn load(dir: Option<PathBuf>) -> Result<Profile> {
         dir
     } else {
         let data_dir = dirs::data_dir()
-            .ok_or_else(|| format_err!("TODO"))?;
+            .ok_or_else(|| format_err!("Failed to find data directory"))?;
         data_dir.join("rebuilderd-worker")
     };
     info!("Using profile in {:?}", dir);

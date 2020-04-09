@@ -7,6 +7,7 @@ use std::str::FromStr;
 pub mod api;
 pub mod config;
 pub mod errors;
+pub mod utils;
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]
 #[strum(serialize_all = "kebab-case")]
