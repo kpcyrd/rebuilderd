@@ -1,11 +1,13 @@
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
 
-use env_logger::Env;
-use rebuilderd_common::errors::*;
 use actix_web::{web, App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
+use env_logger::Env;
+use structopt::StructOpt;
+use structopt::clap::AppSettings;
 use rebuilderd_common::api::SuiteImport;
+use rebuilderd_common::errors::*;
 
 pub mod api;
 pub mod db;
@@ -13,6 +15,13 @@ pub mod schema;
 pub mod sync;
 pub mod models;
 pub mod versions;
+
+#[derive(Debug, StructOpt)]
+#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+struct Args {
+    #[structopt(short)]
+    verbose: bool,
+}
 
 async fn run() -> Result<()> {
     dotenv::dotenv().ok();
@@ -52,9 +61,16 @@ async fn run() -> Result<()> {
 
 #[actix_rt::main]
 async fn main() {
+    let args = Args::from_args();
+
+    let logging = if args.verbose {
+        "actix_web=debug,rebuilderd=debug,info"
+    } else {
+        "actix_web=debug,info"
+    };
+
     env_logger::init_from_env(Env::default()
-        .default_filter_or("actix_web=debug,rebuilderd=debug,info"));
-        // .default_filter_or("actix_web=debug,info"));
+        .default_filter_or(logging));
 
     if let Err(err) = run().await {
         eprintln!("Error: {}", err);

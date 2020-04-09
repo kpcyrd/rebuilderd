@@ -1,4 +1,5 @@
 use env_logger::Env;
+use std::borrow::Cow;
 use std::io;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
@@ -161,17 +162,17 @@ fn run() -> Result<()> {
                     pkg.version,
                 );
 
-                let running = if let Some(started_at) = q.started_at {
+                let running = format!("{:11}", if let Some(started_at) = q.started_at {
                     let duration = (pkgs.now - started_at).num_seconds();
-                    utils::secs_to_human(duration)
+                    Cow::Owned(utils::secs_to_human(duration))
                 } else {
-                    String::new()
-                };
+                    Cow::Borrowed("")
+                });
 
-                println!("{} {:-60} {:11} {:19} {:?} {:?} {:?}",
+                println!("{} {:-60} {} {:19} {:?} {:?} {:?}",
                     q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
                     pkg_str,
-                    running,
+                    running.green(),
                     started_at,
                     pkg.distro,
                     pkg.suite,
