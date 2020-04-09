@@ -29,15 +29,15 @@ impl Queued {
         Ok(item)
     }
 
-    /*
-    pub fn get(my_key: &str, connection: &SqliteConnection) -> Result<Option<Worker>> {
-        use crate::schema::workers::dsl::*;
-        let worker = workers.filter(key.eq(my_key))
-            .first::<Worker>(connection)
+    pub fn get(pkg: i32, my_version: &str, connection: &SqliteConnection) -> Result<Option<Queued>> {
+        use crate::schema::queue::dsl::*;
+        let job = queue
+            .filter(package_id.eq(pkg))
+            .filter(version.eq(my_version))
+            .first::<Queued>(connection)
             .optional()?;
-        Ok(worker)
+        Ok(job)
     }
-    */
 
     pub fn pop_next(my_worker_id: i32, connection: &SqliteConnection) -> Result<Option<QueueItem>> {
         use crate::schema::queue::dsl::*;
@@ -189,9 +189,12 @@ impl NewQueued {
     }
 
     pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
-        diesel::insert_into(queue::table)
-            .values(self)
-            .execute(connection)?;
+        // TODO: on conflict do nothing after it landed in diesel sqlite
+        if Queued::get(self.package_id, &self.version, connection)?.is_none() {
+            diesel::insert_into(queue::table)
+                .values(self)
+                .execute(connection)?;
+        }
         Ok(())
     }
 }
