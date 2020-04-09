@@ -42,6 +42,7 @@ async fn run() -> Result<()> {
             .service(api::list_queue)
             .service(api::push_queue)
             .service(api::pop_queue)
+            .service(api::drop_from_queue)
             .service(api::ping_build)
             .service(api::report_build)
             .service(

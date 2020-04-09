@@ -62,8 +62,10 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
         // this is needed because diesel doesn't return ids when inserting into sqlite
         // this is obviously slow and needs to be refactored
         for pkg in pkgs {
-            let pkg = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, &pkg.architecture, connection)?;
-            queue.push((pkg.id, pkg.version));
+            let pkgs = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?;
+            for pkg in pkgs {
+                queue.push((pkg.id, pkg.version));
+            }
         }
     }
 

@@ -95,6 +95,15 @@ impl Client {
         Ok(assignment)
     }
 
+    pub fn drop_queue(&self, query: &DropQueueItem) -> Result<()> {
+        self.post("/api/v0/queue/drop")
+            .json(query)
+            .send()?
+            .error_for_status()?
+            .json()?;
+        Ok(())
+    }
+
     pub fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
         self.post("/api/v0/build/ping")
             .json(ticket)
@@ -180,7 +189,16 @@ pub struct PushQueue {
     pub version: Option<String>,
     pub distro: String,
     pub suite: String,
-    pub architecture: String, // TODO: what do we do if this is any?
+    pub architecture: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DropQueueItem {
+    pub name: String,
+    pub version: Option<String>,
+    pub distro: String,
+    pub suite: String,
+    pub architecture: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

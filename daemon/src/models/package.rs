@@ -28,14 +28,17 @@ impl Package {
         Ok(pkg)
     }
 
-    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Package> {
+    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<Package>> {
         use crate::schema::packages::dsl::*;
-        let pkg = packages
+        let mut query = packages
             .filter(name.eq(my_name))
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
-            .filter(architecture.eq(my_architecture))
-            .first::<Package>(connection)?;
+            .into_boxed();
+        if let Some(my_architecture) = my_architecture {
+            query = query.filter(architecture.eq(my_architecture));
+        }
+        let pkg = query.load::<Package>(connection)?;
         Ok(pkg)
     }
 

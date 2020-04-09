@@ -60,7 +60,9 @@ struct PkgsList {
 #[derive(Debug, StructOpt)]
 enum Queue {
     Ls(QueueList),
-    Push(QueuePush)
+    Push(QueuePush),
+    #[structopt(name="drop")]
+    Delete(QueueDrop),
 }
 
 #[derive(Debug, StructOpt)]
@@ -73,7 +75,19 @@ struct QueueList {
 struct QueuePush {
     distro: String,
     suite: String,
-    architecture: String,
+    #[structopt(long)]
+    architecture: Option<String>,
+
+    name: String,
+    version: Option<String>,
+}
+
+#[derive(Debug, StructOpt)]
+struct QueueDrop {
+    distro: String,
+    suite: String,
+    #[structopt(long)]
+    architecture: Option<String>,
 
     name: String,
     version: Option<String>,
@@ -182,6 +196,15 @@ fn run() -> Result<()> {
         },
         SubCommand::Queue(Queue::Push(push)) => {
             client.push_queue(&PushQueue {
+                name: push.name,
+                version: push.version,
+                distro: push.distro,
+                suite: push.suite,
+                architecture: push.architecture,
+            })?;
+        },
+        SubCommand::Queue(Queue::Delete(push)) => {
+            client.drop_queue(&DropQueueItem {
                 name: push.name,
                 version: push.version,
                 distro: push.distro,

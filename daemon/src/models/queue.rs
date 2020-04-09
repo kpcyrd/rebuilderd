@@ -112,6 +112,12 @@ impl Queued {
         Ok(())
     }
 
+    pub fn drop_job(jobs: &[i32], connection: &SqliteConnection) -> Result<()> {
+        diesel::delete(queue::table.filter(queue::id.eq_any(jobs)))
+            .execute(connection)?;
+        Ok(())
+    }
+
     pub fn requeue(&self, connection: &SqliteConnection) -> Result<()> {
         diesel::update(queue::table)
             .filter(queue::id.eq(self.id))

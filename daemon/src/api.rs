@@ -131,13 +131,16 @@ pub async fn push_queue(
     let connection = pool.get()?;
 
     debug!("searching pkg: {:?}", query);
-    let pkg = models::Package::get_by(&query.name, &query.distro, &query.suite, &query.architecture, connection.as_ref())?;
-    debug!("found pkg: {:?}", pkg);
-    let version = query.version.unwrap_or(pkg.version);
+    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
 
-    let item = models::NewQueued::new(pkg.id, version);
-    debug!("adding to queue: {:?}", item);
-    item.insert(connection.as_ref())?;
+    for pkg in pkgs {
+        debug!("found pkg: {:?}", pkg);
+        let version = query.version.as_ref().unwrap_or(&pkg.version);
+
+        let item = models::NewQueued::new(pkg.id, version.to_string());
+        debug!("adding to queue: {:?}", item);
+        item.insert(connection.as_ref())?;
+    }
 
     Ok(web::Json(()))
 }
@@ -169,6 +172,24 @@ pub async fn pop_queue(
     worker.update(connection.as_ref())?;
 
     Ok(web::Json(resp))
+}
+
+#[post("/api/v0/queue/drop")]
+pub async fn drop_from_queue(
+    query: web::Json<DropQueueItem>,
+    pool: web::Data<Pool>,
+) -> Result<impl Responder> {
+    let query = query.into_inner();
+    let connection = pool.get()?;
+
+    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgs = pkgs.iter()
+        .map(|p| p.id)
+        .collect::<Vec<_>>();
+
+    models::Queued::drop_job(&pkgs, connection.as_ref())?;
+
+    Ok(web::Json(()))
 }
 
 #[post("/api/v0/build/ping")]
