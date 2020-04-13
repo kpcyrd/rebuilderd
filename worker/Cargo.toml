@@ -1,13 +1,16 @@
 [package]
 name = "rebuilderd-worker"
 version = "0.1.0"
-authors = ["user"]
+description = "rebuilderd - rebuild worker"
+authors = ["kpcyrd <git@rxv.cc>"]
+license = "GPL-3.0"
+repository = "https://github.com/kpcyrd/rebuilderd"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rebuilderd-common = { path="../common" }
+rebuilderd-common = { version="0.1.0", path="../common" }
 structopt = "0.3"
 env_logger = "0.7"
 dirs = "2.0"
