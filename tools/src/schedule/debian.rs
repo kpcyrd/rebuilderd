@@ -36,12 +36,13 @@ impl Pkg {
         Ok(directory.to_string())
     }
 
-    fn from_maintainer(&self, maintainer: &Option<String>) -> bool {
-        if let Some(maintainer) = &maintainer {
-            self.uploaders.iter()
-                .any(|uploader| uploader.starts_with(maintainer))
-        } else {
+    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+        if maintainers.is_empty() {
             true
+        } else {
+            self.uploaders.iter()
+                .any(|uploader| maintainers.iter()
+                    .any(|m| uploader.starts_with(m)))
         }
     }
 }

@@ -18,11 +18,12 @@ pub struct Pkg {
 }
 
 impl Pkg {
-    fn from_maintainer(&self, maintainer: &Option<String>) -> bool {
-        if let Some(maintainer) = &maintainer {
-            self.packager.starts_with(maintainer)
-        } else {
+    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+        if maintainers.is_empty() {
             true
+        } else {
+            maintainers.iter()
+                .any(|m| self.packager.starts_with(m))
         }
     }
 }

@@ -11,6 +11,7 @@ pub mod utils;
 
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]
 #[strum(serialize_all = "kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub enum Distro {
     Debian,
     Archlinux,

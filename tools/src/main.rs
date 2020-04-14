@@ -39,6 +39,8 @@ pub struct PkgsSyncProfile {
     #[structopt(long="print-json")]
     pub print_json: bool,
     pub profile: String,
+    #[structopt(long="sync-config", default_value="/etc/rebuilderd-sync.conf")]
+    pub config_file: String,
 }
 
 #[derive(Debug, StructOpt)]
@@ -46,7 +48,7 @@ pub struct PkgsSync {
     #[structopt(long="print-json")]
     pub print_json: bool,
     #[structopt(long)]
-    pub maintainer: Option<String>,
+    pub maintainer: Vec<String>,
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,
@@ -142,7 +144,7 @@ fn run() -> Result<()> {
         },
         SubCommand::Pkgs(Pkgs::Sync(args)) => sync(&client, args)?,
         SubCommand::Pkgs(Pkgs::SyncProfile(args)) => {
-            let mut config = SyncConfigFile::load("/etc/rebuilderd-sync.conf")?;
+            let mut config = SyncConfigFile::load(&args.config_file)?;
             let profile = config.profiles.remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
             sync(&client, PkgsSync {
