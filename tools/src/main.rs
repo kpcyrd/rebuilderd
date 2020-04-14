@@ -1,3 +1,4 @@
+use crate::config::SyncConfigFile;
 use env_logger::Env;
 use std::borrow::Cow;
 use std::io;
@@ -9,6 +10,7 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
 use colored::*;
 
+pub mod config;
 pub mod schedule;
 
 #[derive(Debug, StructOpt)]
@@ -29,6 +31,14 @@ enum SubCommand {
 enum Pkgs {
     Sync(PkgsSync),
     Ls(PkgsList),
+    SyncProfile(PkgsSyncProfile),
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsSyncProfile {
+    #[structopt(long="print-json")]
+    pub print_json: bool,
+    pub profile: String,
 }
 
 #[derive(Debug, StructOpt)]
@@ -93,6 +103,27 @@ struct QueueDrop {
     version: Option<String>,
 }
 
+pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
+    let pkgs = match sync.distro {
+        Distro::Archlinux => schedule::archlinux::sync(&sync)?,
+        Distro::Debian => schedule::debian::sync(&sync)?,
+    };
+
+    if sync.print_json {
+        serde_json::to_writer_pretty(io::stdout(), &pkgs)?;
+    } else {
+        info!("Sending current suite to api...");
+        client.sync_suite(&SuiteImport {
+            distro: sync.distro,
+            suite: sync.suite,
+            architecture: sync.architecture,
+            pkgs,
+        })?;
+    }
+
+    Ok(())
+}
+
 fn run() -> Result<()> {
     let args = Args::from_args();
 
@@ -109,23 +140,19 @@ fn run() -> Result<()> {
                 println!("{:-40} => {}", label, status);
             }
         },
-        SubCommand::Pkgs(Pkgs::Sync(sync)) => {
-            let pkgs = match sync.distro {
-                Distro::Archlinux => schedule::archlinux::sync(&sync)?,
-                Distro::Debian => schedule::debian::sync(&sync)?,
-            };
-
-            if sync.print_json {
-                serde_json::to_writer_pretty(io::stdout(), &pkgs)?;
-            } else {
-                info!("Sending current suite to api...");
-                client.sync_suite(&SuiteImport {
-                    distro: sync.distro,
-                    suite: sync.suite,
-                    architecture: sync.architecture,
-                    pkgs,
-                })?;
-            }
+        SubCommand::Pkgs(Pkgs::Sync(args)) => sync(&client, args)?,
+        SubCommand::Pkgs(Pkgs::SyncProfile(args)) => {
+            let mut config = SyncConfigFile::load("/etc/rebuilderd-sync.conf")?;
+            let profile = config.profiles.remove(&args.profile)
+                .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
+            sync(&client, PkgsSync {
+                print_json: args.print_json,
+                maintainer: profile.maintainer,
+                distro: profile.distro,
+                suite: profile.suite,
+                architecture: profile.architecture,
+                source: profile.source,
+            })?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {

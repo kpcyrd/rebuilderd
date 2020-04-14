@@ -35,6 +35,10 @@ To inspect the queue run:
 cd tools; cargo run queue ls
 ```
 
+# Dependencies
+
+Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev
+
 # Support
 
 | Distro     | Status       |
