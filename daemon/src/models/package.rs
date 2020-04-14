@@ -1,4 +1,3 @@
-
 use crate::schema::*;
 use rebuilderd_common::Status;
 use rebuilderd_common::errors::*;

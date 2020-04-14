@@ -52,6 +52,7 @@ fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
         .args(&[input])
         .status()?;
 
+    info!("rebuilder script finished: {:?}", status);
     Ok(status.success())
 }
 

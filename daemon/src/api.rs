@@ -19,6 +19,7 @@ pub async fn list_workers(
     Ok(web::Json(workers))
 }
 
+// this route is configured in src/main.rs so we can reconfigure the json extractor
 // #[post("/api/v0/job/sync")]
 pub async fn sync_work(
     import: web::Json<SuiteImport>,

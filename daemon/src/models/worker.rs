@@ -13,7 +13,6 @@ use std::net::IpAddr;
 pub struct Worker {
     pub id: i32,
     pub key: String,
-    // TODO: pub addr: IpAddr,
     pub addr: String,
     pub status: Option<String>,
     pub last_ping: NaiveDateTime,
@@ -100,15 +99,8 @@ pub struct NewWorker {
 }
 
 impl NewWorker {
+    // we can refactor this into an upsert if we can make it return a Worker struct
     pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
-        /*
-        if let Some(mut worker) = Worker::get(&self.key, connection)? {
-            worker.status = self.status.clone();
-            worker.last_ping = self.last_ping;
-            worker.online = true;
-            return worker.update(connection);
-        }
-        */
         diesel::insert_into(workers::table)
             .values(self)
             .execute(connection)?;

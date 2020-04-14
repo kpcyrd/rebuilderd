@@ -166,11 +166,6 @@ pub struct NewQueued {
     pub package_id: i32,
     pub version: String,
     pub queued_at: NaiveDateTime,
-    /*
-    pub worker_id: Option<i32>,
-    pub started_at: Option<NaiveDateTime>,
-    pub last_ping: Option<NaiveDateTime>,
-    */
 }
 
 impl NewQueued {
@@ -180,11 +175,6 @@ impl NewQueued {
             package_id,
             version,
             queued_at: now.naive_utc(),
-            /*
-            worker_id: None,
-            started_at: None,
-            last_ping: None,
-            */
         }
     }
 
