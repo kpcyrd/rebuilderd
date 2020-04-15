@@ -1,3 +1,4 @@
 /target
 **/*.rs.bk
 contrib/*.1
+/worker/rebuilder.key
