@@ -9,9 +9,11 @@ use rebuilderd_common::Distro;
 use std::process::Command;
 use std::sync::mpsc;
 use rebuilderd_common::config::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub mod home;
+pub mod auth;
+pub mod config;
+pub mod setup;
 
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
@@ -20,6 +22,8 @@ struct Args {
     pub home_dir: Option<PathBuf>,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
+    #[structopt(short, long)]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -38,22 +42,31 @@ struct Build {
 
 #[derive(Debug, StructOpt)]
 struct Connect {
-    pub endpoint: String,
+    pub endpoint: Option<String>,
 }
 
 fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
     // TODO: establish a common interface to interface with distro rebuilders
     let bin = match distro {
-        Distro::Archlinux => "./rebuilder-archlinux.sh",
-        Distro::Debian => "./rebuilder-debian.sh",
+        Distro::Archlinux => "rebuilder-archlinux.sh",
+        Distro::Debian => "rebuilder-debian.sh",
     };
 
-    let status = Command::new(bin)
-        .args(&[input])
-        .status()?;
+    for prefix in &[".", "/usr/libexec/rebuilderd", "/usr/local/libexec/rebuilderd"] {
+        let bin = format!("{}/{}", prefix, bin);
+        let bin = Path::new(&bin);
 
-    info!("rebuilder script finished: {:?}", status);
-    Ok(status.success())
+        if bin.exists() {
+            let status = Command::new(&bin)
+                .args(&[input])
+                .status()?;
+
+            info!("rebuilder script finished: {:?} (for {:?})", status, input);
+            return Ok(status.success());
+        }
+    }
+
+    bail!("failed to find a rebuilder script")
 }
 
 fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
@@ -82,12 +95,21 @@ fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Resu
 
 fn run() -> Result<()> {
     let args = Args::from_args();
+    let config = config::load()?;
+
+    if let Some(name) = args.name {
+        setup::run(&name)
+            .context("Failed to setup worker")?;
+    }
 
     match args.subcommand {
         SubCommand::Connect(connect) => {
-            let profile = home::load(args.home_dir)?;
+            let endpoint = connect.endpoint
+                .map(|e| Ok(e))
+                .unwrap_or(config.endpoint.ok_or_else(|| format_err!("No endpoint configured")))?;
 
-            let client = profile.new_client(connect.endpoint);
+            let profile = auth::load()?;
+            let client = profile.new_client(endpoint);
             loop {
                 info!("requesting work");
                 match client.pop_queue(&WorkQuery {}) {

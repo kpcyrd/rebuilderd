@@ -9,6 +9,8 @@ arch=('x86_64')
 license=('GPL3')
 depends=('libsodium' 'sqlite')
 makedepends=('cargo')
+backup=('etc/rebuilderd-worker.conf'
+        'etc/rebuilderd-sync.conf')
 
 build() {
   cd ..
@@ -22,6 +24,17 @@ package() {
     target/release/rebuilderd-worker \
     target/release/rebuildctl
 
+  # install rebuilder scripts
+  install -Dm 755 -t "${pkgdir}/usr/libexec/rebuilderd" \
+    worker/rebuilder-archlinux.sh \
+    worker/rebuilder-debian.sh
+
+  # install config files
+  install -Dm 644 -t "${pkgdir}/etc" \
+    contrib/confs/rebuilderd-worker.conf \
+    contrib/confs/rebuilderd-sync.conf
+
+  # install completions
   install -d "${pkgdir}/usr/share/bash-completion/completions" \
              "${pkgdir}/usr/share/zsh/site-functions" \
              "${pkgdir}/usr/share/fish/vendor_completions.d"
@@ -29,6 +42,7 @@ package() {
   "${pkgdir}/usr/bin/rebuildctl" completions zsh > "${pkgdir}/usr/share/zsh/site-functions/_rebuildctl"
   "${pkgdir}/usr/bin/rebuildctl" completions fish > "${pkgdir}/usr/share/fish/vendor_completions.d/rebuildctl.fish"
 
+  # install systemd configs
   install -Dm 644 -t "${pkgdir}/usr/lib/systemd/system" \
     contrib/systemd/rebuilderd-sync@.service \
     contrib/systemd/rebuilderd-sync@.timer \
@@ -38,6 +52,7 @@ package() {
   install -Dm 644 contrib/systemd/rebuilderd.sysusers "${pkgdir}/usr/lib/sysusers.d/rebuilderd.conf"
   install -Dm 644 contrib/systemd/rebuilderd.tmpfiles "${pkgdir}/usr/lib/tmpfiles.d/rebuilderd.conf"
 
+  # install docs
   install -Dm 644 README.md -t "${pkgdir}/usr/share/doc/${pkgname}"
 }
 

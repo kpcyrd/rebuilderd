@@ -1,7 +1,7 @@
 use rebuilderd_common::errors::*;
 use rebuilderd_common::api::Client;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::io::prelude::*;
@@ -19,25 +19,17 @@ impl Profile {
     }
 }
 
-pub fn load(dir: Option<PathBuf>) -> Result<Profile> {
-    let dir = if let Some(dir) = dir {
-        dir
-    } else {
-        let data_dir = dirs::data_dir()
-            .ok_or_else(|| format_err!("Failed to find data directory"))?;
-        data_dir.join("rebuilderd-worker")
-    };
-    info!("Using profile in {:?}", dir);
-    fs::create_dir_all(&dir)?;
-
-    let key = load_key(&dir.join("key"))?;
+pub fn load() -> Result<Profile> {
+    let key = load_key("rebuilder.key")?;
 
     Ok(Profile {
         key,
     })
 }
 
-fn load_key(path: &PathBuf) -> Result<String> {
+fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
+    let path = path.as_ref();
+
     let sk = if path.exists() {
         let content = fs::read(path)?;
         sign::SecretKey::from_slice(&content)
