@@ -7,7 +7,7 @@ pkgdesc='Independent verification system of binary packages'
 url='https://github.com/kpcyrd/rebuilderd'
 arch=('x86_64')
 license=('GPL3')
-depends=('libsodium' 'sqlite')
+depends=('libsodium' 'sqlite' 'archlinux-repro')
 makedepends=('cargo')
 backup=('etc/rebuilderd-worker.conf'
         'etc/rebuilderd-sync.conf')

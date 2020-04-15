@@ -46,10 +46,10 @@ async fn run() -> Result<()> {
             .service(api::ping_build)
             .service(api::report_build)
             .service(
-                web::resource("/api/v0/pkgs/sync").data(
+                web::resource("/api/v0/pkgs/sync").app_data(
                     // change json extractor configuration
                     web::Json::<SuiteImport>::configure(|cfg| {
-                        cfg.limit(256 * 1024 * 1024)
+                        cfg.limit(128 * 1024 * 1024)
                     })
                 )
                 .route(web::post().to(api::sync_work))

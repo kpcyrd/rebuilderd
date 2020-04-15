@@ -3,4 +3,4 @@ Description=rebuilderctl sync: periodically import packages
 
 [Service]
 User=rebuilderd
-ExecStart=/usr/bin/rebuildctl pkgs sync-profile %I
+ExecStart=/usr/bin/rebuildctl pkgs sync-profile %i

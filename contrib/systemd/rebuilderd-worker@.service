@@ -2,7 +2,7 @@
 Description=rebuilderd-worker: rebuild packages
 
 [Service]
-ExecStart=/usr/bin/rebuilderd-worker -n %I connect
+ExecStart=/usr/bin/rebuilderd-worker -n %i connect
 
 [Install]
 WantedBy=multi-user.target
