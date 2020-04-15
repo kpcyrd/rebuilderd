@@ -1,0 +1,10 @@
+[Unit]
+Description=rebuilderd: independent binary package verification system
+
+[Service]
+User=rebuilderd
+ExecStart=/usr/bin/rebuilderd
+WorkingDirectory=/var/lib/rebuilderd
+
+[Install]
+WantedBy=multi-user.target

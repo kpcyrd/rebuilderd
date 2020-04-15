@@ -1,0 +1,2 @@
+d /var/lib/rebuilderd 0770 rebuilderd rebuilderd - -
+d /var/lib/rebuilderd-worker 0770 rebuilderd rebuilderd - -

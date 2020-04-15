@@ -1,0 +1,9 @@
+[Unit]
+Description=rebuilderctl sync: periodically import packages
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

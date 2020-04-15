@@ -1,0 +1,10 @@
+[Unit]
+Description=rebuilderd-worker: rebuild packages
+
+[Service]
+# TODO
+ExecStart=/usr/bin/rebuilderd-worker connect http://127.0.0.1:8080
+WorkingDirectory=/var/lib/rebuilderd-worker
+
+[Install]
+WantedBy=multi-user.target

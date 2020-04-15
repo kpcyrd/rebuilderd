@@ -1,109 +1,18 @@
+use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
 use std::borrow::Cow;
 use std::io;
 use structopt::StructOpt;
-use structopt::clap::AppSettings;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
 use colored::*;
 
+pub mod args;
 pub mod config;
 pub mod schedule;
-
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
-struct Args {
-    #[structopt(subcommand)]
-    pub subcommand: SubCommand,
-}
-
-#[derive(Debug, StructOpt)]
-enum SubCommand {
-    Status,
-    Pkgs(Pkgs),
-    Queue(Queue),
-}
-
-#[derive(Debug, StructOpt)]
-enum Pkgs {
-    Sync(PkgsSync),
-    Ls(PkgsList),
-    SyncProfile(PkgsSyncProfile),
-}
-
-#[derive(Debug, StructOpt)]
-pub struct PkgsSyncProfile {
-    #[structopt(long="print-json")]
-    pub print_json: bool,
-    pub profile: String,
-    #[structopt(long="sync-config", default_value="/etc/rebuilderd-sync.conf")]
-    pub config_file: String,
-}
-
-#[derive(Debug, StructOpt)]
-pub struct PkgsSync {
-    #[structopt(long="print-json")]
-    pub print_json: bool,
-    #[structopt(long)]
-    pub maintainer: Vec<String>,
-    pub distro: Distro,
-    pub suite: String,
-    pub architecture: String,
-    pub source: String,
-}
-
-#[derive(Debug, StructOpt)]
-struct PkgsList {
-    #[structopt(long)]
-    pub name: Option<String>,
-    #[structopt(long)]
-    pub status: Option<String>,
-    #[structopt(long)]
-    pub distro: Option<String>,
-    #[structopt(long)]
-    pub suite: Option<String>,
-    #[structopt(long)]
-    pub architecture: Option<String>,
-}
-
-#[derive(Debug, StructOpt)]
-enum Queue {
-    Ls(QueueList),
-    Push(QueuePush),
-    #[structopt(name="drop")]
-    Delete(QueueDrop),
-}
-
-#[derive(Debug, StructOpt)]
-struct QueueList {
-    #[structopt(long)]
-    head: bool,
-}
-
-#[derive(Debug, StructOpt)]
-struct QueuePush {
-    distro: String,
-    suite: String,
-    #[structopt(long)]
-    architecture: Option<String>,
-
-    name: String,
-    version: Option<String>,
-}
-
-#[derive(Debug, StructOpt)]
-struct QueueDrop {
-    distro: String,
-    suite: String,
-    #[structopt(long)]
-    architecture: Option<String>,
-
-    name: String,
-    version: Option<String>,
-}
 
 pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let pkgs = match sync.distro {
@@ -241,6 +150,7 @@ fn run() -> Result<()> {
                 architecture: push.architecture,
             })?;
         },
+        SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }
 
     Ok(())
