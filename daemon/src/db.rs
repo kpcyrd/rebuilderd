@@ -31,23 +31,6 @@ pub fn setup_pool(url: &str) -> Result<Pool> {
 
 pub struct SqliteConnectionWrap(SqliteConnection);
 
-impl SqliteConnectionWrap {
-    fn establish_internal(database_url: &str) -> ConnectionResult<Self> {
-        let c = SqliteConnection::establish(database_url)?;
-
-        c.batch_execute("
-            PRAGMA journal_mode = WAL;          -- better write-concurrency
-            PRAGMA synchronous = NORMAL;        -- fsync only in critical moments
-            PRAGMA wal_autocheckpoint = 1000;   -- write WAL changes back every 1000 pages, for an in average 1MB WAL file. May affect readers if number is increased
-            PRAGMA wal_checkpoint(TRUNCATE);    -- free some space by truncating possibly massive WAL files from the last run.
-            PRAGMA busy_timeout = 250;          -- sleep if the database is busy
-            PRAGMA foreign_keys = ON;           -- enforce foreign keys
-        ").map_err(ConnectionError::CouldntSetupConfiguration)?;
-
-        Ok(Self(c))
-    }
-}
-
 impl AsRef<SqliteConnection> for SqliteConnectionWrap {
     fn as_ref(&self) -> &SqliteConnection {
         &self.0
@@ -65,14 +48,31 @@ impl Connection for SqliteConnectionWrap {
     type TransactionManager = <SqliteConnection as Connection>::TransactionManager;
 
     fn establish(database_url: &str) -> ConnectionResult<Self> {
-        // TODO: setting up an r2d2 pool shouldn't be this difficult
-        for i in 0..3 {
-            let result = Self::establish_internal(database_url);
-            if result.is_ok() || i == 2 {
-                return result;
-            }
-        }
-        unreachable!()
+        let c = SqliteConnection::establish(database_url)
+            .map_err(|err| {
+                warn!("establish returned error: {:?}", err);
+                err
+            })?;
+
+        c.batch_execute("
+            PRAGMA busy_timeout = 250;          -- sleep if the database is busy
+            PRAGMA foreign_keys = ON;           -- enforce foreign keys
+        ").map_err(|err| {
+            warn!("executing pragmas for busy_timeout failed: {:?}", err);
+            ConnectionError::CouldntSetupConfiguration(err)
+        })?;
+
+        c.batch_execute("
+            PRAGMA journal_mode = WAL;          -- better write-concurrency
+            PRAGMA synchronous = NORMAL;        -- fsync only in critical moments
+            PRAGMA wal_autocheckpoint = 1000;   -- write WAL changes back every 1000 pages, for an in average 1MB WAL file. May affect readers if number is increased
+            PRAGMA wal_checkpoint(TRUNCATE);    -- free some space by truncating possibly massive WAL files from the last run.
+        ").map_err(|err| {
+            warn!("executing pragmas for wall mode failed: {:?}", err);
+            ConnectionError::CouldntSetupConfiguration(err)
+        })?;
+
+        Ok(Self(c))
     }
 
     fn execute(&self, query: &str) -> QueryResult<usize> {
