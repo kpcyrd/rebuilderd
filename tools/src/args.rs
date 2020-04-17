@@ -1,4 +1,4 @@
-use rebuilderd_common::Distro;
+use rebuilderd_common::{Distro, Status};
 use rebuilderd_common::errors::*;
 use std::io::stdout;
 use structopt::StructOpt;
@@ -53,8 +53,8 @@ pub struct PkgsSync {
 pub struct PkgsList {
     #[structopt(long)]
     pub name: Option<String>,
-    #[structopt(long)]
-    pub status: Option<String>,
+    #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
+    pub status: Option<Status>,
     #[structopt(long)]
     pub distro: Option<String>,
     #[structopt(long)]

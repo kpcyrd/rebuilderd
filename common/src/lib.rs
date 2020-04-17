@@ -2,6 +2,7 @@ use crate::errors::*;
 use colored::*;
 use strum_macros::{EnumString, AsRefStr, Display};
 use serde::{Serialize, Deserialize};
+use std::ops::Deref;
 use std::str::FromStr;
 
 pub mod api;
@@ -30,8 +31,11 @@ pub struct PkgRelease {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Status {
+    #[serde(rename = "GOOD")]
     Good,
+    #[serde(rename = "BAD")]
     Bad,
+    #[serde(rename = "UNKWN")]
     Unknown,
 }
 
@@ -45,12 +49,14 @@ impl Status {
     }
 }
 
-impl ToString for Status {
-    fn to_string(&self) -> String {
+impl Deref for Status {
+    type Target = str;
+
+    fn deref(&self) -> &'static str {
         match self {
-            Status::Good    => "GOOD".to_string(),
-            Status::Bad     => "BAD".to_string(),
-            Status::Unknown => "UNKWN".to_string(),
+            Status::Good    => "GOOD",
+            Status::Bad     => "BAD",
+            Status::Unknown => "UNKWN",
         }
     }
 }

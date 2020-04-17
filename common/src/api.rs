@@ -1,7 +1,7 @@
 use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
-use crate::{Distro, PkgRelease};
+use crate::{Distro, PkgRelease, Status};
 use reqwest::blocking::{Client as HttpClient, RequestBuilder};
 
 pub const WORKER_HEADER: &str = "X-Worker-Key";
@@ -156,7 +156,7 @@ pub struct SuiteImport {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListPkgs {
     pub name: Option<String>,
-    pub status: Option<String>,
+    pub status: Option<Status>,
     pub distro: Option<String>,
     pub suite: Option<String>,
     pub architecture: Option<String>,

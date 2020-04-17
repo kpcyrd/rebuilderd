@@ -33,7 +33,7 @@ pub async fn sync_work(
     Ok(web::Json(JobAssignment::Nothing))
 }
 
-fn opt_filter(this: &String, filter: &Option<String>) -> bool {
+fn opt_filter(this: &str, filter: Option<&str>) -> bool {
     if let Some(filter) = filter {
         if this != filter {
             return true;
@@ -51,19 +51,19 @@ pub async fn list_pkgs(
 
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref())? {
-        if opt_filter(&pkg.name, &query.name) {
+        if opt_filter(&pkg.name, query.name.as_deref()) {
             continue;
         }
-        if opt_filter(&pkg.status, &query.status) {
+        if opt_filter(&pkg.status, query.status.as_deref()) {
             continue;
         }
-        if opt_filter(&pkg.distro, &query.distro) {
+        if opt_filter(&pkg.distro, query.distro.as_deref()) {
             continue;
         }
-        if opt_filter(&pkg.suite, &query.suite) {
+        if opt_filter(&pkg.suite, query.suite.as_deref()) {
             continue;
         }
-        if opt_filter(&pkg.architecture, &query.architecture) {
+        if opt_filter(&pkg.architecture, query.architecture.as_deref()) {
             continue;
         }
 
