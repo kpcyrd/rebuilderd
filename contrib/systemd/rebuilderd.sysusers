@@ -1,1 +1,2 @@
-u rebuilderd - "rebuilderd daemon"
+u rebuilderd 212 "rebuilderd daemon"
+g rebuilderd 212 "rebuilderd admins"
