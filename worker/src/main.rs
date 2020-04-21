@@ -18,12 +18,12 @@ pub mod setup;
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
-    #[structopt(short="H")]
-    pub home_dir: Option<PathBuf>,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
     #[structopt(short, long)]
     pub name: Option<String>,
+    #[structopt(short, long)]
+    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -95,7 +95,7 @@ fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Resu
 
 fn run() -> Result<()> {
     let args = Args::from_args();
-    let config = config::load()?;
+    let config = config::load(args.config.as_deref())?;
 
     if let Some(name) = args.name {
         setup::run(&name)
@@ -109,7 +109,7 @@ fn run() -> Result<()> {
                 .unwrap_or(config.endpoint.ok_or_else(|| format_err!("No endpoint configured")))?;
 
             let profile = auth::load()?;
-            let client = profile.new_client(endpoint);
+            let client = profile.new_client(endpoint, config.signup_secret);
             loop {
                 info!("requesting work");
                 match client.pop_queue(&WorkQuery {}) {
@@ -142,7 +142,7 @@ fn run() -> Result<()> {
                         client.report_build(&report)?;
                     },
                     Err(err) => {
-                        error!("failed to query for work: {}", err);
+                        error!("Failed to query for work: {}", err);
                         thread::sleep(Duration::from_secs(API_ERROR_DELAY));
                     },
                 }

@@ -14,6 +14,7 @@ pub struct Client {
     client: HttpClient,
     auth_cookie: Option<String>,
     worker_key: Option<String>,
+    signup_secret: Option<String>,
 }
 
 impl Client {
@@ -24,6 +25,7 @@ impl Client {
             client,
             auth_cookie: None,
             worker_key: None,
+            signup_secret: None,
         }
     }
 
@@ -40,6 +42,10 @@ impl Client {
 
     pub fn worker_key<I: Into<String>>(&mut self, key: I) {
         self.worker_key = Some(key.into());
+    }
+
+    pub fn signup_secret<I: Into<String>>(&mut self, secret: I) {
+        self.signup_secret = Some(secret.into());
     }
 
     pub fn get(&self, path: &'static str) -> RequestBuilder {

@@ -6,10 +6,11 @@ use std::path::Path;
 #[derive(Debug, Default, Deserialize)]
 pub struct ConfigFile {
     pub endpoint: Option<String>,
+    pub signup_secret: Option<String>,
 }
 
-pub fn load() -> Result<ConfigFile> {
-    let path = Path::new("/etc/rebuilderd-worker.conf");
+pub fn load(path: Option<&Path>) -> Result<ConfigFile> {
+    let path = path.unwrap_or_else(|| Path::new("/etc/rebuilderd-worker.conf"));
     if path.exists() {
         let buf = fs::read(path)?;
         let conf = toml::from_slice(&buf)?;

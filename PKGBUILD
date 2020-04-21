@@ -31,9 +31,9 @@ package() {
 
   # install config files
   install -Dm 644 -t "${pkgdir}/etc" \
-    contrib/confs/rebuilderd-worker.conf \
     contrib/confs/rebuilderd-sync.conf
   install -Dm 640 -g 212 -t "${pkgdir}/etc" \
+    contrib/confs/rebuilderd-worker.conf \
     contrib/confs/rebuilderd.conf
 
   # install completions

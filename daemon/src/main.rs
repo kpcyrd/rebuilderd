@@ -3,8 +3,8 @@
 
 use actix_web::{web, App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
-use crate::config::Config;
 use env_logger::Env;
+use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
 use rebuilderd_common::api::SuiteImport;
@@ -22,27 +22,20 @@ pub mod versions;
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
+    /// Verbose logging
     #[structopt(short)]
     verbose: bool,
+    /// Configuration file path
+    #[structopt(short, long)]
+    config: Option<PathBuf>,
 }
 
-async fn run() -> Result<()> {
+async fn run(args: Args) -> Result<()> {
     dotenv::dotenv().ok();
+    let config = config::load(args.config.as_deref())?;
 
-    let auth_cookie = auth::setup_auth_cookie()
-        .context("Failed to setup auth cookie")?;
-    let config = Config {
-        auth_cookie,
-        authorized_workers: vec![], // TODO
-        signup_secret: None, // TODO
-    };
-
-    let bind = std::env::var("HTTP_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:8080".to_string());
-
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "rebuilderd.db".to_string());
-    let pool = db::setup_pool(&url)?;
+    let pool = db::setup_pool("rebuilderd.db")?;
+    let bind_addr = config.bind_addr.clone();
 
     HttpServer::new(move || {
         App::new()
@@ -66,7 +59,7 @@ async fn run() -> Result<()> {
                 )
                 .route(web::post().to(api::sync_work))
             )
-    }).bind(bind)?
+    }).bind(&bind_addr)?
     .run()
     .await?;
     Ok(())
@@ -85,7 +78,7 @@ async fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
-    if let Err(err) = run().await {
+    if let Err(err) = run(args).await {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);

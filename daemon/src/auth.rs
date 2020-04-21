@@ -27,14 +27,14 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
         .context("Failed to get worker key")?;
 
     // TODO: we do not challenge the worker keys yet
-    if !cfg.authorized_workers.is_empty() {
+    if !cfg.worker.authorized_workers.is_empty() {
         // Vec<String>::contains() is inefficient with &str
-        if !cfg.authorized_workers.iter().any(|x| x == worker_key) {
+        if !cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
             bail!("Worker key is not authorized")
         }
     }
 
-    if let Some(expected_signup_secret) = &cfg.signup_secret {
+    if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
         let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
             .context("Failed to get worker key")?;
 
