@@ -1,7 +1,9 @@
-use actix_web::{get, post, web, HttpRequest, Responder};
+use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::Status;
 use chrono::prelude::*;
+use crate::auth;
+use crate::config::Config;
 use crate::models;
 use rebuilderd_common::api::*;
 use rebuilderd_common::PkgRelease;
@@ -9,28 +11,53 @@ use crate::db::Pool;
 use crate::sync;
 use diesel::SqliteConnection;
 
+fn forbidden() -> Result<HttpResponse> {
+    Ok(HttpResponse::Forbidden()
+        .body("Authentication failed\n"))
+}
+
+pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
+    let value = req.headers().get(key)
+        .ok_or_else(|| format_err!("Missing header"))?
+        .to_str()
+        .context("Failed to decode header value")?;
+    Ok(value)
+}
+
 #[get("/api/v0/workers")]
 pub async fn list_workers(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let connection = pool.get()?;
     models::Worker::mark_stale_workers_offline(connection.as_ref())?;
     let workers = models::Worker::list(connection.as_ref())?;
-    Ok(web::Json(workers))
+    Ok(HttpResponse::Ok().json(workers))
 }
 
 // this route is configured in src/main.rs so we can reconfigure the json extractor
 // #[post("/api/v0/job/sync")]
 pub async fn sync_work(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     import: web::Json<SuiteImport>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let import = import.into_inner();
     let connection = pool.get()?;
 
     sync::run(import, connection.as_ref())?;
 
-    Ok(web::Json(JobAssignment::Nothing))
+    Ok(HttpResponse::Ok().json(JobAssignment::Nothing))
 }
 
 fn opt_filter(this: &str, filter: Option<&str>) -> bool {
@@ -80,7 +107,7 @@ pub async fn list_pkgs(
         });
     }
 
-    Ok(web::Json(pkgs))
+    Ok(HttpResponse::Ok().json(pkgs))
 }
 
 #[post("/api/v0/queue/list")]
@@ -98,17 +125,15 @@ pub async fn list_queue(
 
     let now = Utc::now().naive_utc();
 
-    Ok(web::Json(QueueList {
+    Ok(HttpResponse::Ok().json(QueueList {
         now,
         queue,
     }))
 }
 
 fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> Result<models::Worker> {
-    let key = req.headers().get(WORKER_HEADER)
-        .ok_or_else(|| format_err!("Missing worker header"))?
-        .to_str()
-        .context("Failed to decode worker header")?;
+    let key = header(req, WORKER_KEY_HEADER)
+        .context("Failed to get worker key")?;
 
     let ci = req.peer_addr()
         .ok_or_else(|| format_err!("Can't determine client ip"))?;
@@ -125,9 +150,15 @@ fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> 
 
 #[post("/api/v0/queue/push")]
 pub async fn push_queue(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     query: web::Json<PushQueue>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let query = query.into_inner();
     let connection = pool.get()?;
 
@@ -143,15 +174,20 @@ pub async fn push_queue(
         item.insert(connection.as_ref())?;
     }
 
-    Ok(web::Json(()))
+    Ok(HttpResponse::Ok().json(()))
 }
 
 #[post("/api/v0/queue/pop")]
 pub async fn pop_queue(
     req: HttpRequest,
+    cfg: web::Data<Config>,
     _query: web::Json<WorkQuery>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::worker(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let connection = pool.get()?;
 
     let mut worker = get_worker_from_request(&req, connection.as_ref())?;
@@ -172,14 +208,20 @@ pub async fn pop_queue(
     worker.status = status;
     worker.update(connection.as_ref())?;
 
-    Ok(web::Json(resp))
+    Ok(HttpResponse::Ok().json(resp))
 }
 
 #[post("/api/v0/queue/drop")]
 pub async fn drop_from_queue(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     query: web::Json<DropQueueItem>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let query = query.into_inner();
     let connection = pool.get()?;
 
@@ -190,15 +232,20 @@ pub async fn drop_from_queue(
 
     models::Queued::drop_job(&pkgs, connection.as_ref())?;
 
-    Ok(web::Json(()))
+    Ok(HttpResponse::Ok().json(()))
 }
 
 #[post("/api/v0/build/ping")]
 pub async fn ping_build(
     req: HttpRequest,
+    cfg: web::Data<Config>,
     item: web::Json<QueueItem>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::worker(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let connection = pool.get()?;
 
     let worker = get_worker_from_request(&req, connection.as_ref())?;
@@ -216,15 +263,20 @@ pub async fn ping_build(
     worker.update(connection.as_ref())?;
     debug!("successfully pinged job");
 
-    Ok(web::Json(()))
+    Ok(HttpResponse::Ok().json(()))
 }
 
 #[post("/api/v0/build/report")]
 pub async fn report_build(
     req: HttpRequest,
+    cfg: web::Data<Config>,
     report: web::Json<BuildReport>,
     pool: web::Data<Pool>,
 ) -> Result<impl Responder> {
+    if auth::worker(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
     let connection = pool.get()?;
 
     let mut worker = get_worker_from_request(&req, connection.as_ref())?;
@@ -239,5 +291,5 @@ pub async fn report_build(
     worker.status = None;
     worker.update(connection.as_ref())?;
 
-    Ok(web::Json(()))
+    Ok(HttpResponse::Ok().json(()))
 }

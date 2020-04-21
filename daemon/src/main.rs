@@ -3,6 +3,7 @@
 
 use actix_web::{web, App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
+use crate::config::Config;
 use env_logger::Env;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
@@ -10,6 +11,8 @@ use rebuilderd_common::api::SuiteImport;
 use rebuilderd_common::errors::*;
 
 pub mod api;
+pub mod auth;
+pub mod config;
 pub mod db;
 pub mod schema;
 pub mod sync;
@@ -26,6 +29,14 @@ struct Args {
 async fn run() -> Result<()> {
     dotenv::dotenv().ok();
 
+    let auth_cookie = auth::setup_auth_cookie()
+        .context("Failed to setup auth cookie")?;
+    let config = Config {
+        auth_cookie,
+        authorized_workers: vec![], // TODO
+        signup_secret: None, // TODO
+    };
+
     let bind = std::env::var("HTTP_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:8080".to_string());
 
@@ -37,6 +48,7 @@ async fn run() -> Result<()> {
         App::new()
             .wrap(Logger::default())
             .data(pool.clone())
+            .data(config.clone())
             .service(api::list_workers)
             .service(api::list_pkgs)
             .service(api::list_queue)

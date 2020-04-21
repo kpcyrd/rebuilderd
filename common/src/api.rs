@@ -2,13 +2,17 @@ use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease, Status};
+use crate::auth;
 use reqwest::blocking::{Client as HttpClient, RequestBuilder};
 
-pub const WORKER_HEADER: &str = "X-Worker-Key";
+pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
+pub const WORKER_KEY_HEADER: &str = "X-Worker-Key";
+pub const SIGNUP_SECRET_HEADER: &str = "X-Signup-Secret";
 
 pub struct Client {
     endpoint: String,
     client: HttpClient,
+    auth_cookie: Option<String>,
     worker_key: Option<String>,
 }
 
@@ -18,8 +22,20 @@ impl Client {
         Client {
             endpoint,
             client,
+            auth_cookie: None,
             worker_key: None,
         }
+    }
+
+    pub fn with_auth_cookie(&mut self) -> Result<&mut Self> {
+        let auth_cookie = auth::find_auth_cookie()
+            .context("Failed to load auth cookie")?;
+        Ok(self.auth_cookie(auth_cookie))
+    }
+
+    pub fn auth_cookie<I: Into<String>>(&mut self, cookie: I) -> &mut Self {
+        self.auth_cookie = Some(cookie.into());
+        self
     }
 
     pub fn worker_key<I: Into<String>>(&mut self, key: I) {
@@ -28,16 +44,22 @@ impl Client {
 
     pub fn get(&self, path: &'static str) -> RequestBuilder {
         let mut req = self.client.get(&format!("{}{}", self.endpoint, path));
+        if let Some(auth_cookie) = &self.auth_cookie {
+            req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
+        }
         if let Some(worker_key) = &self.worker_key {
-            req = req.header(WORKER_HEADER, worker_key);
+            req = req.header(WORKER_KEY_HEADER, worker_key);
         }
         req
     }
 
     pub fn post(&self, path: &'static str) -> RequestBuilder {
         let mut req = self.client.post(&format!("{}{}", self.endpoint, path));
+        if let Some(auth_cookie) = &self.auth_cookie {
+            req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
+        }
         if let Some(worker_key) = &self.worker_key {
-            req = req.header(WORKER_HEADER, worker_key);
+            req = req.header(WORKER_KEY_HEADER, worker_key);
         }
         req
     }

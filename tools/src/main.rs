@@ -38,10 +38,10 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
 fn run() -> Result<()> {
     let args = Args::from_args();
 
-    let client = Client::new("http://127.0.0.1:8080".into());
+    let mut client = Client::new("http://127.0.0.1:8080".into());
     match args.subcommand {
         SubCommand::Status => {
-            for worker in client.list_workers()? {
+            for worker in client.with_auth_cookie()?.list_workers()? {
                 let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
@@ -51,12 +51,12 @@ fn run() -> Result<()> {
                 println!("{:-40} => {}", label, status);
             }
         },
-        SubCommand::Pkgs(Pkgs::Sync(args)) => sync(&client, args)?,
+        SubCommand::Pkgs(Pkgs::Sync(args)) => sync(client.with_auth_cookie()?, args)?,
         SubCommand::Pkgs(Pkgs::SyncProfile(args)) => {
             let mut config = SyncConfigFile::load(&args.config_file)?;
             let profile = config.profiles.remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
-            sync(&client, PkgsSync {
+            sync(client.with_auth_cookie()?, PkgsSync {
                 print_json: args.print_json,
                 maintainer: profile.maintainer,
                 distro: profile.distro,
@@ -133,7 +133,7 @@ fn run() -> Result<()> {
             }
         },
         SubCommand::Queue(Queue::Push(push)) => {
-            client.push_queue(&PushQueue {
+            client.with_auth_cookie()?.push_queue(&PushQueue {
                 name: push.name,
                 version: push.version,
                 distro: push.distro,
@@ -142,7 +142,7 @@ fn run() -> Result<()> {
             })?;
         },
         SubCommand::Queue(Queue::Delete(push)) => {
-            client.drop_queue(&DropQueueItem {
+            client.with_auth_cookie()?.drop_queue(&DropQueueItem {
                 name: push.name,
                 version: push.version,
                 distro: push.distro,

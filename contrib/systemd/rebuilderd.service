@@ -3,6 +3,7 @@ Description=rebuilderd: independent binary package verification system
 
 [Service]
 User=rebuilderd
+Environment="REBUILDERD_COOKIE_PATH=/var/lib/rebuilderd/auth-cookie"
 ExecStart=/usr/bin/rebuilderd
 WorkingDirectory=/var/lib/rebuilderd
 

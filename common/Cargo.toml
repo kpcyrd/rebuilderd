@@ -18,3 +18,5 @@ strum_macros = "0.18"
 reqwest = { version="0.10", features=["blocking", "json"] }
 chrono = { version = "0.4", features=["serde"] }
 colored = "1"
+dirs = "2.0.2"
+toml = "0.5.6"
