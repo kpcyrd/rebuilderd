@@ -51,7 +51,9 @@ pub fn find_auth_cookie() -> Result<String> {
 
     if let Some(data_dir) = dirs::data_dir() {
         let path = data_dir.join("rebuilderd-auth-cookie");
-        return read_cookie_from_file(path);
+        if let Ok(cookie) = read_cookie_from_file(path) {
+            return Ok(cookie);
+        }
     }
 
     bail!("Failed to find auth cookie anywhere")

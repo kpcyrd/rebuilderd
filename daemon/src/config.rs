@@ -57,6 +57,7 @@ pub struct HttpConfig {
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct WorkerConfig {
+    #[serde(default)]
     pub authorized_workers: Vec<String>,
     pub signup_secret: Option<String>,
 }

@@ -9,8 +9,9 @@ arch=('x86_64')
 license=('GPL3')
 depends=('libsodium' 'sqlite' 'archlinux-repro')
 makedepends=('cargo')
-backup=('etc/rebuilderd-worker.conf'
-        'etc/rebuilderd-sync.conf')
+backup=('etc/rebuilderd.conf'
+        'etc/rebuilderd-sync.conf'
+        'etc/rebuilderd-worker.conf')
 
 build() {
   cd ..
