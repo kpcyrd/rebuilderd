@@ -38,7 +38,18 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
 fn run() -> Result<()> {
     let args = Args::from_args();
 
-    let mut client = Client::new("http://127.0.0.1:8080".into());
+    let config = config::load(args.config)
+        .context("Failed to load config file")?;
+    let endpoint = if let Some(endpoint) = args.endpoint {
+        endpoint
+    } else if let Some(endpoint) = config.http.endpoint {
+        endpoint
+    } else {
+        "http://127.0.0.1:8080".to_string()
+    };
+
+    debug!("Setting rebuilderd endpoint to {:?}", endpoint);
+    let mut client = Client::new(endpoint);
     match args.subcommand {
         SubCommand::Status => {
             for worker in client.with_auth_cookie()?.list_workers()? {

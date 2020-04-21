@@ -1537,6 +1537,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "colored",
+ "dirs",
  "env_logger",
  "flate2",
  "rebuilderd-common",

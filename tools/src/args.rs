@@ -1,12 +1,19 @@
 use rebuilderd_common::{Distro, Status};
 use rebuilderd_common::errors::*;
 use std::io::stdout;
+use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::{AppSettings, Shell};
 
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
+    /// rebuilderd endpoint to talk to
+    #[structopt(short="H", long)]
+    pub endpoint: Option<String>,
+    /// Configuration file path
+    #[structopt(short, long)]
+    pub config: Option<PathBuf>,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
 }

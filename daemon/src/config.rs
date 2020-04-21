@@ -1,7 +1,6 @@
 use crate::auth;
-use rebuilderd_common::auth::AuthConfig;
+use rebuilderd_common::config::{ConfigFile, WorkerConfig};
 use rebuilderd_common::errors::*;
-use serde::Deserialize;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -38,26 +37,4 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
         worker: config.worker,
         bind_addr,
     })
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct ConfigFile {
-    #[serde(default)]
-    pub http: HttpConfig,
-    #[serde(default)]
-    pub auth: AuthConfig,
-    #[serde(default)]
-    pub worker: WorkerConfig,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct HttpConfig {
-    pub bind_addr: Option<String>,
-}
-
-#[derive(Debug, Default, Clone, Deserialize)]
-pub struct WorkerConfig {
-    #[serde(default)]
-    pub authorized_workers: Vec<String>,
-    pub signup_secret: Option<String>,
 }
