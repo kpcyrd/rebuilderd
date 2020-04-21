@@ -7,6 +7,9 @@ RUN cd worker; cargo build --release
 FROM archlinux
 RUN pacman -Suy --noconfirm archlinux-repro openssl libsodium
 COPY --from=0 \
+    /usr/src/rebuilderd/worker/rebuilder-archlinux.sh \
+    /usr/local/libexec/rebuilderd/
+COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd-worker \
     /usr/local/bin/
 CMD ["rebuilderd-worker"]

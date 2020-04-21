@@ -56,6 +56,9 @@ impl Client {
         if let Some(worker_key) = &self.worker_key {
             req = req.header(WORKER_KEY_HEADER, worker_key);
         }
+        if let Some(signup_secret) = &self.signup_secret {
+            req = req.header(SIGNUP_SECRET_HEADER, signup_secret);
+        }
         req
     }
 
@@ -66,6 +69,9 @@ impl Client {
         }
         if let Some(worker_key) = &self.worker_key {
             req = req.header(WORKER_KEY_HEADER, worker_key);
+        }
+        if let Some(signup_secret) = &self.signup_secret {
+            req = req.header(SIGNUP_SECRET_HEADER, signup_secret);
         }
         req
     }
