@@ -1,8 +1,10 @@
 use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
+use serde::Serialize;
 use std::borrow::Cow;
 use std::io;
+use std::io::prelude::*;
 use structopt::StructOpt;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
@@ -14,6 +16,13 @@ pub mod args;
 pub mod config;
 pub mod schedule;
 
+fn print_json<S: Serialize>(x: &S) -> Result<()> {
+    let mut stdout = io::stdout();
+    serde_json::to_writer_pretty(&mut stdout, &x)?;
+    stdout.write_all(b"\n")?;
+    Ok(())
+}
+
 pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let pkgs = match sync.distro {
         Distro::Archlinux => schedule::archlinux::sync(&sync)?,
@@ -21,7 +30,7 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     };
 
     if sync.print_json {
-        serde_json::to_writer_pretty(io::stdout(), &pkgs)?;
+        print_json(&pkgs)?;
     } else {
         info!("Sending current suite to api...");
         client.sync_suite(&SuiteImport {
@@ -90,22 +99,26 @@ fn run() -> Result<()> {
                 suite: ls.suite,
                 architecture: ls.architecture,
             })?;
-            for pkg in pkgs {
-                let status_str = format!("[{}]", pkg.status.fancy()).bold();
+            if ls.json {
+                print_json(&pkgs)?;
+            } else {
+                for pkg in pkgs {
+                    let status_str = format!("[{}]", pkg.status.fancy()).bold();
 
-                let pkg_str = format!("{} {}",
-                    pkg.name.bold(),
-                    pkg.version.bold(),
-                );
+                    let pkg_str = format!("{} {}",
+                        pkg.name.bold(),
+                        pkg.version.bold(),
+                    );
 
-                println!("{} {:-60} ({}, {}, {}) {:?}",
-                    status_str,
-                    pkg_str,
-                    pkg.distro,
-                    pkg.suite,
-                    pkg.architecture,
-                    pkg.url,
-                );
+                    println!("{} {:-60} ({}, {}, {}) {:?}",
+                        status_str,
+                        pkg_str,
+                        pkg.distro,
+                        pkg.suite,
+                        pkg.architecture,
+                        pkg.url,
+                    );
+                }
             }
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
@@ -118,35 +131,39 @@ fn run() -> Result<()> {
                 limit,
             })?;
 
-            for q in pkgs.queue {
-                let pkg = q.package;
+            if ls.json {
+                print_json(&pkgs)?;
+            } else {
+                for q in pkgs.queue {
+                    let pkg = q.package;
 
-                let started_at = if let Some(started_at) = q.started_at {
-                    started_at.format("%Y-%m-%d %H:%M:%S").to_string()
-                } else {
-                    String::new()
-                };
-                let pkg_str = format!("{} {}",
-                    pkg.name.bold(),
-                    pkg.version,
-                );
+                    let started_at = if let Some(started_at) = q.started_at {
+                        started_at.format("%Y-%m-%d %H:%M:%S").to_string()
+                    } else {
+                        String::new()
+                    };
+                    let pkg_str = format!("{} {}",
+                        pkg.name.bold(),
+                        pkg.version,
+                    );
 
-                let running = format!("{:11}", if let Some(started_at) = q.started_at {
-                    let duration = (pkgs.now - started_at).num_seconds();
-                    Cow::Owned(utils::secs_to_human(duration))
-                } else {
-                    Cow::Borrowed("")
-                });
+                    let running = format!("{:11}", if let Some(started_at) = q.started_at {
+                        let duration = (pkgs.now - started_at).num_seconds();
+                        Cow::Owned(utils::secs_to_human(duration))
+                    } else {
+                        Cow::Borrowed("")
+                    });
 
-                println!("{} {:-60} {} {:19} {:?} {:?} {:?}",
-                    q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
-                    pkg_str,
-                    running.green(),
-                    started_at,
-                    pkg.distro,
-                    pkg.suite,
-                    pkg.architecture,
-                );
+                    println!("{} {:-60} {} {:19} {:?} {:?} {:?}",
+                        q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
+                        pkg_str,
+                        running.green(),
+                        started_at,
+                        pkg.distro,
+                        pkg.suite,
+                        pkg.architecture,
+                    );
+                }
             }
         },
         SubCommand::Queue(Queue::Push(push)) => {

@@ -73,6 +73,8 @@ pub struct PkgsList {
     pub suite: Option<String>,
     #[structopt(long)]
     pub architecture: Option<String>,
+    #[structopt(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, StructOpt)]
@@ -87,6 +89,8 @@ pub enum Queue {
 pub struct QueueList {
     #[structopt(long)]
     pub head: bool,
+    #[structopt(long)]
+    pub json: bool,
 }
 
 #[derive(Debug, StructOpt)]
