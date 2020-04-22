@@ -2,6 +2,7 @@ use env_logger::Env;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
 use rebuilderd_common::api::*;
+use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::errors::*;
 use std::thread;
 use std::time::Duration;
@@ -95,7 +96,11 @@ fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Resu
 
 fn run() -> Result<()> {
     let args = Args::from_args();
-    let config = config::load(args.config.as_deref())?;
+    let config = config::load(args.config.as_deref())
+        .context("Failed to load config file")?;
+
+    let cookie = find_auth_cookie().ok();
+    debug!("attempt to load auth cookie resulted in: {:?}",cookie);
 
     if let Some(name) = args.name {
         setup::run(&name)
@@ -109,7 +114,7 @@ fn run() -> Result<()> {
                 .unwrap_or(config.endpoint.ok_or_else(|| format_err!("No endpoint configured")))?;
 
             let profile = auth::load()?;
-            let client = profile.new_client(endpoint, config.signup_secret);
+            let client = profile.new_client(endpoint, config.signup_secret, cookie);
             loop {
                 info!("requesting work");
                 match client.pop_queue(&WorkQuery {}) {

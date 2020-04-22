@@ -26,24 +26,33 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
     let worker_key = api::header(req, WORKER_KEY_HEADER)
         .context("Failed to get worker key")?;
 
-    // TODO: we do not challenge the worker keys yet
-    if !cfg.worker.authorized_workers.is_empty() {
+    if !cfg.worker.authorized_workers.is_empty() || cfg.worker.signup_secret.is_some() {
+        // TODO: we do not challenge the worker keys yet
         // Vec<String>::contains() is inefficient with &str
-        if !cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
-            bail!("Worker key is not authorized")
+        if cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
+            debug!("worker authenticated by whitelisted key");
+            return Ok(());
+        }
+
+        if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
+            let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
+                .context("Failed to get worker key")?;
+
+            if signup_secret == expected_signup_secret {
+                debug!("worker authenticated with signup secret");
+                return Ok(());
+            }
+        }
+    } else {
+        let auth_cookie = api::header(req, AUTH_COOKIE_HEADER)
+            .context("Failed to get auth cookie")?;
+
+        if cfg.auth_cookie == auth_cookie {
+            return Ok(());
         }
     }
 
-    if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
-        let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
-            .context("Failed to get worker key")?;
-
-        if signup_secret != expected_signup_secret {
-            bail!("Incorrect signup secret")
-        }
-    }
-
-    Ok(())
+    bail!("All authentication methods failed")
 }
 
 pub fn setup_auth_cookie() -> Result<String> {

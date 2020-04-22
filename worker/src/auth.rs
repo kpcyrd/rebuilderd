@@ -12,11 +12,14 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn new_client(&self, endpoint: String, signup_secret: Option<String>) -> Client {
+    pub fn new_client(&self, endpoint: String, signup_secret: Option<String>, auth_cookie: Option<String>) -> Client {
         let mut client = Client::new(endpoint);
         client.worker_key(self.key.clone());
         if let Some(signup_secret) = signup_secret {
             client.signup_secret(signup_secret);
+        }
+        if let Some(auth_cookie) = auth_cookie {
+            client.auth_cookie(auth_cookie);
         }
         client
     }
