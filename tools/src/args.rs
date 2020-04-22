@@ -48,8 +48,10 @@ pub struct PkgsSyncProfile {
 pub struct PkgsSync {
     #[structopt(long="print-json")]
     pub print_json: bool,
-    #[structopt(long)]
-    pub maintainer: Vec<String>,
+    #[structopt(long="maintainer")]
+    pub maintainers: Vec<String>,
+    #[structopt(long="pkg")]
+    pub pkgs: Vec<String>,
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,

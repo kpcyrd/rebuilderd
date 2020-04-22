@@ -18,13 +18,22 @@ pub struct Pkg {
 }
 
 impl Pkg {
-    fn from_maintainer(&self, maintainers: &[String]) -> bool {
-        if maintainers.is_empty() {
+    fn matches(&self, sync: &PkgsSync) -> bool {
+        if sync.maintainers.is_empty() && sync.pkgs.is_empty() {
             true
         } else {
-            maintainers.iter()
-                .any(|m| self.packager.starts_with(m))
+            self.from_maintainer(&sync.maintainers) || self.whitelisted(&sync.pkgs)
         }
+    }
+
+    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+        maintainers.iter()
+            .any(|m| self.packager.starts_with(m))
+    }
+
+    fn whitelisted(&self, pkgs: &[String]) -> bool {
+        pkgs.iter()
+            .any(|m| self.name == *m)
     }
 }
 
@@ -109,7 +118,7 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     info!("Parsing index...");
     let mut pkgs = Vec::new();
     for pkg in extract_pkgs(&bytes)? {
-        if !pkg.from_maintainer(&sync.maintainer) {
+        if !pkg.matches(&sync) {
             continue;
         }
 

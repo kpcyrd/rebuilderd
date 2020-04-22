@@ -36,14 +36,23 @@ impl Pkg {
         Ok(directory.to_string())
     }
 
-    fn from_maintainer(&self, maintainers: &[String]) -> bool {
-        if maintainers.is_empty() {
+    fn matches(&self, sync: &PkgsSync) -> bool {
+        if sync.maintainers.is_empty() && sync.pkgs.is_empty() {
             true
         } else {
-            self.uploaders.iter()
-                .any(|uploader| maintainers.iter()
-                    .any(|m| uploader.starts_with(m)))
+            self.from_maintainer(&sync.maintainers) || self.whitelisted(&sync.pkgs)
         }
+    }
+
+    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+        self.uploaders.iter()
+            .any(|uploader| maintainers.iter()
+                .any(|m| uploader.starts_with(m)))
+    }
+
+    fn whitelisted(&self, pkgs: &[String]) -> bool {
+        pkgs.iter()
+            .any(|m| self.package == *m)
     }
 }
 
@@ -143,7 +152,7 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     info!("Decompressing...");
     let mut pkgs = Vec::new();
     for pkg in extract_pkgs(&bytes)? {
-        if !pkg.from_maintainer(&sync.maintainer) {
+        if !pkg.matches(&sync) {
             continue;
         }
 

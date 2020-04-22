@@ -25,7 +25,9 @@ impl SyncConfigFile {
 #[derive(Debug, Deserialize)]
 pub struct SyncProfile {
     #[serde(default)]
-    pub maintainer: Vec<String>,
+    pub maintainers: Vec<String>,
+    #[serde(default)]
+    pub pkgs: Vec<String>,
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,

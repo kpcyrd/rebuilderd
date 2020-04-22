@@ -69,7 +69,8 @@ fn run() -> Result<()> {
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
             sync(client.with_auth_cookie()?, PkgsSync {
                 print_json: args.print_json,
-                maintainer: profile.maintainer,
+                maintainers: profile.maintainers,
+                pkgs: profile.pkgs,
                 distro: profile.distro,
                 suite: profile.suite,
                 architecture: profile.architecture,
