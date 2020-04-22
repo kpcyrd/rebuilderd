@@ -38,6 +38,11 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
 fn run() -> Result<()> {
     let args = Args::from_args();
 
+    if args.color {
+        debug!("Bypass tty detection and always use colors");
+        colored::control::set_override(true);
+    }
+
     let config = config::load(args.config)
         .context("Failed to load config file")?;
     let endpoint = if let Some(endpoint) = args.endpoint {

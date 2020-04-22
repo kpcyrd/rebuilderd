@@ -14,6 +14,9 @@ pub struct Args {
     /// Configuration file path
     #[structopt(short, long)]
     pub config: Option<PathBuf>,
+    /// Bypass tty detection and always use colors
+    #[structopt(long, global=true)]
+    pub color: bool,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
 }
