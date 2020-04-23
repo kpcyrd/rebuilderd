@@ -1,39 +1,29 @@
-use rebuilderd_common::errors::*;
-use std::io::prelude::*;
-use flate2::read::GzDecoder;
-use tar::{Archive, EntryType};
-use rebuilderd_common::PkgRelease;
-use rebuilderd_common::Distro;
-use rebuilderd_common::Status;
-use crate::schedule::url_or_path;
+use crate::schedule::{Pkg, url_or_path};
 use crate::PkgsSync;
+use flate2::read::GzDecoder;
+use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::errors::*;
+use std::convert::TryInto;
+use std::io::prelude::*;
+use tar::{Archive, EntryType};
 
 #[derive(Debug)]
-pub struct Pkg {
-    name: String,
-    filename: String,
-    version: String,
-    architecture: String,
-    packager: String,
+pub struct ArchPkg {
+    pub name: String,
+    pub filename: String,
+    pub version: String,
+    pub architecture: String,
+    pub packager: String,
 }
 
-impl Pkg {
-    fn matches(&self, sync: &PkgsSync) -> bool {
-        if sync.maintainers.is_empty() && sync.pkgs.is_empty() {
-            true
-        } else {
-            self.from_maintainer(&sync.maintainers) || self.whitelisted(&sync.pkgs)
-        }
+impl Pkg for ArchPkg {
+    fn pkg_name(&self) -> &str {
+        &self.name
     }
 
     fn from_maintainer(&self, maintainers: &[String]) -> bool {
         maintainers.iter()
             .any(|m| self.packager.starts_with(m))
-    }
-
-    fn whitelisted(&self, pkgs: &[String]) -> bool {
-        pkgs.iter()
-            .any(|m| self.name == *m)
     }
 }
 
@@ -46,12 +36,11 @@ pub struct NewPkg {
     packager: Vec<String>,
 }
 
-use std::convert::TryInto;
-impl TryInto<Pkg> for NewPkg {
+impl TryInto<ArchPkg> for NewPkg {
     type Error = Error;
 
-    fn try_into(self: NewPkg) -> Result<Pkg> {
-        Ok(Pkg {
+    fn try_into(self: NewPkg) -> Result<ArchPkg> {
+        Ok(ArchPkg {
             name: self.name.get(0).ok_or_else(|| format_err!("Missing name field"))?.to_string(),
             filename: self.filename.get(0).ok_or_else(|| format_err!("Missing filename field"))?.to_string(),
             version: self.version.get(0).ok_or_else(|| format_err!("Missing version field"))?.to_string(),
@@ -61,7 +50,7 @@ impl TryInto<Pkg> for NewPkg {
     }
 }
 
-pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
+pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
     let tar = GzDecoder::new(&bytes[..]);
     let mut archive = Archive::new(tar);
 

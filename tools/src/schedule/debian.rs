@@ -1,12 +1,11 @@
-use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
+use crate::schedule::{Pkg, url_or_path};
+use crate::PkgsSync;
 use lzma::LzmaReader;
+use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::errors::*;
+use std::convert::TryInto;
 use std::io::BufReader;
 use std::io::prelude::*;
-use rebuilderd_common::PkgRelease;
-use rebuilderd_common::Distro;
-use crate::schedule::url_or_path;
-use crate::PkgsSync;
 
 // TODO: support more archs
 pub fn any_architectures() -> Vec<String> {
@@ -16,7 +15,7 @@ pub fn any_architectures() -> Vec<String> {
 }
 
 #[derive(Debug)]
-pub struct Pkg {
+pub struct DebianPkg {
     package: String,
     binary: Vec<String>,
     version: String,
@@ -25,7 +24,7 @@ pub struct Pkg {
     uploaders: Vec<String>,
 }
 
-impl Pkg {
+impl DebianPkg {
     fn buildinfo_path(&self) -> Result<String> {
         let idx = self.directory.find('/') .unwrap();
         let (_, directory) = self.directory.split_at(idx+1);
@@ -35,24 +34,17 @@ impl Pkg {
 
         Ok(directory.to_string())
     }
+}
 
-    fn matches(&self, sync: &PkgsSync) -> bool {
-        if sync.maintainers.is_empty() && sync.pkgs.is_empty() {
-            true
-        } else {
-            self.from_maintainer(&sync.maintainers) || self.whitelisted(&sync.pkgs)
-        }
+impl Pkg for DebianPkg {
+    fn pkg_name(&self) -> &str {
+        &self.package
     }
 
     fn from_maintainer(&self, maintainers: &[String]) -> bool {
         self.uploaders.iter()
             .any(|uploader| maintainers.iter()
                 .any(|m| uploader.starts_with(m)))
-    }
-
-    fn whitelisted(&self, pkgs: &[String]) -> bool {
-        pkgs.iter()
-            .any(|m| self.package == *m)
     }
 }
 
@@ -68,12 +60,11 @@ pub struct NewPkg {
     extra_source_only: bool,
 }
 
-use std::convert::TryInto;
-impl TryInto<Pkg> for NewPkg {
+impl TryInto<DebianPkg> for NewPkg {
     type Error = Error;
 
-    fn try_into(self: NewPkg) -> Result<Pkg> {
-        Ok(Pkg {
+    fn try_into(self: NewPkg) -> Result<DebianPkg> {
+        Ok(DebianPkg {
             package: self.package.ok_or_else(|| format_err!("Missing package field"))?,
             binary: self.binary.ok_or_else(|| format_err!("Missing binary field"))?,
             version: self.version.ok_or_else(|| format_err!("Missing version field"))?,
@@ -84,7 +75,7 @@ impl TryInto<Pkg> for NewPkg {
     }
 }
 
-pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<Pkg>> {
+pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<DebianPkg>> {
     let r = LzmaReader::new_decompressor(&bytes[..])?;
     let r = BufReader::new(r);
 

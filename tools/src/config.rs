@@ -24,14 +24,17 @@ impl SyncConfigFile {
 
 #[derive(Debug, Deserialize)]
 pub struct SyncProfile {
-    #[serde(default)]
-    pub maintainers: Vec<String>,
-    #[serde(default)]
-    pub pkgs: Vec<String>,
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,
     pub source: String,
+
+    #[serde(default)]
+    pub maintainers: Vec<String>,
+    #[serde(default)]
+    pub pkgs: Vec<String>,
+    #[serde(default)]
+    pub excludes: Vec<String>,
 }
 
 pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {

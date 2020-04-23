@@ -1,5 +1,6 @@
 use rebuilderd_common::{Distro, Status};
 use rebuilderd_common::errors::*;
+use glob::Pattern;
 use std::io::stdout;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -49,16 +50,18 @@ pub struct PkgsSyncProfile {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSync {
+    pub distro: Distro,
+    pub suite: String,
+    pub architecture: String,
+    pub source: String,
     #[structopt(long="print-json")]
     pub print_json: bool,
     #[structopt(long="maintainer")]
     pub maintainers: Vec<String>,
     #[structopt(long="pkg")]
-    pub pkgs: Vec<String>,
-    pub distro: Distro,
-    pub suite: String,
-    pub architecture: String,
-    pub source: String,
+    pub pkgs: Vec<Pattern>,
+    #[structopt(long="exclude")]
+    pub excludes: Vec<Pattern>,
 }
 
 #[derive(Debug, StructOpt)]

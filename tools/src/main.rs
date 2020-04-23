@@ -1,6 +1,7 @@
 use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
+use glob::Pattern;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::io;
@@ -15,6 +16,15 @@ use colored::*;
 pub mod args;
 pub mod config;
 pub mod schedule;
+
+fn patterns_from(patterns: &[String]) -> Result<Vec<Pattern>> {
+    patterns.iter()
+        .map(|p| {
+            Pattern::new(p)
+                .map_err(Error::from)
+        })
+        .collect()
+}
 
 fn print_json<S: Serialize>(x: &S) -> Result<()> {
     let mut stdout = io::stdout();
@@ -82,13 +92,15 @@ fn run() -> Result<()> {
             let profile = config.profiles.remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
             sync(client.with_auth_cookie()?, PkgsSync {
-                print_json: args.print_json,
-                maintainers: profile.maintainers,
-                pkgs: profile.pkgs,
                 distro: profile.distro,
                 suite: profile.suite,
                 architecture: profile.architecture,
                 source: profile.source,
+
+                print_json: args.print_json,
+                maintainers: profile.maintainers,
+                pkgs: patterns_from(&profile.pkgs)?,
+                excludes: patterns_from(&profile.excludes)?,
             })?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
