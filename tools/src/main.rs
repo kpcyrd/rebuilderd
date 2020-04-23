@@ -54,9 +54,7 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     Ok(())
 }
 
-fn run() -> Result<()> {
-    let args = Args::from_args();
-
+fn run(args: Args) -> Result<()> {
     if args.color {
         debug!("Bypass tty detection and always use colors");
         colored::control::set_override(true);
@@ -203,10 +201,18 @@ fn run() -> Result<()> {
 }
 
 fn main() {
-    env_logger::init_from_env(Env::default()
-        .default_filter_or("info"));
+    let args = Args::from_args();
 
-    if let Err(err) = run() {
+    let logging = if args.verbose {
+        "debug"
+    } else {
+        "info"
+    };
+
+    env_logger::init_from_env(Env::default()
+        .default_filter_or(logging));
+
+    if let Err(err) = run(args) {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);

@@ -18,6 +18,9 @@ pub struct Args {
     /// Bypass tty detection and always use colors
     #[structopt(long, global=true)]
     pub color: bool,
+    /// Verbose logging
+    #[structopt(short)]
+    pub verbose: bool,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
 }

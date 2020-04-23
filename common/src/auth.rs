@@ -16,8 +16,10 @@ pub struct AuthConfig {
 }
 
 fn read_cookie_from_config<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
-    if let Ok(buf) = fs::read(path) {
+    debug!("Attempting reading cookie from config: {:?}", path.as_ref());
+    if let Ok(buf) = fs::read(path.as_ref()) {
         let config = toml::from_slice::<Config>(&buf)?;
+        debug!("Found cookie in config {:?}", path.as_ref());
         Ok(config.auth.cookie)
     } else {
         Ok(None)
@@ -25,7 +27,9 @@ fn read_cookie_from_config<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
 }
 
 fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
-    let cookie = fs::read_to_string(path)?;
+    debug!("Attempting reading cookie from file: {:?}", path.as_ref());
+    let cookie = fs::read_to_string(path.as_ref())?;
+    debug!("Found cookie in file {:?}", path.as_ref());
     Ok(cookie.trim().to_string())
 }
 
