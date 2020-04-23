@@ -1,6 +1,5 @@
 use crate::errors::*;
 use serde::Deserialize;
-use std::env;
 use std::fs;
 use std::path::Path;
 
@@ -34,10 +33,6 @@ fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
 }
 
 pub fn find_auth_cookie() -> Result<String> {
-    if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
-        return read_cookie_from_file(cookie_path);
-    }
-
     if let Some(config_dir) = dirs::config_dir() {
         let path = config_dir.join("rebuilderd.conf");
         if let Some(cookie) = read_cookie_from_config(path)? {
