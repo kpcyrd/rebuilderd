@@ -1,11 +1,50 @@
 use crate::auth::AuthConfig;
+use crate::errors::*;
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub const IDLE_DELAY: u64 = 180;
 pub const PING_DEADLINE: i64 = IDLE_DELAY as i64 + 20;
 pub const PING_INTERVAL: u64 = 30;
 pub const WORKER_DELAY: u64 = 3;
 pub const API_ERROR_DELAY: u64 = 30;
+
+pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
+    let mut config = ConfigFile::default();
+
+    if let Ok(c) = load_from("/etc/rebuilderd.conf") {
+        config.update(c);
+    }
+
+    if let Ok(path) = config_path() {
+        if let Ok(c) = load_from(path) {
+            config.update(c);
+        }
+    }
+
+    if let Some(path) = path {
+        let c = load_from(path)?;
+        config.update(c);
+    }
+
+    Ok(config)
+}
+
+fn config_path() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir()
+        .ok_or_else(|| format_err!("Failed to find config dir"))?;
+    Ok(config_dir.join("rebuilderd.conf"))
+}
+
+fn load_from<P: AsRef<Path>>(path: P) -> Result<ConfigFile> {
+    let buf = fs::read(path.as_ref())?;
+    debug!("Loading config file {:?}", path.as_ref());
+    let config = toml::from_slice(&buf)
+        .context("Failed to load config")?;
+    Ok(config)
+}
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ConfigFile {
@@ -14,7 +53,24 @@ pub struct ConfigFile {
     #[serde(default)]
     pub auth: AuthConfig,
     #[serde(default)]
+    pub endpoints: HashMap<String, EndpointConfig>,
+    #[serde(default)]
     pub worker: WorkerConfig,
+}
+
+impl ConfigFile {
+    pub fn update(&mut self, c: ConfigFile) {
+        self.http.update(c.http);
+        self.auth.update(c.auth);
+        for (k, v) in c.endpoints {
+            if let Some(o) = self.endpoints.get_mut(&k) {
+                o.update(v);
+            } else {
+                self.endpoints.insert(k, v);
+            }
+        }
+        self.worker.update(c.worker);
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -23,9 +79,42 @@ pub struct HttpConfig {
     pub endpoint: Option<String>,
 }
 
+impl HttpConfig {
+    pub fn update(&mut self, c: HttpConfig) {
+        if c.bind_addr.is_some() {
+            self.bind_addr = c.bind_addr;
+        }
+        if c.endpoint.is_some() {
+            self.endpoint = c.endpoint;
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct EndpointConfig {
+    pub cookie: String,
+}
+
+impl EndpointConfig {
+    pub fn update(&mut self, c: EndpointConfig) {
+        self.cookie = c.cookie;
+    }
+}
+
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct WorkerConfig {
     #[serde(default)]
     pub authorized_workers: Vec<String>,
     pub signup_secret: Option<String>,
+}
+
+impl WorkerConfig {
+    pub fn update(&mut self, c: WorkerConfig) {
+        if !c.authorized_workers.is_empty() {
+            self.authorized_workers = c.authorized_workers;
+        }
+        if c.signup_secret.is_some() {
+            self.signup_secret = c.signup_secret;
+        }
+    }
 }

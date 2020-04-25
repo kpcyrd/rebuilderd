@@ -1,3 +1,4 @@
+use crate::config::ConfigFile;
 use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
@@ -12,27 +13,44 @@ pub const SIGNUP_SECRET_HEADER: &str = "X-Signup-Secret";
 pub struct Client {
     endpoint: String,
     client: HttpClient,
+    is_default_endpoint: bool,
     auth_cookie: Option<String>,
     worker_key: Option<String>,
     signup_secret: Option<String>,
 }
 
 impl Client {
-    pub fn new(endpoint: String) -> Client {
+    pub fn new(config: ConfigFile, endpoint: Option<String>) -> Client {
+        let (endpoint, auth_cookie, is_default_endpoint) = if let Some(endpoint) = endpoint {
+            let cookie = config.endpoints.get(&endpoint)
+                .map(|e| e.cookie.to_string());
+            (endpoint, cookie, false)
+        } else if let Some(endpoint) = config.http.endpoint {
+            (endpoint, None, true)
+        } else {
+            ("http://127.0.0.1:8080".to_string(), None, true)
+        };
+
+        debug!("Setting rebuilderd endpoint to {:?}", endpoint);
         let client = HttpClient::new();
         Client {
             endpoint,
             client,
-            auth_cookie: None,
+            is_default_endpoint,
+            auth_cookie,
             worker_key: None,
             signup_secret: None,
         }
     }
 
     pub fn with_auth_cookie(&mut self) -> Result<&mut Self> {
-        let auth_cookie = auth::find_auth_cookie()
-            .context("Failed to load auth cookie")?;
-        Ok(self.auth_cookie(auth_cookie))
+        if self.is_default_endpoint {
+            let auth_cookie = auth::find_auth_cookie()
+                .context("Failed to load auth cookie")?;
+            Ok(self.auth_cookie(auth_cookie))
+        } else {
+            Ok(self)
+        }
     }
 
     pub fn auth_cookie<I: Into<String>>(&mut self, cookie: I) -> &mut Self {

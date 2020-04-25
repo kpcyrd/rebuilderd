@@ -109,12 +109,14 @@ fn run() -> Result<()> {
 
     match args.subcommand {
         SubCommand::Connect(connect) => {
+            let system_config = rebuilderd_common::config::load(None::<String>)
+                .context("Failed to load system config")?;
             let endpoint = connect.endpoint
                 .map(|e| Ok(e))
                 .unwrap_or(config.endpoint.ok_or_else(|| format_err!("No endpoint configured")))?;
 
             let profile = auth::load()?;
-            let client = profile.new_client(endpoint, config.signup_secret, cookie);
+            let client = profile.new_client(system_config, endpoint, config.signup_secret, cookie);
             loop {
                 info!("requesting work");
                 match client.pop_queue(&WorkQuery {}) {

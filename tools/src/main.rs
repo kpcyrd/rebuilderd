@@ -60,18 +60,10 @@ fn run(args: Args) -> Result<()> {
         colored::control::set_override(true);
     }
 
-    let config = config::load(args.config)
+    let config = rebuilderd_common::config::load(args.config)
         .context("Failed to load config file")?;
-    let endpoint = if let Some(endpoint) = args.endpoint {
-        endpoint
-    } else if let Some(endpoint) = config.http.endpoint {
-        endpoint
-    } else {
-        "http://127.0.0.1:8080".to_string()
-    };
+    let mut client = Client::new(config, args.endpoint);
 
-    debug!("Setting rebuilderd endpoint to {:?}", endpoint);
-    let mut client = Client::new(endpoint);
     match args.subcommand {
         SubCommand::Status => {
             for worker in client.with_auth_cookie()?.list_workers()? {

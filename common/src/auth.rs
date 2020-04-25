@@ -14,6 +14,14 @@ pub struct AuthConfig {
     pub cookie: Option<String>,
 }
 
+impl AuthConfig {
+    pub fn update(&mut self, c: AuthConfig) {
+        if c.cookie.is_some() {
+            self.cookie = c.cookie;
+        }
+    }
+}
+
 fn read_cookie_from_config<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
     debug!("Attempting reading cookie from config: {:?}", path.as_ref());
     if let Ok(buf) = fs::read(path.as_ref()) {
