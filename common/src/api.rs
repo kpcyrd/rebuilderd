@@ -31,7 +31,7 @@ impl Client {
             ("http://127.0.0.1:8080".to_string(), None, true)
         };
 
-        debug!("Setting rebuilderd endpoint to {:?}", endpoint);
+        debug!("setting rebuilderd endpoint to {:?}", endpoint);
         let client = HttpClient::new();
         Client {
             endpoint,

@@ -14,18 +14,19 @@ pub const API_ERROR_DELAY: u64 = 30;
 pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
     let mut config = ConfigFile::default();
 
-    if let Ok(c) = load_from("/etc/rebuilderd.conf") {
+    if let Some(c) = load_from("/etc/rebuilderd.conf")? {
         config.update(c);
     }
 
     if let Ok(path) = config_path() {
-        if let Ok(c) = load_from(path) {
+        if let Some(c) = load_from(path)? {
             config.update(c);
         }
     }
 
     if let Some(path) = path {
-        let c = load_from(path)?;
+        let c = load_from(path)?
+            .ok_or_else(|| format_err!("Failed to read config file"))?;
         config.update(c);
     }
 
@@ -38,12 +39,15 @@ fn config_path() -> Result<PathBuf> {
     Ok(config_dir.join("rebuilderd.conf"))
 }
 
-fn load_from<P: AsRef<Path>>(path: P) -> Result<ConfigFile> {
-    let buf = fs::read(path.as_ref())?;
-    debug!("Loading config file {:?}", path.as_ref());
-    let config = toml::from_slice(&buf)
-        .context("Failed to load config")?;
-    Ok(config)
+fn load_from<P: AsRef<Path>>(path: P) -> Result<Option<ConfigFile>> {
+    if let Ok(buf) = fs::read(path.as_ref()) {
+        debug!("loading config file {:?}", path.as_ref());
+        let config = toml::from_slice(&buf)
+            .context("Failed to load config")?;
+        Ok(Some(config))
+    } else {
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
