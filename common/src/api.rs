@@ -206,6 +206,7 @@ pub struct QueueList {
 pub struct QueueItem {
     pub id: i32,
     pub package: PkgRelease,
+    pub version: String,
     pub queued_at: NaiveDateTime,
     pub worker_id: Option<i32>,
     pub started_at: Option<NaiveDateTime>,

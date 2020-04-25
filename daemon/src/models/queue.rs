@@ -107,6 +107,8 @@ impl Queued {
 
         diesel::insert_into(queue::table)
             .values(pkgs)
+            // TODO: not supported by diesel yet
+            // .on_conflict_do_nothing()
             .execute(connection)?;
 
         Ok(())
@@ -152,6 +154,7 @@ impl Queued {
         Ok(QueueItem {
             id: self.id,
             package: pkg.into_api_item()?,
+            version: self.version,
             queued_at: self.queued_at,
             worker_id: self.worker_id,
             started_at: self.started_at,

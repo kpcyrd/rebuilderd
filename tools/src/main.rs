@@ -154,7 +154,7 @@ fn run(args: Args) -> Result<()> {
                     };
                     let pkg_str = format!("{} {}",
                         pkg.name.bold(),
-                        pkg.version,
+                        q.version,
                     );
 
                     let running = format!("{:11}", if let Some(started_at) = q.started_at {

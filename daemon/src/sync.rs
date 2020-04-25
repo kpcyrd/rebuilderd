@@ -50,6 +50,8 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
     // TODO: consider starting a transaction here
     let mut queue = Vec::<(i32, String)>::new();
 
+    // TODO: if the package is queued, don't queue it again. Right now we can't rebuild the non-latest version anyway
+
     info!("new packages: {:?}", new_pkgs.len());
     let new_pkgs = new_pkgs.into_iter()
         .map(|(_, v)| models::NewPackage::from_api(import.distro, v))
