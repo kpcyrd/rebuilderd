@@ -5,7 +5,15 @@ Description=rebuilderd: independent binary package verification system
 User=rebuilderd
 Environment="REBUILDERD_COOKIE_PATH=/var/lib/rebuilderd/auth-cookie"
 ExecStart=/usr/bin/rebuilderd -c /etc/rebuilderd.conf
+
 WorkingDirectory=/var/lib/rebuilderd
+ReadWritePaths=/var/lib/rebuilderd
+
+CapabilityBoundingSet=
+NoNewPrivileges=yes
+ProtectSystem=strict
+Restart=always
+RestartSec=0
 
 [Install]
 WantedBy=multi-user.target
