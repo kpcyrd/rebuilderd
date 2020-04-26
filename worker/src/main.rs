@@ -38,7 +38,7 @@ enum SubCommand {
 #[derive(Debug, StructOpt)]
 struct Build {
     pub distro: Distro,
-    pub inputs: String,
+    pub input: String,
 }
 
 #[derive(Debug, StructOpt)]
@@ -46,7 +46,7 @@ struct Connect {
     pub endpoint: Option<String>,
 }
 
-fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
+fn spawn_rebuilder_script(distro: &Distro, input: &str) -> Result<bool> {
     // TODO: establish a common interface to interface with distro rebuilders
     let bin = match distro {
         Distro::Archlinux => "rebuilder-archlinux.sh",
@@ -70,13 +70,13 @@ fn rebuild(distro: &Distro, input: &str) -> Result<bool> {
     bail!("failed to find a rebuilder script")
 }
 
-fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
+fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
     let (tx, rx) = mpsc::channel();
     let t = {
         let distro = distro.clone();
         let input = item.package.url.to_string();
         thread::spawn(move || {
-            let res = rebuild(&distro, &input);
+            let res = spawn_rebuilder_script(&distro, &input);
             tx.send(res).ok();
         })
     };
@@ -92,6 +92,52 @@ fn heartbeat_rebuild(client: &Client, distro: &Distro, item: &QueueItem) -> Resu
 
     t.join().expect("Failed to join thread");
     Ok(result)
+}
+
+fn rebuild(client: &Client, rb: QueueItem) -> Result<()> {
+    info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
+    let distro = rb.package.distro.parse::<Distro>()?;
+    let status = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb) {
+        Ok(res) => {
+            if res {
+                info!("Package successfully verified");
+                BuildStatus::Good
+            } else {
+                warn!("Failed to verify package");
+                BuildStatus::Bad
+            }
+        },
+        Err(err) => {
+            error!("Failed to run rebuild package: {}", err);
+            BuildStatus::Fail
+        },
+    };
+    let report = BuildReport {
+        queue: rb,
+        status,
+    };
+    client.report_build(&report)?;
+    Ok(())
+}
+
+fn run_worker_loop(client: &Client) -> Result<()> {
+    loop {
+        info!("requesting work");
+
+        match client.pop_queue(&WorkQuery {}) {
+            Ok(JobAssignment::Nothing) => {
+                info!("no pending tasks, sleeping...");
+                thread::sleep(Duration::from_secs(IDLE_DELAY));
+            },
+            Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb)?,
+            Err(err) => {
+                error!("Failed to query for work: {}", err);
+                thread::sleep(Duration::from_secs(API_ERROR_DELAY));
+            },
+        }
+
+        thread::sleep(Duration::from_secs(WORKER_DELAY));
+    }
 }
 
 fn run() -> Result<()> {
@@ -111,52 +157,24 @@ fn run() -> Result<()> {
         SubCommand::Connect(connect) => {
             let system_config = rebuilderd_common::config::load(None::<String>)
                 .context("Failed to load system config")?;
-            let endpoint = connect.endpoint
-                .map(|e| Ok(e))
-                .unwrap_or(config.endpoint.ok_or_else(|| format_err!("No endpoint configured")))?;
+            let endpoint = if let Some(endpoint) = connect.endpoint {
+                endpoint
+            } else {
+                config.endpoint
+                    .ok_or_else(|| format_err!("No endpoint configured"))?
+            };
 
             let profile = auth::load()?;
             let client = profile.new_client(system_config, endpoint, config.signup_secret, cookie);
-            loop {
-                info!("requesting work");
-                match client.pop_queue(&WorkQuery {}) {
-                    Ok(JobAssignment::Nothing) => {
-                        info!("no pending tasks, sleeping...");
-                        thread::sleep(Duration::from_secs(IDLE_DELAY));
-                    },
-                    Ok(JobAssignment::Rebuild(rb)) => {
-                        info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
-                        let distro = rb.package.distro.parse::<Distro>()?;
-                        let status = match heartbeat_rebuild(&client, &distro, &rb) {
-                            Ok(res) => {
-                                if res {
-                                    info!("Package successfully verified");
-                                    BuildStatus::Good
-                                } else {
-                                    warn!("Failed to verify package");
-                                    BuildStatus::Bad
-                                }
-                            },
-                            Err(err) => {
-                                error!("Failed to run rebuild package: {}", err);
-                                BuildStatus::Fail
-                            },
-                        };
-                        let report = BuildReport {
-                            queue: rb,
-                            status,
-                        };
-                        client.report_build(&report)?;
-                    },
-                    Err(err) => {
-                        error!("Failed to query for work: {}", err);
-                        thread::sleep(Duration::from_secs(API_ERROR_DELAY));
-                    },
-                }
-                thread::sleep(Duration::from_secs(WORKER_DELAY));
+            run_worker_loop(&client)?;
+        },
+        SubCommand::Build(build) => {
+            if spawn_rebuilder_script(&build.distro, &build.input)? {
+                info!("Package verified successfully");
+            } else {
+                error!("Package failed to verify");
             }
         },
-        SubCommand::Build(_) => (),
     }
 
     Ok(())
