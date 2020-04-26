@@ -1,9 +1,9 @@
 all:
 	cargo build --release --all
 
-docs: contrib/rebuilderd.1 contrib/rebuilderctl.1 contrib/rebuilderd-worker.1
+docs: contrib/docs/rebuilderd.1 contrib/docs/rebuildctl.1 contrib/docs/rebuilderd-worker.1 contrib/docs/rebuilderd.conf.5 contrib/docs/rebuilderd-sync.conf.5 contrib/docs/rebuilderd-worker.conf.5
 
-contrib/%.1: contrib/%.1.scd
+contrib/docs/%: contrib/docs/%.scd
 	scdoc < $^ > $@
 
 .PHONY: all docs

@@ -8,7 +8,7 @@ url='https://github.com/kpcyrd/rebuilderd'
 arch=('x86_64')
 license=('GPL3')
 depends=('libsodium' 'sqlite' 'archlinux-repro')
-makedepends=('cargo')
+makedepends=('cargo' 'scdoc')
 backup=('etc/rebuilderd.conf'
         'etc/rebuilderd-sync.conf'
         'etc/rebuilderd-worker.conf')
@@ -16,6 +16,7 @@ backup=('etc/rebuilderd.conf'
 build() {
   cd ..
   cargo build --release --locked
+  make docs
 }
 
 package() {
@@ -57,6 +58,14 @@ package() {
 
   # install docs
   install -Dm 644 README.md -t "${pkgdir}/usr/share/doc/${pkgname}"
+  install -Dm 644 -t "${pkgdir}/usr/share/man/man1" \
+    contrib/docs/rebuilderd.1 \
+    contrib/docs/rebuildctl.1 \
+    contrib/docs/rebuilderd-worker.1
+  install -Dm 644 -t "${pkgdir}/usr/share/man/man5" \
+    contrib/docs/rebuilderd.conf.5 \
+    contrib/docs/rebuilderd-sync.conf.5 \
+    contrib/docs/rebuilderd-worker.conf.5
 }
 
 # vim: ts=2 sw=2 et:
