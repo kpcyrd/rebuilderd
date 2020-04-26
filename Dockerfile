@@ -7,7 +7,7 @@ RUN cd daemon; cargo build --release
 RUN cd tools; cargo build --release
 
 FROM alpine:3.10
-ENV HTTP_ADDR=0.0.0.0:8080
+ENV HTTP_ADDR=0.0.0.0:8484
 RUN apk add --no-cache libgcc openssl dpkg sqlite xz
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd \

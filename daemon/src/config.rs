@@ -29,7 +29,7 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
     } else if let Some(addr) = config.http.bind_addr {
         addr
     } else {
-        "127.0.0.1:8080".to_string()
+        "127.0.0.1:8484".to_string()
     };
 
     Ok(Config {

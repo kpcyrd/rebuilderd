@@ -26,7 +26,7 @@ cd daemon; cargo run
 
 Run a rebuild worker:
 ```
-cd worker; cargo run connect http://127.0.0.1:8080
+cd worker; cargo run connect http://127.0.0.1:8484
 ```
 
 Afterwards you should import some packages:

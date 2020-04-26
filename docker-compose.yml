@@ -4,22 +4,22 @@ services:
   daemon:
     build: .
     ports:
-    - 127.0.0.1:8080:8080
+    - 127.0.0.1:8484:8484
   worker-alpine:
     build:
       context: .
       dockerfile: worker/Dockerfile.alpine
     environment:
-    - REBUILDER_ADDR=http://daemon:8080
+    - REBUILDER_ADDR=http://daemon:8484
   worker-archlinux:
     build:
       context: .
       dockerfile: worker/Dockerfile.archlinux
     environment:
-    - REBUILDER_ADDR=http://daemon:8080
+    - REBUILDER_ADDR=http://daemon:8484
   worker-debian:
     build:
       context: .
       dockerfile: worker/Dockerfile.debian
     environment:
-    - REBUILDER_ADDR=http://daemon:8080
+    - REBUILDER_ADDR=http://daemon:8484

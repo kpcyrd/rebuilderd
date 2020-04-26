@@ -28,7 +28,7 @@ impl Client {
         } else if let Some(endpoint) = config.http.endpoint {
             (endpoint, None, true)
         } else {
-            ("http://127.0.0.1:8080".to_string(), None, true)
+            ("http://127.0.0.1:8484".to_string(), None, true)
         };
 
         debug!("setting rebuilderd endpoint to {:?}", endpoint);
