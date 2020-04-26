@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd"
-version = "0.2.2"
+version = "0.3.0"
 description = "rebuilderd - independent build verification daemon"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0"
@@ -10,7 +10,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rebuilderd-common = { version="=0.2.2", path="../common" }
+rebuilderd-common = { version="=0.3.0", path="../common" }
 structopt = "0.3"
 env_logger = "0.7"
 actix-rt = "1.0.0"

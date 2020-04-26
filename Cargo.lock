@@ -1539,7 +1539,7 @@ dependencies = [
 
 [[package]]
 name = "rebuildctl"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "colored",
@@ -1559,7 +1559,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd-common"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "colored",
@@ -1594,7 +1594,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd-worker"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "base64 0.10.1",
  "env_logger",
