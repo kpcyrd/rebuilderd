@@ -1,4 +1,4 @@
-use crate::schedule::{Pkg, url_or_path};
+use crate::schedule::{Pkg, fetch_url_or_path};
 use crate::PkgsSync;
 use lzma::LzmaReader;
 use rebuilderd_common::{PkgRelease, Distro, Status};
@@ -138,7 +138,7 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
 
 pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     let client = reqwest::blocking::Client::new();
-    let bytes = url_or_path(&client, &sync.source)?;
+    let bytes = fetch_url_or_path(&client, &sync.source)?;
 
     info!("Decompressing...");
     let mut pkgs = Vec::new();

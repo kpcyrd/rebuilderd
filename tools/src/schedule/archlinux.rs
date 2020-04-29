@@ -1,11 +1,38 @@
-use crate::schedule::{Pkg, url_or_path};
+use crate::schedule::{Pkg, fetch_url_or_path};
 use crate::PkgsSync;
 use flate2::read::GzDecoder;
+use nom::bytes::complete::take_till;
 use rebuilderd_common::{PkgRelease, Distro, Status};
 use rebuilderd_common::errors::*;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use tar::{Archive, EntryType};
+
+fn mirror_to_url(mut mirror: &str, repo: &str, arch: &str, file: &str) -> Result<String> {
+    let mut url = String::new();
+
+    loop {
+        let (s, txt) = take_till::<_, _, ()>(|c| c == '$')(mirror).unwrap();
+        url.push_str(txt);
+        if s.is_empty() {
+            break;
+        }
+        let (s, var) = take_till::<_, _, ()>(|c| c == '/')(s).unwrap();
+        match var {
+            "$repo" => url.push_str(repo),
+            "$arch" => url.push_str(arch),
+            _ => bail!("Unrecognized variable: {:?}", var),
+        }
+        mirror = s;
+    }
+
+    if !url.ends_with('/') {
+        url.push('/');
+    }
+    url.push_str(file);
+
+    Ok(url)
+}
 
 #[derive(Debug)]
 pub struct ArchPkg {
@@ -101,8 +128,16 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
 }
 
 pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
+    let source = if sync.source.ends_with(".db") {
+        warn!("Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch");
+        "https://mirrors.kernel.org/archlinux/$repo/os/$arch"
+    } else {
+        &sync.source
+    };
+
     let client = reqwest::blocking::Client::new();
-    let bytes = url_or_path(&client, &sync.source)?;
+    let db = mirror_to_url(&source, &sync.suite, &sync.architecture, &format!("{}.db", sync.suite))?;
+    let bytes = fetch_url_or_path(&client, &db)?;
 
     info!("Parsing index...");
     let mut pkgs = Vec::new();
@@ -111,10 +146,7 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
             continue;
         }
 
-        let url = format!("https://mirrors.kernel.org/archlinux/{}/os/{}/{}",
-            sync.suite,
-            sync.architecture,
-            pkg.filename);
+        let url = mirror_to_url(&source, &sync.suite, &sync.architecture, &pkg.filename)?;
         pkgs.push(PkgRelease {
             name: pkg.name,
             version: pkg.version,
@@ -127,4 +159,15 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     }
 
     Ok(pkgs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mirror_to_url() {
+        let url = mirror_to_url("https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch", "core", "x86_64", "core.db").unwrap();
+        assert_eq!(url, "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db");
+    }
 }
