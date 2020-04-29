@@ -31,7 +31,6 @@ pub enum SubCommand {
     Pkgs(Pkgs),
     Queue(Queue),
     /// Generate shell completions
-    #[structopt(name="completions")]
     Completions(Completions),
 }
 

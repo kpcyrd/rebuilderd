@@ -114,8 +114,8 @@ impl Queued {
         Ok(())
     }
 
-    pub fn drop_job(jobs: &[i32], connection: &SqliteConnection) -> Result<()> {
-        diesel::delete(queue::table.filter(queue::id.eq_any(jobs)))
+    pub fn drop_for_pkgs(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
+        diesel::delete(queue::table.filter(queue::package_id.eq_any(pkgs)))
             .execute(connection)?;
         Ok(())
     }

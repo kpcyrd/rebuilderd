@@ -230,7 +230,7 @@ pub async fn drop_from_queue(
         .map(|p| p.id)
         .collect::<Vec<_>>();
 
-    models::Queued::drop_job(&pkgs, connection.as_ref())?;
+    models::Queued::drop_for_pkgs(&pkgs, connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
