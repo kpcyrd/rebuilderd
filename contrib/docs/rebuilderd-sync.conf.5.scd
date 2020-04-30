@@ -31,7 +31,7 @@ _source=_
 	like:
 
 	```
-	https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db
+	source = "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch"
 	```
 
 _maintainers=_ (optional)
@@ -67,7 +67,7 @@ Both *pkgs=* and *excludes=* support glob patterns. If *maintainers=* and
 distro = "archlinux"
 suite = "core"
 architecture = "x86_64"
-source = "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db"
+source = "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch"
 
 ## rebuild community packages of specific maintainers, or whitelist packages by name.
 ## If no filter is set, all packages are imported, if both filters are set the package only
@@ -76,7 +76,7 @@ source = "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db"
 #distro = "archlinux"
 #suite = "community"
 #architecture = "x86_64"
-#source = "https://ftp.halifax.rwth-aachen.de/archlinux/community/os/x86_64/community.db"
+#source = "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch"
 #maintainers = ["somebody"]
 #pkgs = ["some-pkg", "python-*"]
 #excludes = ["tensorflow*"]

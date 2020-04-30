@@ -68,7 +68,7 @@ mod tests {
             distro: Distro::Archlinux,
             suite: "community".to_string(),
             architecture: "x86_64".to_string(),
-            source: "https://ftp.halifax.rwth-aachen.de/archlinux/community/os/x86_64/community.db".to_string(),
+            source: "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch".to_string(),
 
             print_json: false,
             maintainers: f.maintainers,

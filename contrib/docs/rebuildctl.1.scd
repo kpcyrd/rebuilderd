@@ -74,7 +74,7 @@ into *rebuilderd-sync.conf*(5).
 	of the other filters.
 
 *rebuildctl pkgs sync* archlinux community x86_64 \\++
-\	https://ftp.halifax.rwth-aachen.de/archlinux/community/os/x86_64/community.db \\++
+\	'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \\++
 \	--maintainer kpcyrd --print-json
 
 ## SYNC-PROFILES
