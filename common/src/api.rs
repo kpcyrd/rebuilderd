@@ -156,6 +156,15 @@ impl Client {
         Ok(())
     }
 
+    pub fn requeue_pkgs(&self, requeue: &RequeueQuery) -> Result<()> {
+        self.post("/api/v0/pkg/requeue")
+            .json(requeue)
+            .send()?
+            .error_for_status()?
+            .json()?;
+        Ok(())
+    }
+
     pub fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
         self.post("/api/v0/build/ping")
             .json(ticket)
@@ -252,6 +261,16 @@ pub struct DropQueueItem {
     pub distro: String,
     pub suite: String,
     pub architecture: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RequeueQuery {
+    pub name: Option<String>,
+    pub status: Option<Status>,
+    pub distro: Option<String>,
+    pub suite: Option<String>,
+    pub architecture: Option<String>,
+    pub reset: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

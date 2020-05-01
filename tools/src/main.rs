@@ -123,6 +123,16 @@ fn run(args: Args) -> Result<()> {
                 }
             }
         },
+        SubCommand::Pkgs(Pkgs::Requeue(args)) => {
+            client.with_auth_cookie()?.requeue_pkgs(&RequeueQuery {
+                name: args.name,
+                status: args.status,
+                distro: args.distro,
+                suite: args.suite,
+                architecture: args.architecture,
+                reset: args.reset,
+            })?;
+        },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {
                 Some(25)

@@ -39,6 +39,7 @@ pub enum Pkgs {
     Sync(PkgsSync),
     Ls(PkgsList),
     SyncProfile(PkgsSyncProfile),
+    Requeue(PkgsRequeue),
 }
 
 #[derive(Debug, StructOpt)]
@@ -80,6 +81,22 @@ pub struct PkgsList {
     pub architecture: Option<String>,
     #[structopt(long)]
     pub json: bool,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsRequeue {
+    #[structopt(long)]
+    pub name: Option<String>,
+    #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
+    pub status: Option<Status>,
+    #[structopt(long)]
+    pub distro: Option<String>,
+    #[structopt(long)]
+    pub suite: Option<String>,
+    #[structopt(long)]
+    pub architecture: Option<String>,
+    #[structopt(long)]
+    pub reset: bool,
 }
 
 #[derive(Debug, StructOpt)]

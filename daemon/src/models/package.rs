@@ -92,6 +92,16 @@ impl Package {
         Ok(())
     }
 
+    pub fn reset_status_list(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::packages::columns::*;
+        diesel::update(packages::table
+                .filter(id.eq_any(pkgs))
+            )
+            .set(status.eq("UNKWN"))
+            .execute(connection)?;
+        Ok(())
+    }
+
     pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::dsl::*;
         diesel::delete(packages.filter(id.eq(my_id)))

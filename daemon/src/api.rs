@@ -235,6 +235,58 @@ pub async fn drop_from_queue(
     Ok(HttpResponse::Ok().json(()))
 }
 
+#[post("/api/v0/pkg/requeue")]
+pub async fn requeue_pkg(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
+    query: web::Json<RequeueQuery>,
+    pool: web::Data<Pool>,
+) -> Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return forbidden();
+    }
+
+    let connection = pool.get()?;
+
+    let mut pkgs = Vec::new();
+    for pkg in models::Package::list(connection.as_ref())? {
+        if opt_filter(&pkg.name, query.name.as_deref()) {
+            continue;
+        }
+        if opt_filter(&pkg.status, query.status.as_deref()) {
+            continue;
+        }
+        if opt_filter(&pkg.distro, query.distro.as_deref()) {
+            continue;
+        }
+        if opt_filter(&pkg.suite, query.suite.as_deref()) {
+            continue;
+        }
+        if opt_filter(&pkg.architecture, query.architecture.as_deref()) {
+            continue;
+        }
+
+        debug!("pkg is going to be requeued: {:?} {:?}", pkg.name, pkg.version);
+        pkgs.push((pkg.id, pkg.version));
+    }
+
+    // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
+    // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
+    for (id, version) in &pkgs {
+        let q = models::NewQueued::new(*id, version.to_string());
+        q.insert(connection.as_ref()).ok();
+    }
+
+    if query.reset {
+        let reset = pkgs.into_iter()
+            .map(|x| x.0)
+            .collect::<Vec<_>>();
+        models::Package::reset_status_list(&reset, connection.as_ref())?;
+    }
+
+    Ok(HttpResponse::Ok().json(()))
+}
+
 #[post("/api/v0/build/ping")]
 pub async fn ping_build(
     req: HttpRequest,

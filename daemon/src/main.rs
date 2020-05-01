@@ -48,6 +48,7 @@ async fn run(args: Args) -> Result<()> {
             .service(api::push_queue)
             .service(api::pop_queue)
             .service(api::drop_from_queue)
+            .service(api::requeue_pkg)
             .service(api::ping_build)
             .service(api::report_build)
             .service(
