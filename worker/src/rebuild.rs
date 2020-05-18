@@ -2,6 +2,9 @@ use crate::config;
 use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
+use in_toto::crypto::{PrivateKey, KeyType, SignatureScheme};
+use in_toto::interchange::Json;
+use in_toto::metadata::{LinkMetadataBuilder, VirtualTargetPath};
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
@@ -42,33 +45,61 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
 pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
+    // Generate a new Ed25519 signing key
+    // FIXME: should load key from config or none
+    let key = PrivateKey::new(KeyType::Ed25519).unwrap();
+    let privkey  = PrivateKey::from_pkcs8(&key, SignatureScheme::Ed25519).unwrap();
+
     let (input, filename) = download(url, &tmp)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
+
+    let material = VirtualTargetPath::new(input.to_string())
+        .with_context(|| anyhow!("Cannot make a virtual target path of {:?}", input))?;
+    let link = LinkMetadataBuilder::new()
+        .name(String::from("rebuild"))
+        .add_material(material);
 
     let (success, log) = verify(ctx, &input).await?;
 
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
+        // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here
         Ok(Rebuild::new(BuildStatus::Good, log))
     } else {
         info!("Rebuilder backend exited with non-zero exit code");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
 
+        let output = Path::new("./build/").join(&filename);
+        let output_str = output.to_str()
+                .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
+
         // generate diffoscope diff if enabled
         if ctx.diffoscope.enabled {
-            let output = Path::new("./build/").join(filename);
             if output.exists() {
-                let output = output.to_str()
-                    .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
-
-                let diff = diffoscope(&input, output, &ctx.diffoscope)
+                let diff = diffoscope(&input, output_str, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
             } else {
                 info!("Skipping diffoscope because rebuilder script did not produce output");
             }
+        }
+
+        if output.exists() {
+            let product = VirtualTargetPath::new(output_str.to_string())
+                .with_context(|| anyhow!("Cannot make a virtual target path of {:?}", output_str))?;
+            let signed_link = link
+                .add_product(product)
+                .signed::<Json>(&privkey)?;
+
+             // we should rather serialize/submit this somewhere
+            info!("Signed attestation: {:?}", signed_link);
+
+            let attestation = serde_json::to_string(&signed_link)
+                .context("Failed to serialize attestation")?;
+
+            res.attestation = Some(attestation);
         }
 
         Ok(res)

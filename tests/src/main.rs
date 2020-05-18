@@ -195,9 +195,10 @@ async fn main() -> Result<()> {
             _ => bail!("Expected a job assignment"),
         };
         let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
             status: BuildStatus::Bad,
+            log: String::new(),
+            diffoscope: None,
+            attestation: None,
         };
         let report = BuildReport {
             queue,
@@ -272,9 +273,10 @@ async fn main() -> Result<()> {
             _ => bail!("Expected a job assignment"),
         };
         let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
             status: BuildStatus::Good,
+            log: String::new(),
+            diffoscope: None,
+            attestation: None,
         };
         let report = BuildReport {
             queue,

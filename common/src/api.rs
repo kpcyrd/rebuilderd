@@ -315,6 +315,7 @@ pub struct Rebuild {
     pub status: BuildStatus,
     pub log: String,
     pub diffoscope: Option<String>,
+    pub attestation: Option<String>,
 }
 
 impl Rebuild {
@@ -323,6 +324,7 @@ impl Rebuild {
             status,
             log,
             diffoscope: None,
+            attestation: None,
         }
     }
 }
