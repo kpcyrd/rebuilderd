@@ -39,6 +39,9 @@ enum SubCommand {
 struct Build {
     pub distro: Distro,
     pub input: String,
+    /// Use a specific rebuilder script instead of the default
+    #[structopt(long)]
+    pub script_location: Option<PathBuf>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -52,7 +55,7 @@ fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item:
         let distro = distro.clone();
         let input = item.package.url.to_string();
         thread::spawn(move || {
-            let res = rebuild::rebuild(&distro, &input);
+            let res = rebuild::rebuild(&distro, None, &input);
             tx.send(res).ok();
         })
     };
@@ -145,7 +148,7 @@ fn run() -> Result<()> {
             run_worker_loop(&client)?;
         },
         SubCommand::Build(build) => {
-            if rebuild::rebuild(&build.distro, &build.input)? {
+            if rebuild::rebuild(&build.distro, build.script_location.as_ref(), &build.input)? {
                 info!("Package verified successfully");
             } else {
                 error!("Package failed to verify");

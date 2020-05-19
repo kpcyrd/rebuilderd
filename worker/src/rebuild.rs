@@ -2,10 +2,10 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::Distro;
 use std::fs::File;
 use std::process::Command;
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use url::Url;
 
-pub fn rebuild(distro: &Distro, url: &str) -> Result<bool> {
+pub fn rebuild(distro: &Distro, script_location: Option<&PathBuf>, url: &str) -> Result<bool> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let url = url.parse::<Url>()
@@ -25,7 +25,7 @@ pub fn rebuild(distro: &Distro, url: &str) -> Result<bool> {
     let input = input.to_str()
         .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
 
-    if !spawn_script(distro, &url.to_string(), input)? {
+    if !verify(distro, script_location, &url.to_string(), input)? {
         return Ok(false);
     }
     info!("rebuilder script indicated success");
@@ -56,8 +56,16 @@ fn download(url: &Url, target: &Path) -> Result<()> {
     Ok(())
 }
 
-fn spawn_script(distro: &Distro, url: &str, path: &str) -> Result<bool> {
-    // TODO: establish a common interface to interface with distro rebuilders
+fn verify(distro: &Distro, script_location: Option<&PathBuf>, url: &str, path: &str) -> Result<bool> {
+    if let Some(script) = script_location {
+        spawn_script(&script, url, path)
+    } else {
+        let script = locate_script(distro)?;
+        spawn_script(&script, url, path)
+    }
+}
+
+fn locate_script(distro: &Distro) -> Result<PathBuf> {
     let bin = match distro {
         Distro::Archlinux => "rebuilder-archlinux.sh",
         Distro::Debian => "rebuilder-debian.sh",
@@ -68,15 +76,20 @@ fn spawn_script(distro: &Distro, url: &str, path: &str) -> Result<bool> {
         let bin = Path::new(&bin);
 
         if bin.exists() {
-            info!("executing rebuilder script at {:?}", bin);
-            let status = Command::new(&bin)
-                .args(&[url, path])
-                .status()?;
-
-            info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
-            return Ok(status.success());
+            return Ok(bin.to_path_buf());
         }
     }
 
-    bail!("failed to find a rebuilder script")
+    bail!("Failed to find a rebuilder script")
+}
+
+fn spawn_script(bin: &Path, url: &str, path: &str) -> Result<bool> {
+    // TODO: establish a common interface to interface with distro rebuilders
+    info!("executing rebuilder script at {:?}", bin);
+    let status = Command::new(&bin)
+        .args(&[url, path])
+        .status()?;
+
+    info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
+    Ok(status.success())
 }
