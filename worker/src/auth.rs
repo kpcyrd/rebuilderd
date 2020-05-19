@@ -56,3 +56,24 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
     let key  = serde_json::to_value(&pk)?;
     Ok(key.to_string())
 }
+
+pub fn load_signing_key<P: AsRef<Path>>(path: P) -> Result<PrivateKey> {
+    let path = path.as_ref();
+
+    let sk = if path.exists() {
+        let content = fs::read(path)?;
+        PrivateKey::from_pkcs8(&content, SignatureScheme::Ed25519)?
+    } else {
+        let sk = PrivateKey::new(KeyType::Ed25519)?;
+        let mut file = OpenOptions::new()
+            .mode(0o640)
+            .write(true)
+            .create(true)
+            .open(path)?;
+        file.write_all(&sk[..])?;
+
+        PrivateKey::from_pkcs8(&sk, SignatureScheme::Ed25519)?
+    };
+
+    Ok(sk)
+}

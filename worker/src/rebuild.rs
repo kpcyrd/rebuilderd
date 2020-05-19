@@ -1,8 +1,8 @@
+use crate::auth::load_signing_key;
 use crate::config;
 use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
-use in_toto::crypto::{PrivateKey, KeyType, SignatureScheme};
 use in_toto::interchange::Json;
 use in_toto::metadata::{LinkMetadataBuilder, VirtualTargetPath};
 use rebuilderd_common::Distro;
@@ -45,10 +45,7 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
 pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
-    // Generate a new Ed25519 signing key
-    // FIXME: should load key from config or none
-    let key = PrivateKey::new(KeyType::Ed25519).unwrap();
-    let privkey  = PrivateKey::from_pkcs8(&key, SignatureScheme::Ed25519).unwrap();
+    let privkey = load_signing_key("rebuilder.key")?;
 
     let (input, filename) = download(url, &tmp)
         .await
