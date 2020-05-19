@@ -6,7 +6,8 @@ use std::path::Path;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::io::prelude::*;
-use sodiumoxide::crypto::sign;
+use in_toto::crypto::{PrivateKey, KeyType, SignatureScheme};
+use serde_json;
 
 pub struct Profile {
     key: String,
@@ -38,11 +39,9 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
 
     let sk = if path.exists() {
         let content = fs::read(path)?;
-        sign::SecretKey::from_slice(&content)
-            .ok_or_else(|| format_err!("failed to load secret key"))?
+        PrivateKey::from_pkcs8(&content, SignatureScheme::Ed25519)?
     } else {
-        let (_, sk) = sign::gen_keypair();
-
+        let sk = PrivateKey::new(KeyType::Ed25519)?;
         let mut file = OpenOptions::new()
             .mode(0o640)
             .write(true)
@@ -50,10 +49,10 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
             .open(path)?;
         file.write_all(&sk[..])?;
 
-        sk
+        PrivateKey::from_pkcs8(&sk, SignatureScheme::Ed25519)?
     };
 
-    let pk = sk.public_key();
-    let key = base64::encode(&pk[..]);
-    Ok(key)
+    let pk = sk.public();
+    let key  = serde_json::to_value(&pk)?;
+    Ok(key.to_string())
 }
