@@ -1,7 +1,3 @@
-#!/usr/bin/env bash
+#!/bin/sh
 set -xe
-dir=$(mktemp -dt rebuild.XXXXXXXXXX)
-trap 'rm -r "$dir"' EXIT
-wget -P "${dir}" -- "${1}"
-file=$(basename "${1}")
-repro -- "${dir}/${file}"
+repro -- "${2}"

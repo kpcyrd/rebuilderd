@@ -7,13 +7,13 @@ use rebuilderd_common::errors::*;
 use std::thread;
 use std::time::Duration;
 use rebuilderd_common::Distro;
-use std::process::Command;
 use std::sync::mpsc;
 use rebuilderd_common::config::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub mod auth;
 pub mod config;
+pub mod rebuild;
 pub mod setup;
 
 #[derive(Debug, StructOpt)]
@@ -39,35 +39,14 @@ enum SubCommand {
 struct Build {
     pub distro: Distro,
     pub input: String,
+    /// Use a specific rebuilder script instead of the default
+    #[structopt(long)]
+    pub script_location: Option<PathBuf>,
 }
 
 #[derive(Debug, StructOpt)]
 struct Connect {
     pub endpoint: Option<String>,
-}
-
-fn spawn_rebuilder_script(distro: &Distro, input: &str) -> Result<bool> {
-    // TODO: establish a common interface to interface with distro rebuilders
-    let bin = match distro {
-        Distro::Archlinux => "rebuilder-archlinux.sh",
-        Distro::Debian => "rebuilder-debian.sh",
-    };
-
-    for prefix in &[".", "/usr/libexec/rebuilderd", "/usr/local/libexec/rebuilderd"] {
-        let bin = format!("{}/{}", prefix, bin);
-        let bin = Path::new(&bin);
-
-        if bin.exists() {
-            let status = Command::new(&bin)
-                .args(&[input])
-                .status()?;
-
-            info!("rebuilder script finished: {:?} (for {:?})", status, input);
-            return Ok(status.success());
-        }
-    }
-
-    bail!("failed to find a rebuilder script")
 }
 
 fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
@@ -76,7 +55,7 @@ fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item:
         let distro = distro.clone();
         let input = item.package.url.to_string();
         thread::spawn(move || {
-            let res = spawn_rebuilder_script(&distro, &input);
+            let res = rebuild::rebuild(&distro, None, &input);
             tx.send(res).ok();
         })
     };
@@ -169,7 +148,7 @@ fn run() -> Result<()> {
             run_worker_loop(&client)?;
         },
         SubCommand::Build(build) => {
-            if spawn_rebuilder_script(&build.distro, &build.input)? {
+            if rebuild::rebuild(&build.distro, build.script_location.as_ref(), &build.input)? {
                 info!("Package verified successfully");
             } else {
                 error!("Package failed to verify");

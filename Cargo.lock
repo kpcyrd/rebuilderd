@@ -1640,10 +1640,13 @@ dependencies = [
  "base64 0.10.1",
  "env_logger",
  "rebuilderd-common",
+ "reqwest",
  "serde",
  "sodiumoxide",
  "structopt",
+ "tempfile",
  "toml",
+ "url",
 ]
 
 [[package]]
