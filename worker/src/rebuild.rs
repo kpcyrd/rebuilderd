@@ -1,8 +1,8 @@
-use crate::auth::load_signing_key;
 use crate::config;
 use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
+use in_toto::crypto::PrivateKey;
 use in_toto::interchange::Json;
 use in_toto::metadata::{LinkMetadataBuilder, VirtualTargetPath};
 use rebuilderd_common::Distro;
@@ -18,6 +18,7 @@ pub struct Context<'a> {
     pub script_location: Option<&'a PathBuf>,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
+    pub privkey: &'a PrivateKey,
 }
 
 fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
@@ -44,8 +45,6 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
 
 pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
-
-    let privkey = load_signing_key("rebuilder.key")?;
 
     let (input, filename) = download(url, &tmp)
         .await
@@ -88,7 +87,7 @@ pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
                 .with_context(|| anyhow!("Cannot make a virtual target path of {:?}", output_str))?;
             let signed_link = link
                 .add_product(product)
-                .signed::<Json>(&privkey)?;
+                .signed::<Json>(&ctx.privkey)?;
 
              // we should rather serialize/submit this somewhere
             info!("Signed attestation: {:?}", signed_link);
