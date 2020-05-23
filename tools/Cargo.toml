@@ -7,7 +7,13 @@ license = "GPL-3.0"
 repository = "https://github.com/kpcyrd/rebuilderd"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.deb]
+assets = [
+    ["target/release/rebuildctl", "usr/bin/", "755"],
+    ["../contrib/confs/rebuilderd-sync.conf", "etc/", "644"],
+    ["../contrib/systemd/rebuilderd-sync@.service", "/usr/lib/systemd/system/", "644"],
+    ["../contrib/systemd/rebuilderd-sync@.timer", "/usr/lib/systemd/system/", "644"],
+]
 
 [dependencies]
 rebuilderd-common = { version="=0.4.0", path="../common" }

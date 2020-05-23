@@ -7,7 +7,16 @@ license = "GPL-3.0"
 repository = "https://github.com/kpcyrd/rebuilderd"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.deb]
+maintainer-scripts = "daemon/debian"
+depends = "$auto, systemd, rebuildctl"
+assets = [
+    ["target/release/rebuilderd", "usr/bin/", "755"],
+    ["../contrib/confs/rebuilderd.conf", "etc/", "600"],
+    ["../contrib/systemd/rebuilderd.service", "usr/lib/systemd/system/", "640"],
+    ["../contrib/systemd/rebuilderd.sysusers", "usr/lib/sysusers.d/rebuilderd.conf", "644"],
+    ["../contrib/systemd/rebuilderd.tmpfiles", "usr/lib/tmpfiles.d/rebuilderd.conf", "644"],
+]
 
 [dependencies]
 rebuilderd-common = { version="=0.4.0", path="../common" }
