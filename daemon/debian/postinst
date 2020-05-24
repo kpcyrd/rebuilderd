@@ -1,0 +1,4 @@
+#!/bin/sh
+systemd-sysusers
+systemd-tmpfiles --create
+chgrp rebuilderd /etc/rebuilderd.conf && chmod 0640 /etc/rebuilderd.conf
