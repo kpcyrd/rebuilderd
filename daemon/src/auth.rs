@@ -1,8 +1,8 @@
-use actix_web::HttpRequest;
 use crate::api;
 use crate::config::Config;
-use rand::prelude::*;
+use actix_web::HttpRequest;
 use rand::distributions::Alphanumeric;
+use rand::prelude::*;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::env;
@@ -12,8 +12,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
 pub fn admin(cfg: &Config, req: &HttpRequest) -> Result<()> {
-    let auth_cookie = api::header(req, AUTH_COOKIE_HEADER)
-        .context("Failed to get auth cookie")?;
+    let auth_cookie = api::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
 
     if cfg.auth_cookie != auth_cookie {
         bail!("Wrong auth cookie")
@@ -23,20 +22,24 @@ pub fn admin(cfg: &Config, req: &HttpRequest) -> Result<()> {
 }
 
 pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
-    let worker_key = api::header(req, WORKER_KEY_HEADER)
-        .context("Failed to get worker key")?;
+    let worker_key = api::header(req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
 
     if !cfg.worker.authorized_workers.is_empty() || cfg.worker.signup_secret.is_some() {
         // TODO: we do not challenge the worker keys yet
         // Vec<String>::contains() is inefficient with &str
-        if cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
+        if cfg
+            .worker
+            .authorized_workers
+            .iter()
+            .any(|x| x == worker_key)
+        {
             debug!("worker authenticated by whitelisted key");
             return Ok(());
         }
 
         if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
-            let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
-                .context("Failed to get worker key")?;
+            let signup_secret =
+                api::header(req, SIGNUP_SECRET_HEADER).context("Failed to get worker key")?;
 
             if signup_secret == expected_signup_secret {
                 debug!("worker authenticated with signup secret");
@@ -44,8 +47,8 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
             }
         }
     } else {
-        let auth_cookie = api::header(req, AUTH_COOKIE_HEADER)
-            .context("Failed to get auth cookie")?;
+        let auth_cookie =
+            api::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
 
         if cfg.auth_cookie == auth_cookie {
             return Ok(());
@@ -61,10 +64,7 @@ pub fn setup_auth_cookie() -> Result<String> {
         cookie
     } else {
         debug!("Generating random cookie");
-        thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .collect()
+        thread_rng().sample_iter(&Alphanumeric).take(32).collect()
     };
 
     let cookie_path = if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {

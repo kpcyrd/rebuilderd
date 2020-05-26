@@ -7,10 +7,7 @@ use std::fs;
 pub fn fetch_url_or_path(client: &Client, path: &str) -> Result<Vec<u8>> {
     let bytes = if path.starts_with("https://") || path.starts_with("http://") {
         info!("Downloading {:?}...", path);
-        client.get(path)
-            .send()?
-            .bytes()?
-            .to_vec()
+        client.get(path).send()?.bytes()?.to_vec()
     } else {
         info!("Reading {:?}...", path);
         fs::read(path)?
@@ -37,8 +34,7 @@ pub trait Pkg {
     fn from_maintainer(&self, maintainers: &[String]) -> bool;
 
     fn match_name(&self, patterns: &[Pattern]) -> bool {
-        patterns.iter()
-            .any(|p| p.matches(self.pkg_name()))
+        patterns.iter().any(|p| p.matches(self.pkg_name()))
     }
 }
 
@@ -47,9 +43,9 @@ pub mod debian;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::schedule::archlinux::ArchPkg;
     use rebuilderd_common::Distro;
-    use super::*;
 
     struct Filter {
         maintainers: Vec<String>,
@@ -58,9 +54,7 @@ mod tests {
     }
 
     fn to_patterns(patterns: Vec<String>) -> Vec<Pattern> {
-        patterns.iter()
-            .map(|f| Pattern::new(f).unwrap())
-            .collect()
+        patterns.iter().map(|f| Pattern::new(f).unwrap()).collect()
     }
 
     fn gen_filter(f: Filter) -> PkgsSync {

@@ -1,22 +1,22 @@
-use rebuilderd_common::{Distro, Status};
-use rebuilderd_common::errors::*;
 use glob::Pattern;
+use rebuilderd_common::errors::*;
+use rebuilderd_common::{Distro, Status};
 use std::io::stdout;
 use std::path::PathBuf;
-use structopt::StructOpt;
 use structopt::clap::{AppSettings, Shell};
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
     /// rebuilderd endpoint to talk to
-    #[structopt(short="H", long)]
+    #[structopt(short = "H", long)]
     pub endpoint: Option<String>,
     /// Configuration file path
     #[structopt(short, long)]
     pub config: Option<PathBuf>,
     /// Bypass tty detection and always use colors
-    #[structopt(long, global=true)]
+    #[structopt(long, global = true)]
     pub color: bool,
     /// Verbose logging
     #[structopt(short)]
@@ -44,10 +44,10 @@ pub enum Pkgs {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSyncProfile {
-    #[structopt(long="print-json")]
+    #[structopt(long = "print-json")]
     pub print_json: bool,
     pub profile: String,
-    #[structopt(long="sync-config", default_value="/etc/rebuilderd-sync.conf")]
+    #[structopt(long = "sync-config", default_value = "/etc/rebuilderd-sync.conf")]
     pub config_file: String,
 }
 
@@ -57,13 +57,13 @@ pub struct PkgsSync {
     pub suite: String,
     pub architecture: String,
     pub source: String,
-    #[structopt(long="print-json")]
+    #[structopt(long = "print-json")]
     pub print_json: bool,
-    #[structopt(long="maintainer")]
+    #[structopt(long = "maintainer")]
     pub maintainers: Vec<String>,
-    #[structopt(long="pkg")]
+    #[structopt(long = "pkg")]
     pub pkgs: Vec<Pattern>,
-    #[structopt(long="exclude")]
+    #[structopt(long = "exclude")]
     pub excludes: Vec<Pattern>,
 }
 
@@ -103,7 +103,7 @@ pub struct PkgsRequeue {
 pub enum Queue {
     Ls(QueueList),
     Push(QueuePush),
-    #[structopt(name="drop")]
+    #[structopt(name = "drop")]
     Delete(QueueDrop),
 }
 

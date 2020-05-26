@@ -1,9 +1,9 @@
-use rebuilderd_common::errors::*;
-use rebuilderd_common::{Distro, Status};
-use std::process::Command;
 use crate::models;
+use rebuilderd_common::errors::*;
 use rebuilderd_common::PkgRelease;
+use rebuilderd_common::{Distro, Status};
 use std::cmp::Ordering;
+use std::process::Command;
 
 pub fn cmp(distro: &Distro, old: &str, new: &str) -> Result<Ordering> {
     match distro {
@@ -23,16 +23,11 @@ pub fn cmp_archlinux(old: &str, new: &str) -> Result<Ordering> {
 
 pub fn cmp_debian(old: &str, new: &str) -> Result<Ordering> {
     if old == new {
-        return Ok(Ordering::Equal)
+        return Ok(Ordering::Equal);
     }
 
     let status = Command::new("dpkg")
-        .args(&[
-            "--compare-versions",
-            old,
-            "lt",
-            new,
-        ])
+        .args(&["--compare-versions", old, "lt", new])
         .status()?;
 
     if status.success() {

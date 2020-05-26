@@ -1,10 +1,10 @@
+use crate::auth;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use chrono::prelude::*;
-use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease, Status};
-use crate::auth;
+use chrono::prelude::*;
 use reqwest::blocking::{Client as HttpClient, RequestBuilder};
+use serde::{Deserialize, Serialize};
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
 pub const WORKER_KEY_HEADER: &str = "X-Worker-Key";
@@ -22,7 +22,9 @@ pub struct Client {
 impl Client {
     pub fn new(config: ConfigFile, endpoint: Option<String>) -> Client {
         let (endpoint, auth_cookie, is_default_endpoint) = if let Some(endpoint) = endpoint {
-            let cookie = config.endpoints.get(&endpoint)
+            let cookie = config
+                .endpoints
+                .get(&endpoint)
                 .map(|e| e.cookie.to_string());
             (endpoint, cookie, false)
         } else if let Some(endpoint) = config.http.endpoint {
@@ -45,8 +47,7 @@ impl Client {
 
     pub fn with_auth_cookie(&mut self) -> Result<&mut Self> {
         if self.is_default_endpoint {
-            let auth_cookie = auth::find_auth_cookie()
-                .context("Failed to load auth cookie")?;
+            let auth_cookie = auth::find_auth_cookie().context("Failed to load auth cookie")?;
             Ok(self.auth_cookie(auth_cookie))
         } else {
             Ok(self)
@@ -95,7 +96,8 @@ impl Client {
     }
 
     pub fn list_workers(&self) -> Result<Vec<Worker>> {
-        let workers = self.get("/api/v0/workers")
+        let workers = self
+            .get("/api/v0/workers")
             .send()?
             .error_for_status()?
             .json()?;
@@ -112,7 +114,8 @@ impl Client {
     }
 
     pub fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
-        let pkgs = self.get("/api/v0/pkgs/list")
+        let pkgs = self
+            .get("/api/v0/pkgs/list")
             .query(list)
             .send()?
             .error_for_status()?
@@ -121,7 +124,8 @@ impl Client {
     }
 
     pub fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
-        let pkgs = self.post("/api/v0/queue/list")
+        let pkgs = self
+            .post("/api/v0/queue/list")
             .json(list)
             .send()?
             .error_for_status()?
@@ -139,7 +143,8 @@ impl Client {
     }
 
     pub fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
-        let assignment = self.post("/api/v0/queue/pop")
+        let assignment = self
+            .post("/api/v0/queue/pop")
             .json(query)
             .send()?
             .error_for_status()?
@@ -197,8 +202,7 @@ pub struct Worker {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct WorkQuery {
-}
+pub struct WorkQuery {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum JobAssignment {
