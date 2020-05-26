@@ -37,8 +37,4 @@ table! {
 joinable!(queue -> packages (package_id));
 joinable!(queue -> workers (worker_id));
 
-allow_tables_to_appear_in_same_query!(
-    packages,
-    queue,
-    workers,
-);
+allow_tables_to_appear_in_same_query!(packages, queue, workers,);

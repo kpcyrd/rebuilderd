@@ -14,15 +14,13 @@ pub struct Config {
 
 pub fn load(path: Option<&Path>) -> Result<Config> {
     let config = if let Some(path) = path {
-        let buf = fs::read(path)
-            .context("Failed to read config file")?;
+        let buf = fs::read(path).context("Failed to read config file")?;
         toml::from_slice(&buf)?
     } else {
         ConfigFile::default()
     };
 
-    let auth_cookie = auth::setup_auth_cookie()
-        .context("Failed to setup auth cookie")?;
+    let auth_cookie = auth::setup_auth_cookie().context("Failed to setup auth cookie")?;
 
     let bind_addr = if let Ok(addr) = env::var("HTTP_ADDR") {
         addr

@@ -1,12 +1,12 @@
-use diesel::prelude::*;
-use diesel::r2d2::{self, ConnectionManager};
-use rebuilderd_common::errors::*;
-use diesel::query_builder::QueryId;
-use diesel::query_builder::QueryFragment;
-use diesel::deserialize::QueryableByName;
 use diesel::connection::SimpleConnection;
+use diesel::deserialize::QueryableByName;
+use diesel::prelude::*;
 use diesel::query_builder::AsQuery;
+use diesel::query_builder::QueryFragment;
+use diesel::query_builder::QueryId;
+use diesel::r2d2::{self, ConnectionManager};
 use diesel::sql_types::HasSqlType;
+use rebuilderd_common::errors::*;
 use std::io;
 
 embed_migrations!("migrations");
@@ -48,16 +48,18 @@ impl Connection for SqliteConnectionWrap {
     type TransactionManager = <SqliteConnection as Connection>::TransactionManager;
 
     fn establish(database_url: &str) -> ConnectionResult<Self> {
-        let c = SqliteConnection::establish(database_url)
-            .map_err(|err| {
-                warn!("establish returned error: {:?}", err);
-                err
-            })?;
+        let c = SqliteConnection::establish(database_url).map_err(|err| {
+            warn!("establish returned error: {:?}", err);
+            err
+        })?;
 
-        c.batch_execute("
+        c.batch_execute(
+            "
             PRAGMA busy_timeout = 250;          -- sleep if the database is busy
             PRAGMA foreign_keys = ON;           -- enforce foreign keys
-        ").map_err(|err| {
+        ",
+        )
+        .map_err(|err| {
             warn!("executing pragmas for busy_timeout failed: {:?}", err);
             ConnectionError::CouldntSetupConfiguration(err)
         })?;
@@ -80,17 +82,17 @@ impl Connection for SqliteConnectionWrap {
     }
 
     fn query_by_index<T, U>(&self, source: T) -> QueryResult<Vec<U>>
-        where
-            T: AsQuery,
-            T::Query: QueryFragment<Self::Backend> + QueryId,
-            Self::Backend: HasSqlType<T::SqlType>,
-            U: Queryable<T::SqlType, Self::Backend>,
+    where
+        T: AsQuery,
+        T::Query: QueryFragment<Self::Backend> + QueryId,
+        Self::Backend: HasSqlType<T::SqlType>,
+        U: Queryable<T::SqlType, Self::Backend>,
     {
         self.0.query_by_index(source)
     }
 
     fn query_by_name<T, U>(&self, source: &T) -> QueryResult<Vec<U>>
-        where
+    where
         T: QueryFragment<Self::Backend> + QueryId,
         U: QueryableByName<Self::Backend>,
     {
@@ -98,7 +100,7 @@ impl Connection for SqliteConnectionWrap {
     }
 
     fn execute_returning_count<T>(&self, source: &T) -> QueryResult<usize>
-        where
+    where
         T: QueryFragment<Self::Backend> + QueryId,
     {
         self.0.execute_returning_count(source)

@@ -1,22 +1,24 @@
-#[macro_use] extern crate diesel;
-#[macro_use] extern crate diesel_migrations;
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
 
-use actix_web::{web, App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
+use actix_web::{web, App, FromRequest, HttpServer};
 use env_logger::Env;
-use std::path::PathBuf;
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
 use rebuilderd_common::api::SuiteImport;
 use rebuilderd_common::errors::*;
+use std::path::PathBuf;
+use structopt::clap::AppSettings;
+use structopt::StructOpt;
 
 pub mod api;
 pub mod auth;
 pub mod config;
 pub mod db;
+pub mod models;
 pub mod schema;
 pub mod sync;
-pub mod models;
 pub mod versions;
 
 #[derive(Debug, StructOpt)]
@@ -52,15 +54,15 @@ async fn run(args: Args) -> Result<()> {
             .service(api::ping_build)
             .service(api::report_build)
             .service(
-                web::resource("/api/v0/pkgs/sync").app_data(
-                    // change json extractor configuration
-                    web::Json::<SuiteImport>::configure(|cfg| {
-                        cfg.limit(128 * 1024 * 1024)
-                    })
-                )
-                .route(web::post().to(api::sync_work))
+                web::resource("/api/v0/pkgs/sync")
+                    .app_data(
+                        // change json extractor configuration
+                        web::Json::<SuiteImport>::configure(|cfg| cfg.limit(128 * 1024 * 1024)),
+                    )
+                    .route(web::post().to(api::sync_work)),
             )
-    }).bind(&bind_addr)?
+    })
+    .bind(&bind_addr)?
     .run()
     .await?;
     Ok(())
@@ -76,8 +78,7 @@ async fn main() {
         "actix_web=debug,info"
     };
 
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
+    env_logger::init_from_env(Env::default().default_filter_or(logging));
 
     if let Err(err) = run(args).await {
         eprintln!("Error: {}", err);

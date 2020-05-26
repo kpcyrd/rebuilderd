@@ -1,23 +1,24 @@
-use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
-use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
-use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
-use crate::models;
-use rebuilderd_common::api::*;
-use rebuilderd_common::PkgRelease;
 use crate::db::Pool;
+use crate::models;
 use crate::sync;
+use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
+use chrono::prelude::*;
 use diesel::SqliteConnection;
+use rebuilderd_common::api::*;
+use rebuilderd_common::errors::*;
+use rebuilderd_common::PkgRelease;
+use rebuilderd_common::Status;
 
 fn forbidden() -> Result<HttpResponse> {
-    Ok(HttpResponse::Forbidden()
-        .body("Authentication failed\n"))
+    Ok(HttpResponse::Forbidden().body("Authentication failed\n"))
 }
 
 pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
-    let value = req.headers().get(key)
+    let value = req
+        .headers()
+        .get(key)
         .ok_or_else(|| format_err!("Missing header"))?
         .to_str()
         .context("Failed to decode header value")?;
@@ -97,13 +98,13 @@ pub async fn list_pkgs(
         let status = pkg.status.parse::<Status>()?;
 
         pkgs.push(PkgRelease {
-             name: pkg.name,
-             version: pkg.version,
-             status: status,
-             distro: pkg.distro,
-             suite: pkg.suite,
-             architecture: pkg.architecture,
-             url: pkg.url,
+            name: pkg.name,
+            version: pkg.version,
+            status: status,
+            distro: pkg.distro,
+            suite: pkg.suite,
+            architecture: pkg.architecture,
+            url: pkg.url,
         });
     }
 
@@ -119,23 +120,24 @@ pub async fn list_queue(
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
     let queue = models::Queued::list(query.limit, connection.as_ref())?;
-    let queue: Vec<QueueItem> = queue.into_iter()
+    let queue: Vec<QueueItem> = queue
+        .into_iter()
         .map(|x| x.into_api_item(connection.as_ref()))
         .collect::<Result<_>>()?;
 
     let now = Utc::now().naive_utc();
 
-    Ok(HttpResponse::Ok().json(QueueList {
-        now,
-        queue,
-    }))
+    Ok(HttpResponse::Ok().json(QueueList { now, queue }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> Result<models::Worker> {
-    let key = header(req, WORKER_KEY_HEADER)
-        .context("Failed to get worker key")?;
+fn get_worker_from_request(
+    req: &HttpRequest,
+    connection: &SqliteConnection,
+) -> Result<models::Worker> {
+    let key = header(req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
 
-    let ci = req.peer_addr()
+    let ci = req
+        .peer_addr()
         .ok_or_else(|| format_err!("Can't determine client ip"))?;
 
     if let Some(mut worker) = models::Worker::get(key, connection)? {
@@ -163,7 +165,13 @@ pub async fn push_queue(
     let connection = pool.get()?;
 
     debug!("searching pkg: {:?}", query);
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgs = models::Package::get_by(
+        &query.name,
+        &query.distro,
+        &query.suite,
+        query.architecture.as_deref(),
+        connection.as_ref(),
+    )?;
 
     for pkg in pkgs {
         debug!("found pkg: {:?}", pkg);
@@ -193,17 +201,18 @@ pub async fn pop_queue(
     let mut worker = get_worker_from_request(&req, connection.as_ref())?;
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
-    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, connection.as_ref())? {
+    let (resp, status) =
+        if let Some(item) = models::Queued::pop_next(worker.id, connection.as_ref())? {
+            // TODO: claim item correctly
 
-
-        // TODO: claim item correctly
-
-
-        let status = format!("working hard on {} {}", item.package.name, item.package.version);
-        (JobAssignment::Rebuild(item), Some(status))
-    } else {
-        (JobAssignment::Nothing, None)
-    };
+            let status = format!(
+                "working hard on {} {}",
+                item.package.name, item.package.version
+            );
+            (JobAssignment::Rebuild(item), Some(status))
+        } else {
+            (JobAssignment::Nothing, None)
+        };
 
     worker.status = status;
     worker.update(connection.as_ref())?;
@@ -225,10 +234,14 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let connection = pool.get()?;
 
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
-    let pkgs = pkgs.iter()
-        .map(|p| p.id)
-        .collect::<Vec<_>>();
+    let pkgs = models::Package::get_by(
+        &query.name,
+        &query.distro,
+        &query.suite,
+        query.architecture.as_deref(),
+        connection.as_ref(),
+    )?;
+    let pkgs = pkgs.iter().map(|p| p.id).collect::<Vec<_>>();
 
     models::Queued::drop_for_pkgs(&pkgs, connection.as_ref())?;
 
@@ -266,7 +279,10 @@ pub async fn requeue_pkg(
             continue;
         }
 
-        debug!("pkg is going to be requeued: {:?} {:?}", pkg.name, pkg.version);
+        debug!(
+            "pkg is going to be requeued: {:?} {:?}",
+            pkg.name, pkg.version
+        );
         pkgs.push((pkg.id, pkg.version));
     }
 
@@ -278,9 +294,7 @@ pub async fn requeue_pkg(
     }
 
     if query.reset {
-        let reset = pkgs.into_iter()
-            .map(|x| x.0)
-            .collect::<Vec<_>>();
+        let reset = pkgs.into_iter().map(|x| x.0).collect::<Vec<_>>();
         models::Package::reset_status_list(&reset, connection.as_ref())?;
     }
 

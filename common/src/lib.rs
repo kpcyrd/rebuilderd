@@ -1,9 +1,9 @@
 use crate::errors::*;
 use colored::*;
-use strum_macros::{EnumString, AsRefStr, Display};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::str::FromStr;
+use strum_macros::{AsRefStr, Display, EnumString};
 
 pub mod api;
 pub mod auth;
@@ -43,8 +43,8 @@ pub enum Status {
 impl Status {
     pub fn fancy(&self) -> String {
         match self {
-            Status::Good    => "GOOD ".green().to_string(),
-            Status::Bad     => "BAD  ".red().to_string(),
+            Status::Good => "GOOD ".green().to_string(),
+            Status::Bad => "BAD  ".red().to_string(),
             Status::Unknown => "UNKWN".yellow().to_string(),
         }
     }
@@ -55,8 +55,8 @@ impl Deref for Status {
 
     fn deref(&self) -> &'static str {
         match self {
-            Status::Good    => "GOOD",
-            Status::Bad     => "BAD",
+            Status::Good => "GOOD",
+            Status::Bad => "BAD",
             Status::Unknown => "UNKWN",
         }
     }
