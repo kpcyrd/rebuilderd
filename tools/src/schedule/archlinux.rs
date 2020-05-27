@@ -2,7 +2,7 @@ use crate::schedule::{Pkg, fetch_url_or_path};
 use crate::PkgsSync;
 use flate2::read::GzDecoder;
 use nom::bytes::complete::take_till;
-use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::{PkgRelease, Distro};
 use rebuilderd_common::errors::*;
 use std::convert::TryInto;
 use std::io::prelude::*;
@@ -147,15 +147,14 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
         }
 
         let url = mirror_to_url(&source, &sync.suite, &sync.architecture, &pkg.filename)?;
-        pkgs.push(PkgRelease {
-            name: pkg.name,
-            version: pkg.version,
-            status: Status::Unknown,
-            distro: Distro::Archlinux.to_string(),
-            suite: sync.suite.to_string(),
-            architecture: pkg.architecture,
+        pkgs.push(PkgRelease::new(
+            pkg.name,
+            pkg.version,
+            Distro::Archlinux,
+            sync.suite.to_string(),
+            pkg.architecture,
             url,
-        });
+        ));
     }
 
     Ok(pkgs)

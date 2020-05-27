@@ -1,6 +1,5 @@
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
 use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
@@ -94,17 +93,7 @@ pub async fn list_pkgs(
             continue;
         }
 
-        let status = pkg.status.parse::<Status>()?;
-
-        pkgs.push(PkgRelease {
-             name: pkg.name,
-             version: pkg.version,
-             status: status,
-             distro: pkg.distro,
-             suite: pkg.suite,
-             architecture: pkg.architecture,
-             url: pkg.url,
-        });
+        pkgs.push(pkg.into_api_item()?);
     }
 
     Ok(HttpResponse::Ok().json(pkgs))
@@ -281,7 +270,7 @@ pub async fn requeue_pkg(
         let reset = pkgs.into_iter()
             .map(|x| x.0)
             .collect::<Vec<_>>();
-        models::Package::reset_status_list(&reset, connection.as_ref())?;
+        models::Package::reset_status_for_requeued_list(&reset, connection.as_ref())?;
     }
 
     Ok(HttpResponse::Ok().json(()))

@@ -8,6 +8,11 @@ table! {
         suite -> Text,
         architecture -> Text,
         url -> Text,
+        built_at -> Nullable<Timestamp>,
+        attestation -> Nullable<Text>,
+        checksum -> Nullable<Text>,
+        retries -> Integer,
+        next_retry -> Nullable<Timestamp>,
     }
 }
 

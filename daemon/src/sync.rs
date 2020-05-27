@@ -9,7 +9,7 @@ use diesel::SqliteConnection;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
-pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()> {
+fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("submitted packages {:?}", import.pkgs.len());
     let mut pkgs = Vec::new();
     pkgs.extend(models::Package::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)?);
@@ -74,7 +74,7 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
     info!("updated_pkgs packages: {:?}", updated_pkgs.len());
     for (_, pkg) in updated_pkgs {
         debug!("update: {:?}", pkg);
-        pkg.update(connection)?;
+        pkg.bump_version(connection)?;
         queue.push((pkg.id, pkg.version.clone()));
     }
 
@@ -92,5 +92,25 @@ pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()>
     }
     info!("successfully updated state");
 
+    Ok(())
+}
+
+fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
+    info!("selecting packages with due retries");
+    let queue = models::Package::list_distro_suite_architecture_due_retries(import.distro.as_ref(), &import.suite, &import.architecture, connection)?;
+
+    info!("queueing new jobs");
+    for pkgs in queue.chunks(1_000) {
+        debug!("queue: {:?}", pkgs.len());
+        models::Queued::queue_batch(pkgs, connection)?;
+    }
+    info!("successfully triggered {} retries", queue.len());
+
+    Ok(())
+}
+
+pub fn run(mut import: SuiteImport, connection: &SqliteConnection) -> Result<()> {
+    sync(&mut import, connection)?;
+    retry(&import, connection)?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 use crate::schedule::{Pkg, fetch_url_or_path};
 use crate::PkgsSync;
 use lzma::LzmaReader;
-use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::{PkgRelease, Distro};
 use rebuilderd_common::errors::*;
 use std::convert::TryInto;
 use std::io::BufReader;
@@ -156,15 +156,14 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
                     pkg.version,
                     arch);
 
-                pkgs.push(PkgRelease {
-                    name: bin.to_string(),
-                    version: pkg.version.to_string(),
-                    status: Status::Unknown,
-                    distro: Distro::Debian.to_string(),
-                    suite: sync.suite.to_string(),
-                    architecture: arch,
+                pkgs.push(PkgRelease::new(
+                    bin.to_string(),
+                    pkg.version.to_string(),
+                    Distro::Debian,
+                    sync.suite.to_string(),
+                    arch,
                     url,
-                });
+                ));
             }
         }
     }
