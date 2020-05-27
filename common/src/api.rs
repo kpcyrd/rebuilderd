@@ -249,6 +249,7 @@ pub struct ListQueue {
 pub struct PushQueue {
     pub name: String,
     pub version: Option<String>,
+    pub priority: i32,
     pub distro: String,
     pub suite: String,
     pub architecture: Option<String>,
@@ -267,6 +268,7 @@ pub struct DropQueueItem {
 pub struct RequeueQuery {
     pub name: Option<String>,
     pub status: Option<Status>,
+    pub priority: i32,
     pub distro: Option<String>,
     pub suite: Option<String>,
     pub architecture: Option<String>,

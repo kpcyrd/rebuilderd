@@ -14,6 +14,7 @@ pub struct Queued {
     pub id: i32,
     pub package_id: i32,
     pub version: String,
+    pub priority: i32,
     pub queued_at: NaiveDateTime,
     pub worker_id: Option<i32>,
     pub started_at: Option<NaiveDateTime>,
@@ -43,7 +44,7 @@ impl Queued {
         use crate::schema::queue::dsl::*;
         let item = queue
             .filter(worker_id.is_null())
-            .order_by((queued_at, id))
+            .order_by((priority, queued_at, id))
             .first::<Queued>(connection)
             .optional()?;
         if let Some(mut item) = item {
@@ -78,7 +79,7 @@ impl Queued {
         use crate::schema::queue::dsl::*;
 
         let query = Box::new(queue
-            .order_by((queued_at, id)));
+            .order_by((priority, queued_at, id)));
 
         let results = if let Some(limit) = limit {
             query
@@ -100,9 +101,9 @@ impl Queued {
         Ok(())
     }
 
-    pub fn queue_batch(pkgs: &[(i32, String)], connection: &SqliteConnection) -> Result<()> {
+    pub fn queue_batch(pkgs: &[(i32, String)], priority: i32, connection: &SqliteConnection) -> Result<()> {
         let pkgs = pkgs.iter()
-            .map(|(id, version)| NewQueued::new(*id, version.to_string()))
+            .map(|(id, version)| NewQueued::new(*id, version.to_string(), priority))
             .collect::<Vec<_>>();
 
         diesel::insert_into(queue::table)
@@ -168,15 +169,17 @@ impl Queued {
 pub struct NewQueued {
     pub package_id: i32,
     pub version: String,
+    pub priority: i32,
     pub queued_at: NaiveDateTime,
 }
 
 impl NewQueued {
-    pub fn new(package_id: i32, version: String) -> NewQueued {
+    pub fn new(package_id: i32, version: String, priority: i32) -> NewQueued {
         let now: DateTime<Utc> = Utc::now();
         NewQueued {
             package_id,
             version,
+            priority,
             queued_at: now.naive_utc(),
         }
     }

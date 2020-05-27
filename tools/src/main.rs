@@ -127,6 +127,7 @@ fn run(args: Args) -> Result<()> {
             client.with_auth_cookie()?.requeue_pkgs(&RequeueQuery {
                 name: args.name,
                 status: args.status,
+                priority: args.priority,
                 distro: args.distro,
                 suite: args.suite,
                 architecture: args.architecture,
@@ -182,6 +183,7 @@ fn run(args: Args) -> Result<()> {
             client.with_auth_cookie()?.push_queue(&PushQueue {
                 name: push.name,
                 version: push.version,
+                priority: push.priority,
                 distro: push.distro,
                 suite: push.suite,
                 architecture: push.architecture,

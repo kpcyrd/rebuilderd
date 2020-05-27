@@ -88,7 +88,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
     for pkgs in queue.chunks(1_000) {
         debug!("queue: {:?}", pkgs.len());
-        models::Queued::queue_batch(pkgs, connection)?;
+        models::Queued::queue_batch(pkgs, 1, connection)?;
     }
     info!("successfully updated state");
 
@@ -102,7 +102,7 @@ fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("queueing new jobs");
     for pkgs in queue.chunks(1_000) {
         debug!("queue: {:?}", pkgs.len());
-        models::Queued::queue_batch(pkgs, connection)?;
+        models::Queued::queue_batch(pkgs, 2, connection)?;
     }
     info!("successfully triggered {} retries", queue.len());
 

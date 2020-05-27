@@ -21,6 +21,7 @@ table! {
         id -> Integer,
         package_id -> Integer,
         version -> Text,
+        priority -> Integer,
         queued_at -> Timestamp,
         worker_id -> Nullable<Integer>,
         started_at -> Nullable<Timestamp>,

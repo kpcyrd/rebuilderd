@@ -158,7 +158,7 @@ pub async fn push_queue(
         debug!("found pkg: {:?}", pkg);
         let version = query.version.as_ref().unwrap_or(&pkg.version);
 
-        let item = models::NewQueued::new(pkg.id, version.to_string());
+        let item = models::NewQueued::new(pkg.id, version.to_string(), query.priority);
         debug!("adding to queue: {:?}", item);
         item.insert(connection.as_ref())?;
     }
@@ -262,7 +262,7 @@ pub async fn requeue_pkg(
     // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
     // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
     for (id, version) in &pkgs {
-        let q = models::NewQueued::new(*id, version.to_string());
+        let q = models::NewQueued::new(*id, version.to_string(), query.priority);
         q.insert(connection.as_ref()).ok();
     }
 
