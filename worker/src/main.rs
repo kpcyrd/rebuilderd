@@ -1,3 +1,4 @@
+use crate::rebuild::Context;
 use env_logger::Env;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
@@ -49,13 +50,19 @@ struct Connect {
     pub endpoint: Option<String>,
 }
 
-fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item: &QueueItem) -> Result<bool> {
+fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
     let (tx, rx) = mpsc::channel();
     let t = {
         let distro = distro.clone();
         let input = item.package.url.to_string();
+
+        let ctx = Context {
+            script_location: None,
+            gen_diffoscope: config.gen_diffoscope,
+        };
+
         thread::spawn(move || {
-            let res = rebuild::rebuild(&distro, None, &input);
+            let res = rebuild::rebuild(&distro, &ctx, &input);
             tx.send(res).ok();
         })
     };
@@ -73,33 +80,32 @@ fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item:
     Ok(result)
 }
 
-fn rebuild(client: &Client, rb: QueueItem) -> Result<()> {
+fn rebuild(client: &Client, rb: QueueItem, config: &config::ConfigFile) -> Result<()> {
     info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
     let distro = rb.package.distro.parse::<Distro>()?;
-    let status = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb) {
+    let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb, config) {
         Ok(res) => {
-            if res {
+            if res.status == BuildStatus::Good {
                 info!("Package successfully verified");
-                BuildStatus::Good
             } else {
                 warn!("Failed to verify package");
-                BuildStatus::Bad
-            }
+            };
+            res
         },
         Err(err) => {
             error!("Failed to run rebuild package: {}", err);
-            BuildStatus::Fail
+            Rebuild::new(BuildStatus::Fail)
         },
     };
     let report = BuildReport {
         queue: rb,
-        status,
+        rebuild,
     };
     client.report_build(&report)?;
     Ok(())
 }
 
-fn run_worker_loop(client: &Client) -> Result<()> {
+fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
     loop {
         info!("requesting work");
 
@@ -108,7 +114,7 @@ fn run_worker_loop(client: &Client) -> Result<()> {
                 info!("no pending tasks, sleeping...");
                 thread::sleep(Duration::from_secs(IDLE_DELAY));
             },
-            Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb)?,
+            Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb, config)?,
             Err(err) => {
                 error!("Failed to query for work: {}", err);
                 thread::sleep(Duration::from_secs(API_ERROR_DELAY));
@@ -139,16 +145,21 @@ fn run() -> Result<()> {
             let endpoint = if let Some(endpoint) = connect.endpoint {
                 endpoint
             } else {
-                config.endpoint
+                config.endpoint.clone()
                     .ok_or_else(|| format_err!("No endpoint configured"))?
             };
 
             let profile = auth::load()?;
-            let client = profile.new_client(system_config, endpoint, config.signup_secret, cookie);
-            run_worker_loop(&client)?;
+            let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie);
+            run_worker_loop(&client, &config)?;
         },
         SubCommand::Build(build) => {
-            if rebuild::rebuild(&build.distro, build.script_location.as_ref(), &build.input)? {
+            let res = rebuild::rebuild(&build.distro, &Context {
+                script_location: build.script_location.as_ref(),
+                gen_diffoscope: false,
+            }, &build.input)?;
+
+            if res.status == BuildStatus::Good {
                 info!("Package verified successfully");
             } else {
                 error!("Package failed to verify");

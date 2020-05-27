@@ -7,6 +7,8 @@ use std::path::Path;
 pub struct ConfigFile {
     pub endpoint: Option<String>,
     pub signup_secret: Option<String>,
+    #[serde(default)]
+    pub gen_diffoscope: bool,
 }
 
 pub fn load(path: Option<&Path>) -> Result<ConfigFile> {

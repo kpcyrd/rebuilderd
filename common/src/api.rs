@@ -273,7 +273,7 @@ pub struct RequeueQuery {
     pub reset: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum BuildStatus {
     Good,
     Bad,
@@ -281,7 +281,22 @@ pub enum BuildStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Rebuild {
+    pub status: BuildStatus,
+    pub diffoscope: Option<String>,
+}
+
+impl Rebuild {
+    pub fn new(status: BuildStatus) -> Rebuild {
+        Rebuild {
+            status,
+            diffoscope: None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
     pub queue: QueueItem,
-    pub status: BuildStatus,
+    pub rebuild: Rebuild,
 }

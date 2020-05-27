@@ -334,12 +334,10 @@ pub async fn report_build(
     let mut worker = get_worker_from_request(&req, connection.as_ref())?;
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
-    let status = match report.status {
-        BuildStatus::Good => Status::Good,
-        _ => Status::Bad,
-    };
-    pkg.update_status_safely(status, connection.as_ref())?;
+
+    pkg.update_status_safely(&report.rebuild, connection.as_ref())?;
     item.delete(connection.as_ref())?;
+
     worker.status = None;
     worker.update(connection.as_ref())?;
 

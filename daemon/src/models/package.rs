@@ -1,5 +1,6 @@
 use crate::schema::*;
 use rebuilderd_common::Status;
+use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use diesel::prelude::*;
 use rebuilderd_common::PkgRelease;
@@ -80,9 +81,12 @@ impl Package {
         Ok(())
     }
 
-    pub fn update_status_safely(&mut self, my_status: Status, connection: &SqliteConnection) -> Result<()> {
+    pub fn update_status_safely(&mut self, rebuild: &Rebuild, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
-        self.status = my_status.to_string();
+        self.status = match rebuild.status {
+            BuildStatus::Good => Status::Good.to_string(),
+            _ => Status::Bad.to_string(),
+        };
         diesel::update(packages::table
                 .filter(id.eq(self.id))
                 .filter(version.eq(&self.version))
