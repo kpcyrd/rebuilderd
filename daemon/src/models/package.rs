@@ -118,6 +118,13 @@ impl Package {
         Ok(())
     }
 
+    pub fn schedule_retry(&mut self, retry_delay_base: i64) {
+        let hours = (self.retries as i64 + 1) * retry_delay_base;
+        debug!("scheduling retry in {} hours", hours);
+        let delay = Duration::hours(hours);
+        self.next_retry = Some((Utc::now() + delay).naive_utc());
+    }
+
     pub fn update_status_safely(&mut self, rebuild: &Rebuild, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
 
@@ -127,11 +134,7 @@ impl Package {
 
         self.status = match rebuild.status {
             BuildStatus::Good => Status::Good.to_string(),
-            _ => {
-                let delay = Duration::days(self.retries as i64 + 1);
-                self.next_retry = Some((Utc::now() + delay).naive_utc());
-                Status::Bad.to_string()
-            },
+            _ => Status::Bad.to_string(),
         };
         self.built_at = Some(Utc::now().naive_utc());
 

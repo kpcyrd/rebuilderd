@@ -52,6 +52,17 @@ _signup_secret=_
 	allowed to join. See the authentication section in *rebuilderd*(1) for
 	details.
 
+## [schedule]
+
+_retry_delay_base=_
+	Configure the delay to automatically retry failed rebuilds in hours. The
+	default is 24h, this base is multiplied with the number of rebuilds, so the
+	first retry would happen after 24h, the second retry would happen 48h after the
+	first retry and the third retry would happen 72h after the second retry. There
+	is no upper limit of retries, if you can't afford frequent retries it's
+	recommended to set this to a high value like 168 (1 week) or higher.
+	Successful rebuilds are not retried.
+
 # EXAMPLE
 
 ```
@@ -82,6 +93,16 @@ _signup_secret=_
 ## If we want to spawn new workers dynamically we can configure a sign up secret below.
 ## Use `pwgen -1s 32` to generate one.
 #signup_secret = "INSECURE"
+
+#[schedule]
+## Configure the delay to automatically retry failed rebuilds in hours. The
+## default is 24h, this base is multiplied with the number of rebuilds, so the
+## first retry would happen after 24h, the second retry would happen 48h after the
+## first retry and the third retry would happen 72h after the second retry. There
+## is no upper limit of retries, if you can't afford frequent retries it's
+## recommended to set this to a high value like 168 (1 week) or higher.
+## Successful rebuilds are not retried.
+#retry_delay_base = 24
 ```
 
 # SEE ALSO

@@ -11,6 +11,8 @@ pub const PING_INTERVAL: u64 = 60;
 pub const WORKER_DELAY: u64 = 3;
 pub const API_ERROR_DELAY: u64 = 30;
 
+pub const DEFAULT_RETRY_DELAY_BASE: i64 = 24;
+
 pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
     let mut config = ConfigFile::default();
 
@@ -60,6 +62,8 @@ pub struct ConfigFile {
     pub endpoints: HashMap<String, EndpointConfig>,
     #[serde(default)]
     pub worker: WorkerConfig,
+    #[serde(default)]
+    pub schedule: ScheduleConfig,
 }
 
 impl ConfigFile {
@@ -120,5 +124,16 @@ impl WorkerConfig {
         if c.signup_secret.is_some() {
             self.signup_secret = c.signup_secret;
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ScheduleConfig {
+    retry_delay_base: Option<i64>,
+}
+
+impl ScheduleConfig {
+    pub fn retry_delay_base(&self) -> i64 {
+        self.retry_delay_base.unwrap_or(DEFAULT_RETRY_DELAY_BASE)
     }
 }
