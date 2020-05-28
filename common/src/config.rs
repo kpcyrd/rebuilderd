@@ -78,12 +78,14 @@ impl ConfigFile {
             }
         }
         self.worker.update(c.worker);
+        self.schedule.update(c.schedule);
     }
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct HttpConfig {
     pub bind_addr: Option<String>,
+    pub real_ip_header: Option<String>,
     pub endpoint: Option<String>,
 }
 
@@ -91,6 +93,9 @@ impl HttpConfig {
     pub fn update(&mut self, c: HttpConfig) {
         if c.bind_addr.is_some() {
             self.bind_addr = c.bind_addr;
+        }
+        if c.real_ip_header.is_some() {
+            self.real_ip_header = c.real_ip_header;
         }
         if c.endpoint.is_some() {
             self.endpoint = c.endpoint;
@@ -133,6 +138,12 @@ pub struct ScheduleConfig {
 }
 
 impl ScheduleConfig {
+    pub fn update(&mut self, c: ScheduleConfig) {
+        if c.retry_delay_base.is_some() {
+            self.retry_delay_base = c.retry_delay_base;
+        }
+    }
+
     pub fn retry_delay_base(&self) -> i64 {
         self.retry_delay_base.unwrap_or(DEFAULT_RETRY_DELAY_BASE)
     }

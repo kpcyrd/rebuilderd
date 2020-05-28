@@ -9,6 +9,7 @@ use rebuilderd_common::PkgRelease;
 use crate::db::Pool;
 use crate::sync;
 use diesel::SqliteConnection;
+use std::net::IpAddr;
 
 fn forbidden() -> Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
@@ -120,20 +121,27 @@ pub async fn list_queue(
     }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> Result<models::Worker> {
+fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteConnection) -> Result<models::Worker> {
     let key = header(req, WORKER_KEY_HEADER)
         .context("Failed to get worker key")?;
 
-    let ci = req.peer_addr()
-        .ok_or_else(|| format_err!("Can't determine client ip"))?;
+    let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
+        let ip = header(req, real_ip_header)?;
+        ip.parse::<IpAddr>()
+            .context("Can't parse real ip header as ip address")?
+    } else {
+        let ci = req.peer_addr()
+            .ok_or_else(|| format_err!("Can't determine client ip"))?;
+        ci.ip()
+    };
 
     if let Some(mut worker) = models::Worker::get(key, connection)? {
         worker.bump_last_ping();
         Ok(worker)
     } else {
-        let worker = models::NewWorker::new(key.to_string(), ci.ip(), None);
+        let worker = models::NewWorker::new(key.to_string(), ip, None);
         worker.insert(connection)?;
-        get_worker_from_request(req, connection)
+        get_worker_from_request(req, &cfg, connection)
     }
 }
 
@@ -179,7 +187,7 @@ pub async fn pop_queue(
 
     let connection = pool.get()?;
 
-    let mut worker = get_worker_from_request(&req, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
     let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, connection.as_ref())? {
@@ -289,7 +297,7 @@ pub async fn ping_build(
 
     let connection = pool.get()?;
 
-    let worker = get_worker_from_request(&req, connection.as_ref())?;
+    let worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     debug!("ping from worker: {:?}", worker);
     let mut item = models::Queued::get_id(item.id, connection.as_ref())?;
     debug!("trying to ping item: {:?}", item);
@@ -320,7 +328,7 @@ pub async fn report_build(
 
     let connection = pool.get()?;
 
-    let mut worker = get_worker_from_request(&req, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
 

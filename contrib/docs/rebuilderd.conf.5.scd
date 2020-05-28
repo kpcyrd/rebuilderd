@@ -21,6 +21,11 @@ This file contains configuration for both rebuilderd and rebuildctl.
 _bind_addr=_
 	The address to bind to. This is 127.0.0.1:8484 by default.
 
+_real_ip_header=_
+	If you use a reverse proxy, use this header instead of the actual connecting ip.
+	Make sure the reverse proxy has filters in place to prevent spoofing issues.
+	There is no default value, but it's recommended to use "X-Real-IP".
+
 _endpoint=_
 	Set a default endpoint for rebuildctl. This is especially useful for the
 	sync timer. Defaults to *http://127.0.0.1:8484*.
@@ -70,6 +75,9 @@ _retry_delay_base=_
 #[http]
 ## The address to bind to. This is 127.0.0.1:8484 by default.
 #bind_addr = "0.0.0.0:8484"
+## If you use a reverse proxy, use this header instead of the actual connecting ip.
+## Make sure the reverse proxy has filters in place to prevent spoofing issues.
+#real_ip_header = "X-Real-IP"
 ## Set a default endpoint for rebuildctl. This is especially useful for the sync timer.
 #endpoint = "http://127.0.0.1:8484"
 
