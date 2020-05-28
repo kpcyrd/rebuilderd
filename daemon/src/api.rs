@@ -134,9 +134,10 @@ fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteC
             .ok_or_else(|| format_err!("Can't determine client ip"))?;
         ci.ip()
     };
+    debug!("detected worker ip for {:?} as {}", key, ip);
 
     if let Some(mut worker) = models::Worker::get(key, connection)? {
-        worker.bump_last_ping();
+        worker.bump_last_ping(&ip);
         Ok(worker)
     } else {
         let worker = models::NewWorker::new(key.to_string(), ip, None);

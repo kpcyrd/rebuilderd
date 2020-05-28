@@ -51,7 +51,8 @@ impl Worker {
         Ok(())
     }
 
-    pub fn bump_last_ping(&mut self) {
+    pub fn bump_last_ping(&mut self, addr: &IpAddr) {
+        self.addr = addr.to_string();
         let now = Utc::now().naive_utc();
         self.last_ping = now;
         self.online = true;
