@@ -249,6 +249,7 @@ pub struct ListQueue {
 pub struct PushQueue {
     pub name: String,
     pub version: Option<String>,
+    pub priority: i32,
     pub distro: String,
     pub suite: String,
     pub architecture: Option<String>,
@@ -267,13 +268,14 @@ pub struct DropQueueItem {
 pub struct RequeueQuery {
     pub name: Option<String>,
     pub status: Option<Status>,
+    pub priority: i32,
     pub distro: Option<String>,
     pub suite: Option<String>,
     pub architecture: Option<String>,
     pub reset: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum BuildStatus {
     Good,
     Bad,
@@ -281,7 +283,22 @@ pub enum BuildStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Rebuild {
+    pub status: BuildStatus,
+    pub diffoscope: Option<String>,
+}
+
+impl Rebuild {
+    pub fn new(status: BuildStatus) -> Rebuild {
+        Rebuild {
+            status,
+            diffoscope: None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
     pub queue: QueueItem,
-    pub status: BuildStatus,
+    pub rebuild: Rebuild,
 }

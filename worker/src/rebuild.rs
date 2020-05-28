@@ -1,11 +1,18 @@
-use rebuilderd_common::errors::*;
 use rebuilderd_common::Distro;
+use rebuilderd_common::api::{Rebuild, BuildStatus};
+use rebuilderd_common::errors::*;
 use std::fs::File;
 use std::process::Command;
 use std::path::{Path, PathBuf};
 use url::Url;
 
-pub fn rebuild(distro: &Distro, script_location: Option<&PathBuf>, url: &str) -> Result<bool> {
+#[derive(Default)]
+pub struct Context<'a> {
+    pub script_location: Option<&'a PathBuf>,
+    pub gen_diffoscope: bool,
+}
+
+pub fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let url = url.parse::<Url>()
@@ -25,19 +32,29 @@ pub fn rebuild(distro: &Distro, script_location: Option<&PathBuf>, url: &str) ->
     let input = input.to_str()
         .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
 
-    if !verify(distro, script_location, &url.to_string(), input)? {
-        return Ok(false);
+    if !verify(distro, ctx.script_location, &url.to_string(), input)? {
+        Ok(Rebuild::new(BuildStatus::Bad))
+    } else {
+        info!("rebuilder script indicated success");
+        let mut res = Rebuild::new(BuildStatus::Good);
+
+        let output = Path::new("./build/").join(filename);
+        if !output.exists() {
+            bail!("Rebuild script exited successfully but output package does not exist");
+        }
+        let output = output.to_str()
+            .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
+
+        // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here
+
+        if ctx.gen_diffoscope {
+            let diff = diffoscope(input, output)
+                .context("Failed to run diffoscope")?;
+            res.diffoscope = Some(diff);
+        }
+
+        Ok(res)
     }
-    info!("rebuilder script indicated success");
-
-    let output = Path::new("./build/").join(filename);
-    if !output.exists() {
-        bail!("Rebuild script exited successfully but output package does not exist");
-    }
-
-    // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here
-
-    Ok(true)
 }
 
 fn download(url: &Url, target: &Path) -> Result<()> {
@@ -54,6 +71,18 @@ fn download(url: &Url, target: &Path) -> Result<()> {
     info!("Downloaded {} bytes", n);
 
     Ok(())
+}
+
+fn diffoscope(a: &str, b: &str) -> Result<String> {
+    let output = Command::new("diffoscope")
+        .args(&["--", a, b])
+        .output()?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stdout);
+        bail!("diffoscope exited with error: {:?}", err.trim());
+    }
+    let output = String::from_utf8(output.stdout)?;
+    Ok(output)
 }
 
 fn verify(distro: &Distro, script_location: Option<&PathBuf>, url: &str, path: &str) -> Result<bool> {

@@ -8,6 +8,11 @@ table! {
         suite -> Text,
         architecture -> Text,
         url -> Text,
+        built_at -> Nullable<Timestamp>,
+        attestation -> Nullable<Text>,
+        checksum -> Nullable<Text>,
+        retries -> Integer,
+        next_retry -> Nullable<Timestamp>,
     }
 }
 
@@ -16,6 +21,7 @@ table! {
         id -> Integer,
         package_id -> Integer,
         version -> Text,
+        priority -> Integer,
         queued_at -> Timestamp,
         worker_id -> Nullable<Integer>,
         started_at -> Nullable<Timestamp>,

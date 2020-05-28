@@ -1,5 +1,5 @@
 use crate::auth;
-use rebuilderd_common::config::{ConfigFile, WorkerConfig};
+use rebuilderd_common::config::{ConfigFile, WorkerConfig, ScheduleConfig};
 use rebuilderd_common::errors::*;
 use std::env;
 use std::fs;
@@ -10,6 +10,8 @@ pub struct Config {
     pub auth_cookie: String,
     pub worker: WorkerConfig,
     pub bind_addr: String,
+    pub real_ip_header: Option<String>,
+    pub schedule: ScheduleConfig,
 }
 
 pub fn load(path: Option<&Path>) -> Result<Config> {
@@ -36,5 +38,7 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
         auth_cookie,
         worker: config.worker,
         bind_addr,
+        real_ip_header: config.http.real_ip_header,
+        schedule: config.schedule,
     })
 }

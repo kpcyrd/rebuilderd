@@ -1,5 +1,6 @@
 use crate::errors::*;
 use colored::*;
+use chrono::NaiveDateTime;
 use strum_macros::{EnumString, AsRefStr, Display};
 use serde::{Serialize, Deserialize};
 use std::ops::Deref;
@@ -28,6 +29,26 @@ pub struct PkgRelease {
     pub suite: String,
     pub architecture: String,
     pub url: String,
+    pub built_at: Option<NaiveDateTime>,
+    pub attestation: Option<String>,
+    pub next_retry: Option<NaiveDateTime>,
+}
+
+impl PkgRelease {
+    pub fn new(name: String, version: String, distro: Distro, suite: String, architecture: String, url: String) -> PkgRelease {
+        PkgRelease {
+            name,
+            version,
+            status: Status::Unknown,
+            distro: distro.to_string(),
+            suite,
+            architecture,
+            url,
+            built_at: None,
+            attestation: None,
+            next_retry: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

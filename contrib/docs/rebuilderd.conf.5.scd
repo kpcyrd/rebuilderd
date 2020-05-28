@@ -21,6 +21,11 @@ This file contains configuration for both rebuilderd and rebuildctl.
 _bind_addr=_
 	The address to bind to. This is 127.0.0.1:8484 by default.
 
+_real_ip_header=_
+	If you use a reverse proxy, use this header instead of the actual connecting ip.
+	Make sure the reverse proxy has filters in place to prevent spoofing issues.
+	There is no default value, but it's recommended to use "X-Real-IP".
+
 _endpoint=_
 	Set a default endpoint for rebuildctl. This is especially useful for the
 	sync timer. Defaults to *http://127.0.0.1:8484*.
@@ -52,6 +57,17 @@ _signup_secret=_
 	allowed to join. See the authentication section in *rebuilderd*(1) for
 	details.
 
+## [schedule]
+
+_retry_delay_base=_
+	Configure the delay to automatically retry failed rebuilds in hours. The
+	default is 24h, this base is multiplied with the number of rebuilds, so the
+	first retry would happen after 24h, the second retry would happen 48h after the
+	first retry and the third retry would happen 72h after the second retry. There
+	is no upper limit of retries, if you can't afford frequent retries it's
+	recommended to set this to a high value like 168 (1 week) or higher.
+	Successful rebuilds are not retried.
+
 # EXAMPLE
 
 ```
@@ -59,6 +75,9 @@ _signup_secret=_
 #[http]
 ## The address to bind to. This is 127.0.0.1:8484 by default.
 #bind_addr = "0.0.0.0:8484"
+## If you use a reverse proxy, use this header instead of the actual connecting ip.
+## Make sure the reverse proxy has filters in place to prevent spoofing issues.
+#real_ip_header = "X-Real-IP"
 ## Set a default endpoint for rebuildctl. This is especially useful for the sync timer.
 #endpoint = "http://127.0.0.1:8484"
 
@@ -82,6 +101,16 @@ _signup_secret=_
 ## If we want to spawn new workers dynamically we can configure a sign up secret below.
 ## Use `pwgen -1s 32` to generate one.
 #signup_secret = "INSECURE"
+
+#[schedule]
+## Configure the delay to automatically retry failed rebuilds in hours. The
+## default is 24h, this base is multiplied with the number of rebuilds, so the
+## first retry would happen after 24h, the second retry would happen 48h after the
+## first retry and the third retry would happen 72h after the second retry. There
+## is no upper limit of retries, if you can't afford frequent retries it's
+## recommended to set this to a high value like 168 (1 week) or higher.
+## Successful rebuilds are not retried.
+#retry_delay_base = 24
 ```
 
 # SEE ALSO

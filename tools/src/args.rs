@@ -89,6 +89,8 @@ pub struct PkgsRequeue {
     pub name: Option<String>,
     #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
     pub status: Option<Status>,
+    #[structopt(long, default_value="0")]
+    pub priority: i32,
     #[structopt(long)]
     pub distro: Option<String>,
     #[structopt(long)]
@@ -119,11 +121,14 @@ pub struct QueueList {
 pub struct QueuePush {
     pub distro: String,
     pub suite: String,
-    #[structopt(long)]
-    pub architecture: Option<String>,
 
     pub name: String,
     pub version: Option<String>,
+
+    #[structopt(long)]
+    pub architecture: Option<String>,
+    #[structopt(long, default_value="0")]
+    pub priority: i32,
 }
 
 #[derive(Debug, StructOpt)]

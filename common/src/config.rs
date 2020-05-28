@@ -11,6 +11,8 @@ pub const PING_INTERVAL: u64 = 60;
 pub const WORKER_DELAY: u64 = 3;
 pub const API_ERROR_DELAY: u64 = 30;
 
+pub const DEFAULT_RETRY_DELAY_BASE: i64 = 24;
+
 pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
     let mut config = ConfigFile::default();
 
@@ -60,6 +62,8 @@ pub struct ConfigFile {
     pub endpoints: HashMap<String, EndpointConfig>,
     #[serde(default)]
     pub worker: WorkerConfig,
+    #[serde(default)]
+    pub schedule: ScheduleConfig,
 }
 
 impl ConfigFile {
@@ -74,12 +78,14 @@ impl ConfigFile {
             }
         }
         self.worker.update(c.worker);
+        self.schedule.update(c.schedule);
     }
 }
 
 #[derive(Debug, Default, Deserialize)]
 pub struct HttpConfig {
     pub bind_addr: Option<String>,
+    pub real_ip_header: Option<String>,
     pub endpoint: Option<String>,
 }
 
@@ -87,6 +93,9 @@ impl HttpConfig {
     pub fn update(&mut self, c: HttpConfig) {
         if c.bind_addr.is_some() {
             self.bind_addr = c.bind_addr;
+        }
+        if c.real_ip_header.is_some() {
+            self.real_ip_header = c.real_ip_header;
         }
         if c.endpoint.is_some() {
             self.endpoint = c.endpoint;
@@ -120,5 +129,22 @@ impl WorkerConfig {
         if c.signup_secret.is_some() {
             self.signup_secret = c.signup_secret;
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ScheduleConfig {
+    retry_delay_base: Option<i64>,
+}
+
+impl ScheduleConfig {
+    pub fn update(&mut self, c: ScheduleConfig) {
+        if c.retry_delay_base.is_some() {
+            self.retry_delay_base = c.retry_delay_base;
+        }
+    }
+
+    pub fn retry_delay_base(&self) -> i64 {
+        self.retry_delay_base.unwrap_or(DEFAULT_RETRY_DELAY_BASE)
     }
 }

@@ -1,5 +1,7 @@
 use crate::schema::*;
+use chrono::{Utc, NaiveDateTime, Duration};
 use rebuilderd_common::Status;
+use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use diesel::prelude::*;
 use rebuilderd_common::PkgRelease;
@@ -16,6 +18,11 @@ pub struct Package {
     pub suite: String,
     pub architecture: String,
     pub url: String,
+    pub built_at: Option<NaiveDateTime>,
+    pub attestation: Option<String>,
+    pub checksum: Option<String>,
+    pub retries: i32,
+    pub next_retry: Option<NaiveDateTime>,
 }
 
 impl Package {
@@ -71,6 +78,22 @@ impl Package {
         Ok(pkgs)
     }
 
+    pub fn list_distro_suite_architecture_due_retries(my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
+        use crate::schema::packages::dsl::*;
+        use crate::schema::queue;
+        let pkgs = packages
+            .select((id, version))
+            .filter(distro.eq(my_distro))
+            .filter(suite.eq(my_suite))
+            .filter(architecture.eq(my_architecture))
+            .filter(next_retry.le(Utc::now().naive_utc()))
+            .left_outer_join(queue::table.on(id.eq(queue::package_id)))
+            .filter(queue::id.is_null())
+            .load(connection)?;
+        Ok(pkgs)
+    }
+
+    /*
     // when updating the verify status, use a custom query that enforces a version match
     pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
@@ -79,10 +102,42 @@ impl Package {
             .execute(connection)?;
         Ok(())
     }
+    */
 
-    pub fn update_status_safely(&mut self, my_status: Status, connection: &SqliteConnection) -> Result<()> {
+    pub fn bump_version(&self, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
-        self.status = my_status.to_string();
+        diesel::update(packages::table.filter(id.eq(self.id)))
+            .set((
+                version.eq(&self.version),
+                url.eq(&self.url),
+                status.eq("UNKWN"),
+                built_at.eq(Option::<NaiveDateTime>::None),
+                retries.eq(0),
+            ))
+            .execute(connection)?;
+        Ok(())
+    }
+
+    pub fn schedule_retry(&mut self, retry_delay_base: i64) {
+        let hours = (self.retries as i64 + 1) * retry_delay_base;
+        debug!("scheduling retry in {} hours", hours);
+        let delay = Duration::hours(hours);
+        self.next_retry = Some((Utc::now() + delay).naive_utc());
+    }
+
+    pub fn update_status_safely(&mut self, rebuild: &Rebuild, connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::packages::columns::*;
+
+        if self.status == *Status::Bad {
+            self.retries += 1;
+        }
+
+        self.status = match rebuild.status {
+            BuildStatus::Good => Status::Good.to_string(),
+            _ => Status::Bad.to_string(),
+        };
+        self.built_at = Some(Utc::now().naive_utc());
+
         diesel::update(packages::table
                 .filter(id.eq(self.id))
                 .filter(version.eq(&self.version))
@@ -92,7 +147,7 @@ impl Package {
         Ok(())
     }
 
-    pub fn reset_status_list(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
+    pub fn reset_status_for_requeued_list(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
         diesel::update(packages::table
                 .filter(id.eq_any(pkgs))
@@ -118,6 +173,9 @@ impl Package {
             status: self.status.parse()?,
             suite: self.suite,
             url: self.url,
+            built_at: self.built_at,
+            attestation: self.attestation,
+            next_retry: self.next_retry,
         })
     }
 }
@@ -132,6 +190,11 @@ pub struct NewPackage {
     pub suite: String,
     pub architecture: String,
     pub url: String,
+    pub built_at: Option<NaiveDateTime>,
+    pub attestation: Option<String>,
+    pub checksum: Option<String>,
+    pub retries: i32,
+    pub next_retry: Option<NaiveDateTime>,
 }
 
 impl NewPackage {
@@ -158,6 +221,11 @@ impl NewPackage {
             suite: pkg.suite,
             architecture: pkg.architecture,
             url: pkg.url,
+            built_at: None,
+            attestation: None,
+            checksum: None,
+            retries: 0,
+            next_retry: None,
         }
     }
 }

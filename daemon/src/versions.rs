@@ -1,5 +1,5 @@
 use rebuilderd_common::errors::*;
-use rebuilderd_common::{Distro, Status};
+use rebuilderd_common::Distro;
 use std::process::Command;
 use crate::models;
 use rebuilderd_common::PkgRelease;
@@ -62,8 +62,6 @@ impl PkgVerCmp for models::Package {
     }
 
     fn apply_fields(&mut self, new: &PkgRelease) {
-        // TODO: make sure we updated all fields necessary
-        self.status = Status::Unknown.to_string();
         self.version = new.version.clone();
         self.url = new.url.clone();
     }
@@ -75,8 +73,6 @@ impl PkgVerCmp for PkgRelease {
     }
 
     fn apply_fields(&mut self, new: &PkgRelease) {
-        // TODO: make sure we updated all fields necessary
-        self.status = Status::Unknown;
         self.version = new.version.clone();
         self.url = new.url.clone();
     }

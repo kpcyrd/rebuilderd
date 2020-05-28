@@ -1,6 +1,5 @@
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
 use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
@@ -10,6 +9,7 @@ use rebuilderd_common::PkgRelease;
 use crate::db::Pool;
 use crate::sync;
 use diesel::SqliteConnection;
+use std::net::IpAddr;
 
 fn forbidden() -> Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
@@ -94,17 +94,7 @@ pub async fn list_pkgs(
             continue;
         }
 
-        let status = pkg.status.parse::<Status>()?;
-
-        pkgs.push(PkgRelease {
-             name: pkg.name,
-             version: pkg.version,
-             status: status,
-             distro: pkg.distro,
-             suite: pkg.suite,
-             architecture: pkg.architecture,
-             url: pkg.url,
-        });
+        pkgs.push(pkg.into_api_item()?);
     }
 
     Ok(HttpResponse::Ok().json(pkgs))
@@ -131,20 +121,28 @@ pub async fn list_queue(
     }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, connection: &SqliteConnection) -> Result<models::Worker> {
+fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteConnection) -> Result<models::Worker> {
     let key = header(req, WORKER_KEY_HEADER)
         .context("Failed to get worker key")?;
 
-    let ci = req.peer_addr()
-        .ok_or_else(|| format_err!("Can't determine client ip"))?;
+    let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
+        let ip = header(req, real_ip_header)?;
+        ip.parse::<IpAddr>()
+            .context("Can't parse real ip header as ip address")?
+    } else {
+        let ci = req.peer_addr()
+            .ok_or_else(|| format_err!("Can't determine client ip"))?;
+        ci.ip()
+    };
+    debug!("detected worker ip for {:?} as {}", key, ip);
 
     if let Some(mut worker) = models::Worker::get(key, connection)? {
-        worker.bump_last_ping();
+        worker.bump_last_ping(&ip);
         Ok(worker)
     } else {
-        let worker = models::NewWorker::new(key.to_string(), ci.ip(), None);
+        let worker = models::NewWorker::new(key.to_string(), ip, None);
         worker.insert(connection)?;
-        get_worker_from_request(req, connection)
+        get_worker_from_request(req, &cfg, connection)
     }
 }
 
@@ -169,7 +167,7 @@ pub async fn push_queue(
         debug!("found pkg: {:?}", pkg);
         let version = query.version.as_ref().unwrap_or(&pkg.version);
 
-        let item = models::NewQueued::new(pkg.id, version.to_string());
+        let item = models::NewQueued::new(pkg.id, version.to_string(), query.priority);
         debug!("adding to queue: {:?}", item);
         item.insert(connection.as_ref())?;
     }
@@ -190,7 +188,7 @@ pub async fn pop_queue(
 
     let connection = pool.get()?;
 
-    let mut worker = get_worker_from_request(&req, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
     let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, connection.as_ref())? {
@@ -273,7 +271,7 @@ pub async fn requeue_pkg(
     // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
     // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
     for (id, version) in &pkgs {
-        let q = models::NewQueued::new(*id, version.to_string());
+        let q = models::NewQueued::new(*id, version.to_string(), query.priority);
         q.insert(connection.as_ref()).ok();
     }
 
@@ -281,7 +279,7 @@ pub async fn requeue_pkg(
         let reset = pkgs.into_iter()
             .map(|x| x.0)
             .collect::<Vec<_>>();
-        models::Package::reset_status_list(&reset, connection.as_ref())?;
+        models::Package::reset_status_for_requeued_list(&reset, connection.as_ref())?;
     }
 
     Ok(HttpResponse::Ok().json(()))
@@ -300,7 +298,7 @@ pub async fn ping_build(
 
     let connection = pool.get()?;
 
-    let worker = get_worker_from_request(&req, connection.as_ref())?;
+    let worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     debug!("ping from worker: {:?}", worker);
     let mut item = models::Queued::get_id(item.id, connection.as_ref())?;
     debug!("trying to ping item: {:?}", item);
@@ -331,15 +329,16 @@ pub async fn report_build(
 
     let connection = pool.get()?;
 
-    let mut worker = get_worker_from_request(&req, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
-    let status = match report.status {
-        BuildStatus::Good => Status::Good,
-        _ => Status::Bad,
-    };
-    pkg.update_status_safely(status, connection.as_ref())?;
+
+    if report.rebuild.status != BuildStatus::Good {
+        pkg.schedule_retry(cfg.schedule.retry_delay_base());
+    }
+    pkg.update_status_safely(&report.rebuild, connection.as_ref())?;
     item.delete(connection.as_ref())?;
+
     worker.status = None;
     worker.update(connection.as_ref())?;
 
