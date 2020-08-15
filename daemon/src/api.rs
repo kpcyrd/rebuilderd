@@ -333,7 +333,9 @@ pub async fn report_build(
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
 
-    if report.rebuild.status != BuildStatus::Good {
+    if report.rebuild.status == BuildStatus::Good {
+        pkg.next_retry = None;
+    } else {
         pkg.schedule_retry(cfg.schedule.retry_delay_base());
     }
     pkg.update_status_safely(&report.rebuild, connection.as_ref())?;

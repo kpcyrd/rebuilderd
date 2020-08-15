@@ -8,6 +8,7 @@ use rebuilderd_common::PkgRelease;
 use rebuilderd_common::Distro;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
+#[changeset_options(treat_none_as_null="true")]
 #[table_name="packages"]
 pub struct Package {
     pub id: i32,
@@ -104,17 +105,16 @@ impl Package {
     }
     */
 
-    pub fn bump_version(&self, connection: &SqliteConnection) -> Result<()> {
-        use crate::schema::packages::columns::*;
-        diesel::update(packages::table.filter(id.eq(self.id)))
-            .set((
-                version.eq(&self.version),
-                url.eq(&self.url),
-                status.eq("UNKWN"),
-                built_at.eq(Option::<NaiveDateTime>::None),
-                retries.eq(0),
-            ))
+    pub fn bump_version(&mut self, connection: &SqliteConnection) -> Result<()> {
+        self.status = Status::Unknown.to_string();
+        self.built_at = None;
+        self.retries = 0;
+        self.next_retry = None;
+
+        diesel::update(&*self)
+            .set(&*self)
             .execute(connection)?;
+
         Ok(())
     }
 

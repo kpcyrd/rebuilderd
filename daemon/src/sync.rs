@@ -72,8 +72,9 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     info!("updated_pkgs packages: {:?}", updated_pkgs.len());
-    for (_, pkg) in updated_pkgs {
+    for (_, mut pkg) in updated_pkgs {
         debug!("update: {:?}", pkg);
+        let pkg = Rc::get_mut(&mut pkg).unwrap();
         pkg.bump_version(connection)?;
         queue.push((pkg.id, pkg.version.clone()));
     }
