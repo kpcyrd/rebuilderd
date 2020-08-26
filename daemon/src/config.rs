@@ -14,15 +14,7 @@ pub struct Config {
     pub schedule: ScheduleConfig,
 }
 
-pub fn load(path: Option<&Path>) -> Result<Config> {
-    let config = if let Some(path) = path {
-        let buf = fs::read(path)
-            .context("Failed to read config file")?;
-        toml::from_slice(&buf)?
-    } else {
-        ConfigFile::default()
-    };
-
+pub fn from_struct(config: ConfigFile) -> Result<Config> {
     let auth_cookie = auth::setup_auth_cookie()
         .context("Failed to setup auth cookie")?;
 
@@ -41,4 +33,16 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
         real_ip_header: config.http.real_ip_header,
         schedule: config.schedule,
     })
+}
+
+pub fn load(path: Option<&Path>) -> Result<Config> {
+    let config = if let Some(path) = path {
+        let buf = fs::read(path)
+            .context("Failed to read config file")?;
+        toml::from_slice(&buf)?
+    } else {
+        ConfigFile::default()
+    };
+
+    from_struct(config)
 }

@@ -1644,6 +1644,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rebuilderd-tests"
+version = "0.1.0"
+dependencies = [
+ "actix-rt",
+ "colored",
+ "env_logger",
+ "rebuilderd",
+ "rebuilderd-common",
+ "structopt",
+ "tempfile",
+]
+
+[[package]]
 name = "rebuilderd-worker"
 version = "0.4.0"
 dependencies = [

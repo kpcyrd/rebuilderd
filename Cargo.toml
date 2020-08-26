@@ -2,6 +2,7 @@
 members = [
     "common",
     "daemon",
+    "tests",
     "tools",
     "worker",
 ]

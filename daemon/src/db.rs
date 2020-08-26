@@ -14,6 +14,7 @@ embed_migrations!("migrations");
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnectionWrap>>;
 
 pub fn setup(url: &str) -> Result<SqliteConnection> {
+    info!("Using database at {:?}", url);
     let connection = SqliteConnection::establish(url)?;
     embedded_migrations::run_with_output(&connection, &mut io::stdout())?;
     Ok(connection)

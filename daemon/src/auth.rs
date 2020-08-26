@@ -23,7 +23,11 @@ pub fn admin(cfg: &Config, req: &HttpRequest) -> Result<()> {
 }
 
 pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
-    let worker_key = api::header(req, WORKER_KEY_HEADER)
+    let worker_key = api::header(req, WORKER_KEY_HEADER);
+    if worker_key.is_err() {
+        debug!("Failed to get worker key");
+    }
+    let worker_key = worker_key
         .context("Failed to get worker key")?;
 
     if !cfg.worker.authorized_workers.is_empty() || cfg.worker.signup_secret.is_some() {
@@ -41,14 +45,20 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
             if signup_secret == expected_signup_secret {
                 debug!("worker authenticated with signup secret");
                 return Ok(());
+            } else {
+                debug!("Signup secret mismatched");
             }
         }
+
+        debug!("Expected to match either authorized worker or signup secret but both failed");
     } else {
         let auth_cookie = api::header(req, AUTH_COOKIE_HEADER)
             .context("Failed to get auth cookie")?;
 
         if cfg.auth_cookie == auth_cookie {
             return Ok(());
+        } else {
+            debug!("Falling back to auth cookie authentication, but didn't match");
         }
     }
 

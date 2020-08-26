@@ -200,7 +200,7 @@ pub struct Worker {
 pub struct WorkQuery {
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum JobAssignment {
     Nothing,
     Rebuild(QueueItem),
@@ -229,7 +229,7 @@ pub struct QueueList {
     pub queue: Vec<QueueItem>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueueItem {
     pub id: i32,
     pub package: PkgRelease,

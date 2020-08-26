@@ -1,0 +1,16 @@
+[package]
+name = "rebuilderd-tests"
+version = "0.1.0"
+authors = ["kpcyrd <git@rxv.cc>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structopt = "0.3"
+rebuilderd-common = { version="=0.4.0", path="../common" }
+rebuilderd = { version="=0.4.0", path="../daemon" }
+env_logger = "0.7"
+colored = "2"
+tempfile = "3"
+actix-rt = "1.0.0"

@@ -9,7 +9,7 @@ pub struct Config {
     pub auth: AuthConfig,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct AuthConfig {
     pub cookie: Option<String>,
 }

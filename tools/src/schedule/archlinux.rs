@@ -1,5 +1,5 @@
+use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
-use crate::PkgsSync;
 use flate2::read::GzDecoder;
 use nom::bytes::complete::take_till;
 use rebuilderd_common::{PkgRelease, Distro};
