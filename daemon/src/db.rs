@@ -56,7 +56,7 @@ impl Connection for SqliteConnectionWrap {
             })?;
 
         c.batch_execute("
-            PRAGMA busy_timeout = 250;          -- sleep if the database is busy
+            PRAGMA busy_timeout = 10000;        -- sleep if the database is busy
             PRAGMA foreign_keys = ON;           -- enforce foreign keys
         ").map_err(|err| {
             warn!("executing pragmas for busy_timeout failed: {:?}", err);
