@@ -1,3 +1,3 @@
 #!/bin/sh
 set -xe
-repro -- "${2}"
+timeout 1d repro -- "${2}"
