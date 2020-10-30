@@ -1,6 +1,7 @@
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
+use rebuilderd_common::errors::{Context as _};
 use std::fs::File;
 use std::process::Command;
 use std::path::{Path, PathBuf};

@@ -2,7 +2,7 @@
 #[macro_use] extern crate diesel_migrations;
 
 use crate::config::Config;
-use actix_web::{web, App, HttpServer, FromRequest};
+use actix_web::{App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -18,6 +18,7 @@ pub mod schema;
 pub mod sync;
 pub mod models;
 pub mod versions;
+pub mod web;
 
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]

@@ -20,7 +20,7 @@ assets = [
 [dependencies]
 rebuilderd-common = { version="=0.4.0", path="../common" }
 structopt = "0.3"
-env_logger = "0.7"
+env_logger = "0.8"
 sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 base64 = "0.12"
 toml = "0.5.6"

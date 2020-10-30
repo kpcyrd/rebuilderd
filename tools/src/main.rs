@@ -204,7 +204,7 @@ fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::from_args();
 
     let logging = if args.verbose {
@@ -216,11 +216,5 @@ fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
-    if let Err(err) = run(args) {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
+    run(args)
 }

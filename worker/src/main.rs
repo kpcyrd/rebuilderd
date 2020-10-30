@@ -5,6 +5,7 @@ use structopt::clap::AppSettings;
 use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::errors::{Context as _};
 use std::thread;
 use std::time::Duration;
 use rebuilderd_common::Distro;
@@ -125,7 +126,10 @@ fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
     }
 }
 
-fn run() -> Result<()> {
+fn main() -> Result<()> {
+    env_logger::init_from_env(Env::default()
+        .default_filter_or("info"));
+
     let args = Args::from_args();
     let config = config::load(args.config.as_deref())
         .context("Failed to load config file")?;
@@ -168,17 +172,4 @@ fn run() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() {
-    env_logger::init_from_env(Env::default()
-        .default_filter_or("info"));
-
-    if let Err(err) = run() {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
 }

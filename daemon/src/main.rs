@@ -16,14 +16,8 @@ struct Args {
     config: Option<PathBuf>,
 }
 
-async fn run(args: Args) -> Result<()> {
-    dotenv::dotenv().ok();
-    let config = config::load(args.config.as_deref())?;
-    rebuilderd::run_config(config).await
-}
-
 #[actix_rt::main]
-async fn main() {
+async fn main() -> Result<()> {
     let args = Args::from_args();
 
     let logging = if args.verbose {
@@ -35,11 +29,7 @@ async fn main() {
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
-    if let Err(err) = run(args).await {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
+    dotenv::dotenv().ok();
+    let config = config::load(args.config.as_deref())?;
+    rebuilderd::run_config(config).await
 }

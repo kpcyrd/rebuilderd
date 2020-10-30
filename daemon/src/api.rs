@@ -1,4 +1,5 @@
-use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use crate::web;
 use rebuilderd_common::errors::*;
 use chrono::prelude::*;
 use crate::auth;
@@ -11,7 +12,7 @@ use crate::sync;
 use diesel::SqliteConnection;
 use std::net::IpAddr;
 
-fn forbidden() -> Result<HttpResponse> {
+fn forbidden() -> web::Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
         .body("Authentication failed\n"))
 }
@@ -29,12 +30,12 @@ pub async fn list_workers(
     req: HttpRequest,
     cfg: web::Data<Config>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return forbidden();
     }
 
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
     models::Worker::mark_stale_workers_offline(connection.as_ref())?;
     let workers = models::Worker::list(connection.as_ref())?;
     Ok(HttpResponse::Ok().json(workers))
@@ -47,13 +48,13 @@ pub async fn sync_work(
     cfg: web::Data<Config>,
     import: web::Json<SuiteImport>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return forbidden();
     }
 
     let import = import.into_inner();
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     sync::run(import, connection.as_ref())?;
 
@@ -73,8 +74,8 @@ fn opt_filter(this: &str, filter: Option<&str>) -> bool {
 pub async fn list_pkgs(
     query: web::Query<ListPkgs>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
-    let connection = pool.get()?;
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
 
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref())? {
@@ -104,8 +105,8 @@ pub async fn list_pkgs(
 pub async fn list_queue(
     query: web::Json<ListQueue>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
-    let connection = pool.get()?;
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
     let queue = models::Queued::list(query.limit, connection.as_ref())?;
@@ -121,7 +122,7 @@ pub async fn list_queue(
     }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteConnection) -> Result<models::Worker> {
+fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteConnection) -> web::Result<models::Worker> {
     let key = header(req, WORKER_KEY_HEADER)
         .context("Failed to get worker key")?;
 
@@ -152,13 +153,13 @@ pub async fn push_queue(
     cfg: web::Data<Config>,
     query: web::Json<PushQueue>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return forbidden();
     }
 
     let query = query.into_inner();
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     debug!("searching pkg: {:?}", query);
     let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
@@ -181,12 +182,12 @@ pub async fn pop_queue(
     cfg: web::Data<Config>,
     _query: web::Json<WorkQuery>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
         return forbidden();
     }
 
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
 
@@ -215,13 +216,13 @@ pub async fn drop_from_queue(
     cfg: web::Data<Config>,
     query: web::Json<DropQueueItem>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return forbidden();
     }
 
     let query = query.into_inner();
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
     let pkgs = pkgs.iter()
@@ -239,12 +240,12 @@ pub async fn requeue_pkg(
     cfg: web::Data<Config>,
     query: web::Json<RequeueQuery>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return forbidden();
     }
 
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     let mut pkgs = Vec::new();
     for pkg in models::Package::list(connection.as_ref())? {
@@ -291,12 +292,12 @@ pub async fn ping_build(
     cfg: web::Data<Config>,
     item: web::Json<QueueItem>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
         return forbidden();
     }
 
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     let worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     debug!("ping from worker: {:?}", worker);
@@ -304,7 +305,7 @@ pub async fn ping_build(
     debug!("trying to ping item: {:?}", item);
 
     if item.worker_id != Some(worker.id) {
-        bail!("Trying to write to item we didn't assign")
+        return Err(anyhow!("Trying to write to item we didn't assign").into());
     }
 
     debug!("updating database (item)");
@@ -322,12 +323,12 @@ pub async fn report_build(
     cfg: web::Data<Config>,
     report: web::Json<BuildReport>,
     pool: web::Data<Pool>,
-) -> Result<impl Responder> {
+) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
         return forbidden();
     }
 
-    let connection = pool.get()?;
+    let connection = pool.get().map_err(Error::from)?;
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
