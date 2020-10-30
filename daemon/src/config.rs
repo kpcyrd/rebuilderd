@@ -14,10 +14,7 @@ pub struct Config {
     pub schedule: ScheduleConfig,
 }
 
-pub fn from_struct(config: ConfigFile) -> Result<Config> {
-    let auth_cookie = auth::setup_auth_cookie()
-        .context("Failed to setup auth cookie")?;
-
+pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
     let bind_addr = if let Ok(addr) = env::var("HTTP_ADDR") {
         addr
     } else if let Some(addr) = config.http.bind_addr {
@@ -44,5 +41,8 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
         ConfigFile::default()
     };
 
-    from_struct(config)
+    let auth_cookie = auth::setup_auth_cookie()
+        .context("Failed to setup auth cookie")?;
+
+    from_struct(config, auth_cookie)
 }

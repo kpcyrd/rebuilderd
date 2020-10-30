@@ -89,15 +89,14 @@ fn wait_for_server() -> Result<()> {
 
 fn run(args: Args) -> Result<()> {
     let mut config = ConfigFile::default();
-    if let Some(cookie) = args.cookie {
-        config.auth.cookie = Some(cookie.clone());
-        config.endpoints.insert(args.endpoint.clone(), EndpointConfig {
-            cookie,
-        });
-    }
+
+    config.auth.cookie = Some(args.cookie.clone());
+    config.endpoints.insert(args.endpoint.clone(), EndpointConfig {
+        cookie: args.cookie.clone(),
+    });
 
     if !args.no_daemon {
-        let config = rebuilderd::config::from_struct(config.clone())?;
+        let config = rebuilderd::config::from_struct(config.clone(), args.cookie)?;
 
         let tmp_dir = TempDir::new()?;
         info!("Changing cwd to {:?}", tmp_dir);
