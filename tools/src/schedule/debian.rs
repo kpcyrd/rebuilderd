@@ -1,5 +1,5 @@
+use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
-use crate::PkgsSync;
 use lzma::LzmaReader;
 use rebuilderd_common::{PkgRelease, Distro};
 use rebuilderd_common::errors::*;

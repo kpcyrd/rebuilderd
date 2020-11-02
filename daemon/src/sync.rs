@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use crate::versions::PkgVerCmp;
 use diesel::SqliteConnection;
 use std::cmp::Ordering;
-use std::rc::Rc;
 
 fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("submitted packages {:?}", import.pkgs.len());
@@ -22,12 +21,12 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     };
 
     let mut pkgs = pkgs.into_iter()
-        .map(|pkg| (pkg.name.clone(), Rc::new(pkg)))
+        .map(|pkg| (pkg.name.clone(), pkg))
         .collect::<HashMap<_, _>>();
     info!("existing packages {:?}", pkgs.len());
 
     let mut new_pkgs = HashMap::<_, PkgRelease>::new();
-    let mut updated_pkgs = HashMap::<_, Rc<models::Package>>::new();
+    let mut updated_pkgs = HashMap::<_, models::Package>::new();
     let mut deleted_pkgs = pkgs.clone();
 
     for pkg in import.pkgs.drain(..) {
@@ -36,10 +35,9 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
         if let Some(cur) = new_pkgs.get_mut(&pkg.name) {
             cur.bump_package(&import.distro, &pkg)?;
         } else if let Some(cur) = updated_pkgs.get_mut(&pkg.name) {
-            Rc::get_mut(cur).unwrap().bump_package(&import.distro, &pkg)?;
+            cur.bump_package(&import.distro, &pkg)?;
         } else if let Some(old) = pkgs.get_mut(&pkg.name) {
-            let old2 = Rc::get_mut(old).unwrap();
-            if old2.bump_package(&import.distro, &pkg)? == Ordering::Greater {
+            if old.bump_package(&import.distro, &pkg)? == Ordering::Greater {
                 updated_pkgs.insert(pkg.name, old.clone());
             }
         } else {
@@ -60,7 +58,6 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
         debug!("new: {:?}", pkgs.len());
         models::NewPackage::insert_batch(pkgs, connection)?;
 
-
         // this is needed because diesel doesn't return ids when inserting into sqlite
         // this is obviously slow and needs to be refactored
         for pkg in pkgs {
@@ -72,7 +69,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     info!("updated_pkgs packages: {:?}", updated_pkgs.len());
-    for (_, pkg) in updated_pkgs {
+    for (_, mut pkg) in updated_pkgs {
         debug!("update: {:?}", pkg);
         pkg.bump_version(connection)?;
         queue.push((pkg.id, pkg.version.clone()));

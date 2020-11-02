@@ -14,6 +14,7 @@ embed_migrations!("migrations");
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnectionWrap>>;
 
 pub fn setup(url: &str) -> Result<SqliteConnection> {
+    info!("Using database at {:?}", url);
     let connection = SqliteConnection::establish(url)?;
     embedded_migrations::run_with_output(&connection, &mut io::stdout())?;
     Ok(connection)
@@ -55,7 +56,7 @@ impl Connection for SqliteConnectionWrap {
             })?;
 
         c.batch_execute("
-            PRAGMA busy_timeout = 250;          -- sleep if the database is busy
+            PRAGMA busy_timeout = 10000;        -- sleep if the database is busy
             PRAGMA foreign_keys = ON;           -- enforce foreign keys
         ").map_err(|err| {
             warn!("executing pragmas for busy_timeout failed: {:?}", err);

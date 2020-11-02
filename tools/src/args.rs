@@ -85,18 +85,25 @@ pub struct PkgsList {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsRequeue {
+    /// Requeue packages matching this name
     #[structopt(long)]
     pub name: Option<String>,
+    /// Requeue packages matching this status
     #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
     pub status: Option<Status>,
+    /// Requeue with given priority
     #[structopt(long, default_value="0")]
     pub priority: i32,
+    /// Requeue packages matching this distro
     #[structopt(long)]
     pub distro: Option<String>,
+    /// Requeue packages matching this suite
     #[structopt(long)]
     pub suite: Option<String>,
+    /// Requeue packages matching this architecture
     #[structopt(long)]
     pub architecture: Option<String>,
+    /// Reset the status back to UNKWN
     #[structopt(long)]
     pub reset: bool,
 }

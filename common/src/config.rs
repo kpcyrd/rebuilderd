@@ -52,7 +52,7 @@ fn load_from<P: AsRef<Path>>(path: P) -> Result<Option<ConfigFile>> {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct ConfigFile {
     #[serde(default)]
     pub http: HttpConfig,
@@ -82,7 +82,7 @@ impl ConfigFile {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct HttpConfig {
     pub bind_addr: Option<String>,
     pub real_ip_header: Option<String>,

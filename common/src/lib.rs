@@ -20,7 +20,7 @@ pub enum Distro {
     Archlinux,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PkgRelease {
     pub name: String,
     pub version: String,
