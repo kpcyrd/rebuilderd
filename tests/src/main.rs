@@ -181,6 +181,7 @@ fn run(args: Args) -> Result<()> {
         };
         let rebuild = Rebuild {
             diffoscope: None,
+            log: Vec::new(),
             status: BuildStatus::Bad,
         };
         let report = BuildReport {
@@ -257,6 +258,7 @@ fn run(args: Args) -> Result<()> {
         };
         let rebuild = Rebuild {
             diffoscope: None,
+            log: Vec::new(),
             status: BuildStatus::Good,
         };
         let report = BuildReport {

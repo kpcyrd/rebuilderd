@@ -1,11 +1,16 @@
+use crate::diffoscope::diffoscope;
+use crate::download::download;
+use futures::select;
+use futures_util::FutureExt;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
-use std::fs::File;
-use std::process::Command;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::process::Command;
+use std::borrow::Cow;
+use std::process::Stdio;
 use std::path::{Path, PathBuf};
-use url::Url;
 
 #[derive(Default)]
 pub struct Context<'a> {
@@ -13,89 +18,11 @@ pub struct Context<'a> {
     pub gen_diffoscope: bool,
 }
 
-pub fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuild> {
-    let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
-
-    let url = url.parse::<Url>()
-        .context("Failed to parse input as url")?;
-
-    let filename = url.path_segments()
-        .ok_or_else(|| format_err!("Url doesn't seem to have a path"))?
-        .last()
-        .ok_or_else(|| format_err!("Failed to get filename from path"))?;
-    if filename.is_empty() {
-        bail!("Filename is empty");
+fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
+    if let Some(script_location) = script_location {
+        return Ok(script_location);
     }
 
-    let input = tmp.path().join(filename);
-    download(&url, &input)
-        .context("Failed to download original package")?;
-    let input = input.to_str()
-        .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
-
-    if !verify(distro, ctx.script_location, &url.to_string(), input)? {
-        Ok(Rebuild::new(BuildStatus::Bad))
-    } else {
-        info!("rebuilder script indicated success");
-        let mut res = Rebuild::new(BuildStatus::Good);
-
-        let output = Path::new("./build/").join(filename);
-        if !output.exists() {
-            bail!("Rebuild script exited successfully but output package does not exist");
-        }
-        let output = output.to_str()
-            .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
-
-        // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here
-
-        if ctx.gen_diffoscope {
-            let diff = diffoscope(input, output)
-                .context("Failed to run diffoscope")?;
-            res.diffoscope = Some(diff);
-        }
-
-        Ok(res)
-    }
-}
-
-fn download(url: &Url, target: &Path) -> Result<()> {
-    info!("Downloading {:?} to {:?}", url, target);
-    let client = reqwest::blocking::Client::new();
-    let mut response = client.get(&url.to_string())
-        .send()?
-        .error_for_status()?;
-
-    let mut f = File::create(target)
-        .context("Failed to create output file")?;
-    let n = response.copy_to(&mut f)
-        .context("Failed to download")?;
-    info!("Downloaded {} bytes", n);
-
-    Ok(())
-}
-
-fn diffoscope(a: &str, b: &str) -> Result<String> {
-    let output = Command::new("diffoscope")
-        .args(&["--", a, b])
-        .output()?;
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stdout);
-        bail!("diffoscope exited with error: {:?}", err.trim());
-    }
-    let output = String::from_utf8(output.stdout)?;
-    Ok(output)
-}
-
-fn verify(distro: &Distro, script_location: Option<&PathBuf>, url: &str, path: &str) -> Result<bool> {
-    if let Some(script) = script_location {
-        spawn_script(&script, url, path)
-    } else {
-        let script = locate_script(distro)?;
-        spawn_script(&script, url, path)
-    }
-}
-
-fn locate_script(distro: &Distro) -> Result<PathBuf> {
     let bin = match distro {
         Distro::Archlinux => "rebuilder-archlinux.sh",
         Distro::Debian => "rebuilder-debian.sh",
@@ -113,13 +40,87 @@ fn locate_script(distro: &Distro) -> Result<PathBuf> {
     bail!("Failed to find a rebuilder script")
 }
 
-fn spawn_script(bin: &Path, url: &str, path: &str) -> Result<bool> {
+#[tokio::main]
+pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuild> {
+    let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+
+    let (input, filename) = download(url, &tmp)
+        .await
+        .context("Failed to download original package")?;
+
+    let script = if let Some(script) = ctx.script_location {
+        Cow::Borrowed(script)
+    } else {
+        let script = locate_script(distro, None)
+            .context("Failed to locate rebuild script")?;
+        Cow::Owned(script)
+    };
+
+    let (success, log) = verify(&script, &url.to_string(), &input).await?;
+
+    if success {
+        info!("rebuilder script indicated success");
+        Ok(Rebuild::new(BuildStatus::Good, log))
+    } else {
+        info!("rebuilder script indicated error");
+        let mut res = Rebuild::new(BuildStatus::Bad, log);
+
+        // generate diffoscope diff if enabled
+        if ctx.gen_diffoscope {
+            let output = Path::new("./build/").join(filename);
+            if !output.exists() {
+                bail!("Rebuild script exited successfully but output package does not exist");
+            }
+            let output = output.to_str()
+                .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
+
+            let diff = diffoscope(&input, output).await
+                .context("Failed to run diffoscope")?;
+            res.diffoscope = Some(diff);
+        }
+
+        Ok(res)
+    }
+}
+
+// TODO: automatically truncate logs to a max-length if configured
+async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
     // TODO: establish a common interface to interface with distro rebuilders
     info!("executing rebuilder script at {:?}", bin);
-    let status = Command::new(&bin)
+    let mut child = Command::new(&bin)
         .args(&[url, path])
-        .status()?;
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
 
-    info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
-    Ok(status.success())
+    let mut child_stdout = child.stdout.take().unwrap();
+    let mut child_stderr = child.stderr.take().unwrap();
+
+    let mut buf_stdout = [0u8; 4096];
+    let mut buf_stderr = [0u8; 4096];
+
+    let mut stdout = tokio::io::stdout();
+    let mut stderr = tokio::io::stderr();
+
+    let mut log = Vec::new();
+    loop {
+        select! {
+            n = child_stdout.read(&mut buf_stdout).fuse() => {
+                let n = n?;
+                log.extend(&buf_stdout[..n]);
+                stdout.write(&buf_stdout[..n]).await?;
+            },
+            n = child_stderr.read(&mut buf_stderr).fuse() => {
+                let n = n?;
+                log.extend(&buf_stderr[..n]);
+                stderr.write(&buf_stderr[..n]).await?;
+            },
+            status = child.wait().fuse() => {
+                let status = status?;
+                info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
+                return Ok((status.success(), log));
+            }
+        }
+    }
 }

@@ -1,3 +1,5 @@
+#![recursion_limit="256"]
+
 use crate::rebuild::Context;
 use env_logger::Env;
 use structopt::StructOpt;
@@ -15,6 +17,8 @@ use std::path::PathBuf;
 
 pub mod auth;
 pub mod config;
+pub mod diffoscope;
+pub mod download;
 pub mod rebuild;
 pub mod setup;
 
@@ -44,6 +48,9 @@ struct Build {
     /// Use a specific rebuilder script instead of the default
     #[structopt(long)]
     pub script_location: Option<PathBuf>,
+    /// Use diffoscope to generate a diff
+    #[structopt(long)]
+    pub gen_diffoscope: bool,
 }
 
 #[derive(Debug, StructOpt)]
@@ -95,7 +102,7 @@ fn rebuild(client: &Client, rb: QueueItem, config: &config::ConfigFile) -> Resul
         },
         Err(err) => {
             error!("Failed to run rebuild package: {}", err);
-            Rebuild::new(BuildStatus::Fail)
+            Rebuild::new(BuildStatus::Fail, Vec::new())
         },
     };
     let report = BuildReport {
@@ -160,8 +167,10 @@ fn main() -> Result<()> {
         SubCommand::Build(build) => {
             let res = rebuild::rebuild(&build.distro, &Context {
                 script_location: build.script_location.as_ref(),
-                gen_diffoscope: false,
+                gen_diffoscope: build.gen_diffoscope,
             }, &build.input)?;
+
+            debug!("rebuild result object is {:?}", res);
 
             if res.status == BuildStatus::Good {
                 info!("Package verified successfully");

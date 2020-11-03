@@ -1,0 +1,46 @@
+use futures_util::StreamExt;
+use rebuilderd_common::errors::*;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio_compat_02::FutureExt;
+use url::Url;
+
+pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, String)> {
+    let url = url.parse::<Url>()
+        .context("Failed to parse input as url")?;
+
+    let filename = url.path_segments()
+        .ok_or_else(|| format_err!("Url doesn't seem to have a path"))?
+        .last()
+        .ok_or_else(|| format_err!("Failed to get filename from path"))?;
+    if filename.is_empty() {
+        bail!("Filename is empty");
+    }
+
+    let target = tmp.path().join(filename);
+
+    info!("Downloading {:?} to {:?}", url, target);
+    let client = reqwest::Client::new();
+    let mut stream = client.get(&url.to_string())
+        .send()
+        .compat()
+        .await?
+        .error_for_status()?
+        .bytes_stream();
+
+    let mut f = File::create(&target)
+        .await
+        .context("Failed to create output file")?;
+
+    let mut bytes: u64 = 0;
+    while let Some(item) = stream.next().compat().await {
+        let item = item?;
+        bytes += f.write(&item).await? as u64;
+    }
+    info!("Downloaded {} bytes", bytes);
+
+    let target = target.to_str()
+        .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
+
+    Ok((target.to_string(), filename.to_string()))
+}
