@@ -73,7 +73,7 @@ fn test<T, F>(client: &Client, label: &str, f: F) -> Result<T> where
 #[actix_rt::main]
 async fn spawn_server(config: Config) {
     if let Err(err) = rebuilderd::run_config(config).await {
-        error!("daemon errored: {}", err);
+        error!("daemon errored: {:#}", err);
     }
 }
 

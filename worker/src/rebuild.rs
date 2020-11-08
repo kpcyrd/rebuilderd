@@ -72,8 +72,7 @@ pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuil
                 let output = output.to_str()
                     .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
 
-                let diff = diffoscope(&input, output).await
-                    .context("Failed to run diffoscope")?;
+                let diff = diffoscope(&input, output).await?;
                 res.diffoscope = Some(diff);
             } else {
                 info!("Skipping diffoscope because rebuilder script did not produce output");

@@ -101,7 +101,7 @@ fn rebuild(client: &Client, rb: QueueItem, config: &config::ConfigFile) -> Resul
             res
         },
         Err(err) => {
-            error!("Failed to run rebuild package: {}", err);
+            error!("Failed to rebuild package: {:#}", err);
             Rebuild::new(BuildStatus::Fail, Vec::new())
         },
     };
@@ -124,7 +124,7 @@ fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
             },
             Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb, config)?,
             Err(err) => {
-                error!("Failed to query for work: {}", err);
+                error!("Failed to query for work: {:#}", err);
                 thread::sleep(Duration::from_secs(API_ERROR_DELAY));
             },
         }
