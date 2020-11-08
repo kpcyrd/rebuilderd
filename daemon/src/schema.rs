@@ -1,4 +1,12 @@
 table! {
+    builds (id) {
+        id -> Integer,
+        diffoscope -> Nullable<Text>,
+        build_log -> Binary,
+    }
+}
+
+table! {
     packages (id) {
         id -> Integer,
         name -> Text,
@@ -8,6 +16,7 @@ table! {
         suite -> Text,
         architecture -> Text,
         url -> Text,
+        build_id -> Nullable<Integer>,
         built_at -> Nullable<Timestamp>,
         attestation -> Nullable<Text>,
         checksum -> Nullable<Text>,
@@ -40,10 +49,12 @@ table! {
     }
 }
 
+joinable!(packages -> builds (build_id));
 joinable!(queue -> packages (package_id));
 joinable!(queue -> workers (worker_id));
 
 allow_tables_to_appear_in_same_query!(
+    builds,
     packages,
     queue,
     workers,

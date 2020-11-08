@@ -19,6 +19,7 @@ pub struct Package {
     pub suite: String,
     pub architecture: String,
     pub url: String,
+    pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub attestation: Option<String>,
     pub checksum: Option<String>,

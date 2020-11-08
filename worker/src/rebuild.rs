@@ -68,15 +68,16 @@ pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuil
         // generate diffoscope diff if enabled
         if ctx.gen_diffoscope {
             let output = Path::new("./build/").join(filename);
-            if !output.exists() {
-                bail!("Rebuild script exited successfully but output package does not exist");
-            }
-            let output = output.to_str()
-                .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
+            if output.exists() {
+                let output = output.to_str()
+                    .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
 
-            let diff = diffoscope(&input, output).await
-                .context("Failed to run diffoscope")?;
-            res.diffoscope = Some(diff);
+                let diff = diffoscope(&input, output).await
+                    .context("Failed to run diffoscope")?;
+                res.diffoscope = Some(diff);
+            } else {
+                info!("Skipping diffoscope because rebuilder script did not produce output");
+            }
         }
 
         Ok(res)

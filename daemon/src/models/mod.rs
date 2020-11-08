@@ -5,6 +5,7 @@ macro_rules! import_models {
     };
 }
 
+import_models!(build);
 import_models!(package);
 import_models!(worker);
 import_models!(queue);

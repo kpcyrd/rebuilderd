@@ -7,7 +7,7 @@ use actix_web::middleware::Logger;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
-use rebuilderd_common::api::SuiteImport;
+use rebuilderd_common::api::{BuildReport, SuiteImport};
 use rebuilderd_common::errors::*;
 
 pub mod api;
@@ -48,7 +48,17 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::drop_from_queue)
             .service(api::requeue_pkg)
             .service(api::ping_build)
-            .service(api::report_build)
+            .service(api::get_build_log)
+            .service(api::get_diffoscope)
+            .service(
+                web::resource("/api/v0/build/report").app_data(
+                    // change json extractor configuration
+                    web::Json::<BuildReport>::configure(|cfg| {
+                        cfg.limit(128 * 1024 * 1024)
+                    })
+                )
+                .route(web::post().to(api::report_build))
+            )
             .service(
                 web::resource("/api/v0/pkgs/sync").app_data(
                     // change json extractor configuration

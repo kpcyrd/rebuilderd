@@ -17,6 +17,11 @@ fn forbidden() -> web::Result<HttpResponse> {
         .body("Authentication failed\n"))
 }
 
+fn not_found() -> web::Result<HttpResponse> {
+    Ok(HttpResponse::NotFound()
+        .body("Not found\n"))
+}
+
 pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
     let value = req.headers().get(key)
         .ok_or_else(|| format_err!("Missing header"))?
@@ -317,7 +322,8 @@ pub async fn ping_build(
     Ok(HttpResponse::Ok().json(()))
 }
 
-#[post("/api/v0/build/report")]
+// this route is configured in src/main.rs so we can reconfigure the json extractor
+// #[post("/api/v0/build/report")]
 pub async fn report_build(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -334,6 +340,10 @@ pub async fn report_build(
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
 
+    let build = models::NewBuild::from_api(&report);
+    let build = build.insert(&connection.as_ref())?;
+    pkg.build_id = Some(build);
+
     if report.rebuild.status == BuildStatus::Good {
         pkg.next_retry = None;
     } else {
@@ -346,4 +356,48 @@ pub async fn report_build(
     worker.update(connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
+}
+
+#[get("/api/v0/builds/{id}/log")]
+pub async fn get_build_log(
+    id: web::Path<i32>,
+    pool: web::Data<Pool>,
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
+
+    let build = match models::Build::get_id(*id, connection.as_ref()) {
+        Ok(build) => build,
+        Err(_) => return not_found(),
+    };
+
+    let resp = HttpResponse::Ok()
+        .content_type("text/plain; charset=utf-8")
+        .header("X-Content-Type-Options", "nosniff")
+        .header("Content-Security-Policy", "default-src 'none'")
+        .body(build.build_log);
+    Ok(resp)
+}
+
+#[get("/api/v0/builds/{id}/diffoscope")]
+pub async fn get_diffoscope(
+    id: web::Path<i32>,
+    pool: web::Data<Pool>,
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
+
+    let build = match models::Build::get_id(*id, connection.as_ref()) {
+        Ok(build) => build,
+        Err(_) => return not_found(),
+    };
+
+    if let Some(diffoscope) = build.diffoscope {
+        let resp = HttpResponse::Ok()
+            .content_type("text/plain; charset=utf-8")
+            .header("X-Content-Type-Options", "nosniff")
+            .header("Content-Security-Policy", "default-src 'none'")
+            .body(diffoscope);
+        Ok(resp)
+    } else {
+        not_found()
+    }
 }
