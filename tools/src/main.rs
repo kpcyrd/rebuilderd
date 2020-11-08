@@ -112,12 +112,20 @@ fn run(args: Args) -> Result<()> {
                         pkg.version.bold(),
                     );
 
-                    println!("{} {:-60} ({}, {}, {}) {:?}",
-                        status_str,
-                        pkg_str,
+                    let mut info = format!("{}, {}, {}",
                         pkg.distro,
                         pkg.suite,
                         pkg.architecture,
+                    );
+
+                    if let Some(build_id) = pkg.build_id {
+                        info.push_str(&format!(", #{}", build_id));
+                    }
+
+                    println!("{} {:-60} ({}) {:?}",
+                        status_str,
+                        pkg_str,
+                        info,
                         pkg.url,
                     );
                 }

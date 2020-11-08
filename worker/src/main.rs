@@ -1,3 +1,5 @@
+#![recursion_limit="256"]
+
 use crate::rebuild::Context;
 use env_logger::Env;
 use structopt::StructOpt;
@@ -6,6 +8,8 @@ use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
+use std::fs;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use rebuilderd_common::Distro;
@@ -15,6 +19,8 @@ use std::path::PathBuf;
 
 pub mod auth;
 pub mod config;
+pub mod diffoscope;
+pub mod download;
 pub mod rebuild;
 pub mod setup;
 
@@ -44,6 +50,9 @@ struct Build {
     /// Use a specific rebuilder script instead of the default
     #[structopt(long)]
     pub script_location: Option<PathBuf>,
+    /// Use diffoscope to generate a diff
+    #[structopt(long)]
+    pub gen_diffoscope: bool,
 }
 
 #[derive(Debug, StructOpt)]
@@ -94,8 +103,8 @@ fn rebuild(client: &Client, rb: QueueItem, config: &config::ConfigFile) -> Resul
             res
         },
         Err(err) => {
-            error!("Failed to run rebuild package: {}", err);
-            Rebuild::new(BuildStatus::Fail)
+            error!("Failed to rebuild package: {:#}", err);
+            Rebuild::new(BuildStatus::Fail, Vec::new())
         },
     };
     let report = BuildReport {
@@ -117,9 +126,18 @@ fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
             },
             Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb, config)?,
             Err(err) => {
-                error!("Failed to query for work: {}", err);
+                error!("Failed to query for work: {:#}", err);
                 thread::sleep(Duration::from_secs(API_ERROR_DELAY));
             },
+        }
+
+        let restart_flag = Path::new("rebuilderd.restart");
+        if restart_flag.exists() {
+            info!("Restart flag exists, initiating shutdown");
+            if let Err(err) = fs::remove_file(restart_flag) {
+                error!("Failed to remove restart flag: {:#}", err);
+            }
+            return Ok(());
         }
 
         thread::sleep(Duration::from_secs(WORKER_DELAY));
@@ -160,8 +178,10 @@ fn main() -> Result<()> {
         SubCommand::Build(build) => {
             let res = rebuild::rebuild(&build.distro, &Context {
                 script_location: build.script_location.as_ref(),
-                gen_diffoscope: false,
+                gen_diffoscope: build.gen_diffoscope,
             }, &build.input)?;
+
+            debug!("rebuild result object is {:?}", res);
 
             if res.status == BuildStatus::Good {
                 info!("Package verified successfully");
