@@ -8,6 +8,8 @@ use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
+use std::fs;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use rebuilderd_common::Distro;
@@ -127,6 +129,15 @@ fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 error!("Failed to query for work: {:#}", err);
                 thread::sleep(Duration::from_secs(API_ERROR_DELAY));
             },
+        }
+
+        let restart_flag = Path::new("rebuilderd.restart");
+        if restart_flag.exists() {
+            info!("Restart flag exists, initiating shutdown");
+            if let Err(err) = fs::remove_file(restart_flag) {
+                error!("Failed to remove restart flag: {:#}", err);
+            }
+            return Ok(());
         }
 
         thread::sleep(Duration::from_secs(WORKER_DELAY));
