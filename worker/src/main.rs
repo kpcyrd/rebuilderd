@@ -90,45 +90,45 @@ fn spawn_rebuilder_script_with_heartbeat(client: &Client, distro: &Distro, item:
     Ok(result)
 }
 
-fn rebuild(client: &Client, rb: QueueItem, config: &config::ConfigFile) -> Result<()> {
-    info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
-    let distro = rb.package.distro.parse::<Distro>()?;
-    let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb, config) {
-        Ok(res) => {
-            if res.status == BuildStatus::Good {
-                info!("Package successfully verified");
-            } else {
-                warn!("Failed to verify package");
+fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
+    info!("requesting work");
+    match client.pop_queue(&WorkQuery {})? {
+        JobAssignment::Nothing => {
+            info!("no pending tasks, sleeping...");
+            thread::sleep(Duration::from_secs(IDLE_DELAY));
+        },
+        JobAssignment::Rebuild(rb) => {
+            info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
+            let distro = rb.package.distro.parse::<Distro>()?;
+            let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb, config) {
+                Ok(res) => {
+                    if res.status == BuildStatus::Good {
+                        info!("Package successfully verified");
+                    } else {
+                        warn!("Failed to verify package");
+                    };
+                    res
+                },
+                Err(err) => {
+                    error!("Failed to rebuild package: {:#}", err);
+                    Rebuild::new(BuildStatus::Fail, Vec::new())
+                },
             };
-            res
-        },
-        Err(err) => {
-            error!("Failed to rebuild package: {:#}", err);
-            Rebuild::new(BuildStatus::Fail, Vec::new())
-        },
-    };
-    let report = BuildReport {
-        queue: rb,
-        rebuild,
-    };
-    client.report_build(&report)?;
+            let report = BuildReport {
+                queue: rb,
+                rebuild,
+            };
+            client.report_build(&report)?;
+        }
+    }
     Ok(())
 }
 
 fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
     loop {
-        info!("requesting work");
-
-        match client.pop_queue(&WorkQuery {}) {
-            Ok(JobAssignment::Nothing) => {
-                info!("no pending tasks, sleeping...");
-                thread::sleep(Duration::from_secs(IDLE_DELAY));
-            },
-            Ok(JobAssignment::Rebuild(rb)) => rebuild(&client, rb, config)?,
-            Err(err) => {
-                error!("Failed to query for work: {:#}", err);
-                thread::sleep(Duration::from_secs(API_ERROR_DELAY));
-            },
+        if let Err(err) = rebuild(client, config) {
+            error!("Failed to query for work: {:#}", err);
+            thread::sleep(Duration::from_secs(API_ERROR_DELAY));
         }
 
         let restart_flag = Path::new("rebuilderd.restart");
