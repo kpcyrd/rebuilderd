@@ -1,0 +1,21 @@
+name: Docker
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build the Docker image
+      run: docker build -t rebuilderd .
+    - name: Test the Docker image (rebuilderd)
+      run: docker run --rm rebuilderd rebuilderd --help
+    - name: Test the Docker image (rebuildctl)
+      run: docker run --rm rebuilderd rebuildctl --help
