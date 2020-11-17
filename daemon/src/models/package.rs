@@ -153,7 +153,10 @@ impl Package {
         diesel::update(packages::table
                 .filter(id.eq_any(pkgs))
             )
-            .set(status.eq("UNKWN"))
+            .set((
+                status.eq("UNKWN"),
+                build_id.eq(None as Option<i32>),
+            ))
             .execute(connection)?;
         Ok(())
     }

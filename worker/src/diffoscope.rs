@@ -7,7 +7,7 @@ pub async fn diffoscope(a: &str, b: &str) -> Result<String> {
         .output()
         .await
         .context("Failed to start diffoscope")?;
-    info!("diffoscope exited with exit={}", output.status);
+    info!("diffoscope exited with exit={}, captured {} bytes", output.status, output.stdout.len());
     let output = String::from_utf8_lossy(&output.stdout);
     Ok(output.into_owned())
 }
