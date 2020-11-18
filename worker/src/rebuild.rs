@@ -56,19 +56,38 @@ pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
         .name(String::from("rebuild"))
         .add_material(material);
 
-    let (success, log) = verify(ctx, &input).await?;
+    let (mut success, log) = verify(ctx, &input).await?;
+
+    let output = Path::new("./build/").join(&filename);
+    let output_str = output.to_str()
+        .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
+
+    if success && !output.exists() {
+        warn!("rebuilder script indicated success but no output was generated, forcing status to error");
+        success = false;
+    }
+
+    // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here too
 
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
-        // TODO: diff files. this is already done by the rebuilder script right now, but we'd rather do it here
-        Ok(Rebuild::new(BuildStatus::Good, log))
+        let mut res = Rebuild::new(BuildStatus::Good, log);
+
+        let product = VirtualTargetPath::new(output_str.to_string())
+            .with_context(|| anyhow!("Cannot make a virtual target path of {:?}", output_str))?;
+        let signed_link = link
+            .add_product(product)
+            .signed::<Json>(&ctx.privkey)?;
+
+        info!("Signed attestation: {:?}", signed_link);
+        let attestation = serde_json::to_string(&signed_link)
+            .context("Failed to serialize attestation")?;
+        res.attestation = Some(attestation);
+
+        Ok(res)
     } else {
         info!("Rebuilder backend exited with non-zero exit code");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
-
-        let output = Path::new("./build/").join(&filename);
-        let output_str = output.to_str()
-                .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
 
         // generate diffoscope diff if enabled
         if ctx.diffoscope.enabled {
@@ -80,22 +99,6 @@ pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
             } else {
                 info!("Skipping diffoscope because rebuilder script did not produce output");
             }
-        }
-
-        if output.exists() {
-            let product = VirtualTargetPath::new(output_str.to_string())
-                .with_context(|| anyhow!("Cannot make a virtual target path of {:?}", output_str))?;
-            let signed_link = link
-                .add_product(product)
-                .signed::<Json>(&ctx.privkey)?;
-
-             // we should rather serialize/submit this somewhere
-            info!("Signed attestation: {:?}", signed_link);
-
-            let attestation = serde_json::to_string(&signed_link)
-                .context("Failed to serialize attestation")?;
-
-            res.attestation = Some(attestation);
         }
 
         Ok(res)
