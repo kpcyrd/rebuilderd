@@ -1,3 +1,4 @@
+use crate::config;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
 use futures::select;
@@ -16,6 +17,7 @@ use std::path::{Path, PathBuf};
 pub struct Context<'a> {
     pub script_location: Option<&'a PathBuf>,
     pub gen_diffoscope: bool,
+    pub diffoscope: config::Diffoscope,
 }
 
 fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
@@ -40,8 +42,7 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder script")
 }
 
-#[tokio::main]
-pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuild> {
+pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let (input, filename) = download(url, &tmp)
@@ -72,7 +73,9 @@ pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuil
                 let output = output.to_str()
                     .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
 
-                let diff = diffoscope(&input, output).await?;
+                let diff = diffoscope(&input, output, &ctx.diffoscope)
+                    .await
+                    .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
             } else {
                 info!("Skipping diffoscope because rebuilder script did not produce output");
