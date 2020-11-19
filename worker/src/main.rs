@@ -83,7 +83,7 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
                 return res;
             },
             _ = time::sleep(Duration::from_secs(PING_INTERVAL)) => {
-                if let Err(err) = client.ping_build(item) {
+                if let Err(err) = client.ping_build(item).await {
                     warn!("Failed to ping: {}", err);
                 }
             },
@@ -93,7 +93,7 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
 
 async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
     info!("requesting work");
-    match client.pop_queue(&WorkQuery {})? {
+    match client.pop_queue(&WorkQuery {}).await? {
         JobAssignment::Nothing => {
             info!("no pending tasks, sleeping...");
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
@@ -119,7 +119,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 queue: rb,
                 rebuild,
             };
-            client.report_build(&report)?;
+            client.report_build(&report).await?;
         }
     }
     Ok(())

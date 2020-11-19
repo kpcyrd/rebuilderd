@@ -4,7 +4,8 @@ use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease, Status};
 use crate::auth;
-use reqwest::blocking::{Client as HttpClient, RequestBuilder};
+use reqwest::{Client as HttpClient, RequestBuilder};
+use tokio_compat_02::FutureExt;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
 pub const WORKER_KEY_HEADER: &str = "X-Worker-Key";
@@ -94,89 +95,116 @@ impl Client {
         req
     }
 
-    pub fn list_workers(&self) -> Result<Vec<Worker>> {
+    pub async fn list_workers(&self) -> Result<Vec<Worker>> {
         let workers = self.get("/api/v0/workers")
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
 
         Ok(workers)
     }
 
-    pub fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
+    pub async fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
         self.post("/api/v0/pkgs/sync")
             .json(import)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?;
         Ok(())
     }
 
-    pub fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
+    pub async fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
         let pkgs = self.get("/api/v0/pkgs/list")
             .query(list)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(pkgs)
     }
 
-    pub fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
+    pub async fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
         let pkgs = self.post("/api/v0/queue/list")
             .json(list)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(pkgs)
     }
 
-    pub fn push_queue(&self, push: &PushQueue) -> Result<()> {
+    pub async fn push_queue(&self, push: &PushQueue) -> Result<()> {
         self.post("/api/v0/queue/push")
             .json(push)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(())
     }
 
-    pub fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
+    pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
         let assignment = self.post("/api/v0/queue/pop")
             .json(query)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(assignment)
     }
 
-    pub fn drop_queue(&self, query: &DropQueueItem) -> Result<()> {
+    pub async fn drop_queue(&self, query: &DropQueueItem) -> Result<()> {
         self.post("/api/v0/queue/drop")
             .json(query)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(())
     }
 
-    pub fn requeue_pkgs(&self, requeue: &RequeueQuery) -> Result<()> {
+    pub async fn requeue_pkgs(&self, requeue: &RequeueQuery) -> Result<()> {
         self.post("/api/v0/pkg/requeue")
             .json(requeue)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?
-            .json()?;
+            .json()
+            .await?;
         Ok(())
     }
 
-    pub fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
+    pub async fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
         self.post("/api/v0/build/ping")
             .json(ticket)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?;
         Ok(())
     }
 
-    pub fn report_build(&self, ticket: &BuildReport) -> Result<()> {
+    pub async fn report_build(&self, ticket: &BuildReport) -> Result<()> {
         self.post("/api/v0/build/report")
             .json(ticket)
-            .send()?
+            .send()
+            .compat()
+            .await?
             .error_for_status()?;
         Ok(())
     }

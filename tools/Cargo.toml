@@ -31,3 +31,4 @@ toml = "0.5.6"
 dirs = "3"
 glob = "0.3.0"
 nom = "5.1.1"
+tokio = { version="0.3.2", features=["macros", "rt-multi-thread"] }
