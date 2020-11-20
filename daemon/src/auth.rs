@@ -79,7 +79,7 @@ pub fn setup_auth_cookie() -> Result<String> {
 
     let cookie_path = if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
         PathBuf::from(cookie_path)
-    } else if let Some(data_dir) = dirs::data_dir() {
+    } else if let Some(data_dir) = dirs_next::data_dir() {
         data_dir.join("rebuilderd-auth-cookie")
     } else {
         PathBuf::from("auth-cookie")

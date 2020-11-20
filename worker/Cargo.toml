@@ -22,13 +22,14 @@ rebuilderd-common = { version= "= 0.6.0", path="../common" }
 structopt = "0.3"
 env_logger = "0.8"
 sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
-base64 = "0.12"
+base64 = "0.13"
 toml = "0.5.6"
 serde = { version="1.0", features=["derive"] }
 reqwest = { version="0.10.4", features = ["stream"] }
 tempfile = "3.1.0"
 url = "2.1.1"
-tokio = { version="0.3.2", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std"] }
+tokio = { version="0.3.2", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
 futures-util = "0.3.7"
 futures = "0.3.7"
 tokio-compat-02 = "0.1.2"
+nix = "0.19.0"

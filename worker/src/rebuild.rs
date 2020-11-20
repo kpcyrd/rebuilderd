@@ -1,3 +1,4 @@
+use crate::config;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
 use futures::select;
@@ -15,7 +16,7 @@ use std::path::{Path, PathBuf};
 #[derive(Default)]
 pub struct Context<'a> {
     pub script_location: Option<&'a PathBuf>,
-    pub gen_diffoscope: bool,
+    pub diffoscope: config::Diffoscope,
 }
 
 fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
@@ -37,42 +38,43 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
         }
     }
 
-    bail!("Failed to find a rebuilder script")
+    bail!("Failed to find a rebuilder backend")
 }
 
-#[tokio::main]
-pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuild> {
+pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let (input, filename) = download(url, &tmp)
         .await
-        .context("Failed to download original package")?;
+        .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
     let script = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {
         let script = locate_script(distro, None)
-            .context("Failed to locate rebuild script")?;
+            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", distro))?;
         Cow::Owned(script)
     };
 
     let (success, log) = verify(&script, &url.to_string(), &input).await?;
 
     if success {
-        info!("rebuilder script indicated success");
+        info!("Rebuilder backend indicated a success rebuild!");
         Ok(Rebuild::new(BuildStatus::Good, log))
     } else {
-        info!("rebuilder script indicated error");
+        info!("Rebuilder backend exited with non-zero exit code");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
 
         // generate diffoscope diff if enabled
-        if ctx.gen_diffoscope {
+        if ctx.diffoscope.enabled {
             let output = Path::new("./build/").join(filename);
             if output.exists() {
                 let output = output.to_str()
                     .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
 
-                let diff = diffoscope(&input, output).await?;
+                let diff = diffoscope(&input, output, &ctx.diffoscope)
+                    .await
+                    .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
             } else {
                 info!("Skipping diffoscope because rebuilder script did not produce output");
@@ -86,7 +88,7 @@ pub async fn rebuild(distro: &Distro, ctx: &Context, url: &str) -> Result<Rebuil
 // TODO: automatically truncate logs to a max-length if configured
 async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
     // TODO: establish a common interface to interface with distro rebuilders
-    info!("executing rebuilder script at {:?}", bin);
+    info!("Executing rebuilder backend at {:?}, url={:?}, path={:?}", bin, url, path);
     let mut child = Command::new(&bin)
         .args(&[url, path])
         .stdin(Stdio::null())
@@ -118,7 +120,7 @@ async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
             },
             status = child.wait().fuse() => {
                 let status = status?;
-                info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
+                info!("Rebuilder backend finished: exit={}, url={:?}, path={:?}", status, url, path);
                 return Ok((status.success(), log));
             }
         }

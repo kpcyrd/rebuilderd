@@ -18,17 +18,17 @@ use tempfile::TempDir;
 
 mod args;
 
-fn list_pkgs(client: &Client) -> Result<Vec<PkgRelease>> {
+async fn list_pkgs(client: &Client) -> Result<Vec<PkgRelease>> {
     client.list_pkgs(&ListPkgs {
         name: None,
         status: None,
         distro: None,
         suite: None,
         architecture: None,
-    })
+    }).await
 }
 
-fn initial_import(client: &Client) -> Result<()> {
+async fn initial_import(client: &Client) -> Result<()> {
     let distro = Distro::Archlinux;
     let suite = "core".to_string();
     let architecture = "x86_64".to_string();
@@ -48,19 +48,18 @@ fn initial_import(client: &Client) -> Result<()> {
         suite,
         architecture,
         pkgs,
-    })?;
+    }).await?;
 
     Ok(())
 }
 
-fn test<T, F>(client: &Client, label: &str, f: F) -> Result<T> where
-    F: FnOnce(&Client) -> Result<T>
-{
+
+async fn test<T: Sized>(label: &str, f: impl futures::Future<Output=Result<T>>) -> Result<T> {
     let mut stdout = io::stdout();
     write!(stdout, "{:70}", label)?;
     stdout.flush()?;
 
-    let r = f(client);
+    let r = f.await;
     if r.is_ok() {
         println!("{}", "OK".green());
     } else {
@@ -87,7 +86,19 @@ fn wait_for_server() -> Result<()> {
     bail!("Failed to wait for daemon to start");
 }
 
-fn run(args: Args) -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    let args = Args::from_args();
+
+    let logging = if args.verbose {
+        "rebuilderd_tests=debug"
+    } else {
+        "rebuilderd_tests=info"
+    };
+
+    env_logger::init_from_env(Env::default()
+        .default_filter_or(logging));
+
     let mut config = ConfigFile::default();
 
     config.auth.cookie = Some(args.cookie.clone());
@@ -113,38 +124,42 @@ fn run(args: Args) -> Result<()> {
     let mut client = Client::new(config.clone(), Some(args.endpoint));
     client.worker_key("worker1"); // TODO: this is not a proper key
 
-    test(&client, "Testing database to be empty", |client| {
-        let pkgs = list_pkgs(&client)?;
+    test("Testing database to be empty", async {
+        let pkgs = list_pkgs(&client).await?;
         if !pkgs.is_empty() {
             bail!("Database is not empty");
         }
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Testing there is nothing to do", |client| {
-        let task = client.pop_queue(&WorkQuery {})?;
+    test("Testing there is nothing to do", async {
+        let task = client.pop_queue(&WorkQuery {}).await?;
 
         if task != JobAssignment::Nothing {
             bail!("Got a job assigned");
         }
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Sending initial import", initial_import)?;
+    test("Sending initial import", async {
+        initial_import(&client).await
+    }).await?;
 
-    test(&client, "Testing database to contain 1 pkg", |client| {
-        let pkgs = list_pkgs(&client)?;
+    test("Testing database to contain 1 pkg", async {
+        let pkgs = list_pkgs(&client).await?;
         if pkgs.len() != 1 {
             bail!("Not 1");
         }
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Re-sending initial import", initial_import)?;
+    test("Re-sending initial import", async {
+        initial_import(&client).await
+    }).await?;
 
-    test(&client, "Testing database to still contain 1 pkg", |client| {
-        let mut pkgs = list_pkgs(&client)?;
+    test("Testing database to still contain 1 pkg", async {
+        let mut pkgs = list_pkgs(&client).await?;
 
         let pkg = pkgs.pop()
             .ok_or_else(|| format_err!("No pkgs found"))?;
@@ -170,10 +185,10 @@ fn run(args: Args) -> Result<()> {
         }
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Fetching task and reporting BAD rebuild", |client| {
-        let task = client.pop_queue(&WorkQuery {})?;
+    test("Fetching task and reporting BAD rebuild", async {
+        let task = client.pop_queue(&WorkQuery {}).await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => item,
@@ -188,13 +203,13 @@ fn run(args: Args) -> Result<()> {
             queue,
             rebuild,
         };
-        client.report_build(&report)?;
+        client.report_build(&report).await?;
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Fetching pkg status", |client| {
-        let mut pkgs = list_pkgs(&client)?;
+    test("Fetching pkg status", async {
+        let mut pkgs = list_pkgs(&client).await?;
 
         let pkg = pkgs.pop()
             .ok_or_else(|| format_err!("No pkgs found"))?;
@@ -212,9 +227,9 @@ fn run(args: Args) -> Result<()> {
         }
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Requeueing BAD pkgs", |_client| {
+    test("Requeueing BAD pkgs", async {
         client.requeue_pkgs(&RequeueQuery {
             name: None,
             status: Some(Status::Bad),
@@ -223,13 +238,13 @@ fn run(args: Args) -> Result<()> {
             suite: None,
             architecture: None,
             reset: false,
-        })?;
+        }).await?;
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Fetching pkg status", |client| {
-        let mut pkgs = list_pkgs(&client)?;
+    test("Fetching pkg status", async {
+        let mut pkgs = list_pkgs(&client).await?;
 
         let pkg = pkgs.pop()
             .ok_or_else(|| format_err!("No pkgs found"))?;
@@ -247,10 +262,10 @@ fn run(args: Args) -> Result<()> {
         }
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Fetching task and reporting GOOD rebuild", |client| {
-        let task = client.pop_queue(&WorkQuery {})?;
+    test("Fetching task and reporting GOOD rebuild", async {
+        let task = client.pop_queue(&WorkQuery {}).await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => item,
@@ -265,13 +280,13 @@ fn run(args: Args) -> Result<()> {
             queue,
             rebuild,
         };
-        client.report_build(&report)?;
+        client.report_build(&report).await?;
 
         Ok(())
-    })?;
+    }).await?;
 
-    test(&client, "Fetching pkg status", |client| {
-        let mut pkgs = list_pkgs(&client)?;
+    test("Fetching pkg status", async {
+        let mut pkgs = list_pkgs(&client).await?;
 
         let pkg = pkgs.pop()
             .ok_or_else(|| format_err!("No pkgs found"))?;
@@ -289,22 +304,7 @@ fn run(args: Args) -> Result<()> {
         }
 
         Ok(())
-    })?;
+    }).await?;
 
     Ok(())
-}
-
-fn main() -> Result<()> {
-    let args = Args::from_args();
-
-    let logging = if args.verbose {
-        "rebuilderd_tests=debug"
-    } else {
-        "rebuilderd_tests=info"
-    };
-
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
-
-    run(args)
 }

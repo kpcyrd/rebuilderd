@@ -33,7 +33,7 @@ fn print_json<S: Serialize>(x: &S) -> Result<()> {
     Ok(())
 }
 
-pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
+pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let pkgs = match sync.distro {
         Distro::Archlinux => schedule::archlinux::sync(&sync)?,
         Distro::Debian => schedule::debian::sync(&sync)?,
@@ -48,13 +48,25 @@ pub fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
             suite: sync.suite,
             architecture: sync.architecture,
             pkgs,
-        })?;
+        }).await?;
     }
 
     Ok(())
 }
 
-fn run(args: Args) -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    let args = Args::from_args();
+
+    let logging = if args.verbose {
+        "debug"
+    } else {
+        "info"
+    };
+
+    env_logger::init_from_env(Env::default()
+        .default_filter_or(logging));
+
     if args.color {
         debug!("Bypass tty detection and always use colors");
         colored::control::set_override(true);
@@ -66,7 +78,7 @@ fn run(args: Args) -> Result<()> {
 
     match args.subcommand {
         SubCommand::Status => {
-            for worker in client.with_auth_cookie()?.list_workers()? {
+            for worker in client.with_auth_cookie()?.list_workers().await? {
                 let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
@@ -76,7 +88,7 @@ fn run(args: Args) -> Result<()> {
                 println!("{:-40} => {}", label, status);
             }
         },
-        SubCommand::Pkgs(Pkgs::Sync(args)) => sync(client.with_auth_cookie()?, args)?,
+        SubCommand::Pkgs(Pkgs::Sync(args)) => sync(client.with_auth_cookie()?, args).await?,
         SubCommand::Pkgs(Pkgs::SyncProfile(args)) => {
             let mut config = SyncConfigFile::load(&args.config_file)?;
             let profile = config.profiles.remove(&args.profile)
@@ -91,7 +103,7 @@ fn run(args: Args) -> Result<()> {
                 maintainers: profile.maintainers,
                 pkgs: patterns_from(&profile.pkgs)?,
                 excludes: patterns_from(&profile.excludes)?,
-            })?;
+            }).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {
@@ -100,7 +112,7 @@ fn run(args: Args) -> Result<()> {
                 distro: ls.distro,
                 suite: ls.suite,
                 architecture: ls.architecture,
-            })?;
+            }).await?;
             if ls.json {
                 print_json(&pkgs)?;
             } else {
@@ -140,7 +152,7 @@ fn run(args: Args) -> Result<()> {
                 suite: args.suite,
                 architecture: args.architecture,
                 reset: args.reset,
-            })?;
+            }).await?;
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {
@@ -150,7 +162,7 @@ fn run(args: Args) -> Result<()> {
             };
             let pkgs = client.list_queue(&ListQueue {
                 limit,
-            })?;
+            }).await?;
 
             if ls.json {
                 print_json(&pkgs)?;
@@ -195,7 +207,7 @@ fn run(args: Args) -> Result<()> {
                 distro: push.distro,
                 suite: push.suite,
                 architecture: push.architecture,
-            })?;
+            }).await?;
         },
         SubCommand::Queue(Queue::Delete(push)) => {
             client.with_auth_cookie()?.drop_queue(&DropQueueItem {
@@ -204,25 +216,10 @@ fn run(args: Args) -> Result<()> {
                 distro: push.distro,
                 suite: push.suite,
                 architecture: push.architecture,
-            })?;
+            }).await?;
         },
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }
 
     Ok(())
-}
-
-fn main() -> Result<()> {
-    let args = Args::from_args();
-
-    let logging = if args.verbose {
-        "debug"
-    } else {
-        "info"
-    };
-
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
-
-    run(args)
 }
