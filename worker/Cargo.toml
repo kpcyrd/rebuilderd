@@ -32,3 +32,4 @@ tokio = { version="0.3.2", features=["macros", "rt-multi-thread", "fs", "io-util
 futures-util = "0.3.7"
 futures = "0.3.7"
 tokio-compat-02 = "0.1.2"
+nix = "0.19.0"

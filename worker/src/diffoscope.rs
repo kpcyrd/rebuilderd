@@ -1,5 +1,7 @@
 use crate::config;
 use futures_util::FutureExt;
+use nix::unistd::Pid;
+use nix::sys::signal::{self, Signal};
 use rebuilderd_common::errors::*;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -8,12 +10,14 @@ use tokio::process::{Command, Child};
 use tokio::select;
 use tokio::time;
 
+const SIGKILL_DELAY: u64 = 10;
+
 pub struct Capture {
     output: Vec<u8>,
     timeout: Duration,
     limit: Option<usize>,
     start: Instant,
-    closed: bool,
+    closed: Option<Instant>,
 }
 
 impl Capture {
@@ -24,7 +28,7 @@ impl Capture {
             timeout,
             limit,
             start,
-            closed: false,
+            closed: None,
         }
     }
 
@@ -36,7 +40,7 @@ impl Capture {
     async fn push_bytes(&mut self, child: &mut Child, slice: &[u8]) -> Result<()> {
         if let Some(limit) = &self.limit {
             if self.output.len() + slice.len() > *limit {
-                if !self.closed {
+                if self.closed.is_none() {
                     warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), limit);
                     self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT").await?;
                 }
@@ -49,24 +53,39 @@ impl Capture {
     }
 
     async fn truncate(&mut self, child: &mut Child, reason: &str) -> Result<()> {
-        child.kill().await?;
+        if let Some(pid) = child.id() {
+            info!("Sending SIGTERM to diffoscope(pid={})", pid);
+            signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM)?;
+        }
+
         self.output.extend(format!("\n\n{}\n", reason).as_bytes());
-        self.closed = true;
+        self.closed = Some(Instant::now());
         Ok(())
     }
 
-    async fn check_timeout(&mut self, child: &mut Child) -> Result<Duration> {
-        if let Some(remaining) = self.timeout.checked_sub(self.start.elapsed()) {
-            Ok(remaining)
-        } else {
-            if !self.closed {
-                warn!("diffoscope timed out, killing...");
-                self.truncate(child, "TRUNCATED DUE TO TIMEOUT").await?;
+    async fn next_wakeup(&mut self, child: &mut Child) -> Result<Duration> {
+        // check if we need to SIGKILL
+        if let Some(closed) = self.closed {
+            if closed.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
+                if let Some(pid) = child.id() {
+                    warn!("diffoscope(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL", pid, SIGKILL_DELAY);
+                    // child.id is going to return None after this
+                    child.kill().await?;
+                }
             }
-            // we need to return a value to make our select! loop happy
-            // the loop short terminate shortly after though
-            Ok(Duration::from_secs(60))
         }
+
+        // check if the process timed out and we need to SIGTERM
+        if let Some(remaining) = self.timeout.checked_sub(self.start.elapsed()) {
+            return Ok(remaining);
+        } else if self.closed.is_none() {
+            // the process has timed out, sending SIGTERM
+            warn!("diffoscope timed out, killing...");
+            self.truncate(child, "TRUNCATED DUE TO TIMEOUT").await?;
+        }
+
+        // if we don't need any timeouts anymore we just return any value
+        Ok(Duration::from_secs(SIGKILL_DELAY))
     }
 }
 
@@ -95,7 +114,7 @@ pub async fn diffoscope(a: &str, b: &str, settings: &config::Diffoscope) -> Resu
 
     let mut cap = Capture::new(timeout, settings.max_bytes);
     let output = loop {
-        let remaining = cap.check_timeout(&mut child).await?;
+        let remaining = cap.next_wakeup(&mut child).await?;
 
         select! {
             n = child_stdout.read(&mut buf_stdout).fuse() => {
