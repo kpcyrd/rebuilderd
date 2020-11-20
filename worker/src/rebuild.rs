@@ -38,7 +38,7 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
         }
     }
 
-    bail!("Failed to find a rebuilder script")
+    bail!("Failed to find a rebuilder backend")
 }
 
 pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
@@ -46,23 +46,23 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
 
     let (input, filename) = download(url, &tmp)
         .await
-        .context("Failed to download original package")?;
+        .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
     let script = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {
         let script = locate_script(distro, None)
-            .context("Failed to locate rebuild script")?;
+            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", distro))?;
         Cow::Owned(script)
     };
 
     let (success, log) = verify(&script, &url.to_string(), &input).await?;
 
     if success {
-        info!("rebuilder script indicated success");
+        info!("Rebuilder backend indicated a success rebuild!");
         Ok(Rebuild::new(BuildStatus::Good, log))
     } else {
-        info!("rebuilder script indicated error");
+        info!("Rebuilder backend exited with non-zero exit code");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
 
         // generate diffoscope diff if enabled
@@ -88,7 +88,7 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
 // TODO: automatically truncate logs to a max-length if configured
 async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
     // TODO: establish a common interface to interface with distro rebuilders
-    info!("executing rebuilder script at {:?}", bin);
+    info!("Executing rebuilder backend at {:?}, url={:?}, path={:?}", bin, url, path);
     let mut child = Command::new(&bin)
         .args(&[url, path])
         .stdin(Stdio::null())
@@ -120,7 +120,7 @@ async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
             },
             status = child.wait().fuse() => {
                 let status = status?;
-                info!("rebuilder script finished: {:?} (for {:?}, {:?})", status, url, path);
+                info!("Rebuilder backend finished: exit={}, url={:?}, path={:?}", status, url, path);
                 return Ok((status.success(), log));
             }
         }

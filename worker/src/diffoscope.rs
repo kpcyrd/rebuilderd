@@ -95,7 +95,7 @@ pub async fn diffoscope(a: &str, b: &str, settings: &config::Diffoscope) -> Resu
     args.push(a.into());
     args.push(b.into());
 
-    debug!("Running diffoscope {:?}", args);
+    info!("Running diffoscope {:?}", args);
     let mut child = Command::new("diffoscope")
         .args(&args)
         .stdin(Stdio::null())

@@ -91,14 +91,14 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
 }
 
 async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
-    info!("requesting work");
+    info!("Requesting work from rebuilderd...");
     match client.pop_queue(&WorkQuery {}).await? {
         JobAssignment::Nothing => {
-            info!("no pending tasks, sleeping...");
+            info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
         },
         JobAssignment::Rebuild(rb) => {
-            info!("starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
+            info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
             let distro = rb.package.distro.parse::<Distro>()?;
             let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb, config).await {
                 Ok(res) => {
@@ -110,7 +110,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                     res
                 },
                 Err(err) => {
-                    error!("Failed to rebuild package: {:#}", err);
+                    error!("Unexpected error while rebuilding package package: {:#}", err);
                     Rebuild::new(BuildStatus::Fail, Vec::new())
                 },
             };
@@ -118,7 +118,10 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 queue: rb,
                 rebuild,
             };
-            client.report_build(&report).await?;
+            info!("Sending build report to rebuilderd...");
+            client.report_build(&report)
+                .await
+                .context("Failed to POST to rebuilderd")?;
         }
     }
     Ok(())
@@ -127,7 +130,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
 async fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
     loop {
         if let Err(err) = rebuild(client, config).await {
-            error!("Failed to query for work: {:#}", err);
+            error!("Unexpected error, sleeping for {}s: {:#}", API_ERROR_DELAY, err);
             time::sleep(Duration::from_secs(API_ERROR_DELAY)).await;
         }
 
