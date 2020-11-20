@@ -36,7 +36,7 @@ pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
 }
 
 fn config_path() -> Result<PathBuf> {
-    let config_dir = dirs::config_dir()
+    let config_dir = dirs_next::config_dir()
         .ok_or_else(|| format_err!("Failed to find config dir"))?;
     Ok(config_dir.join("rebuilderd.conf"))
 }

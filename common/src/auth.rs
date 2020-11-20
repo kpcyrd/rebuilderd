@@ -41,7 +41,7 @@ fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
 }
 
 pub fn find_auth_cookie() -> Result<String> {
-    if let Some(config_dir) = dirs::config_dir() {
+    if let Some(config_dir) = dirs_next::config_dir() {
         let path = config_dir.join("rebuilderd.conf");
         if let Some(cookie) = read_cookie_from_config(path)? {
             return Ok(cookie);
@@ -56,7 +56,7 @@ pub fn find_auth_cookie() -> Result<String> {
         return Ok(cookie);
     }
 
-    if let Some(data_dir) = dirs::data_dir() {
+    if let Some(data_dir) = dirs_next::data_dir() {
         let path = data_dir.join("rebuilderd-auth-cookie");
         if let Ok(cookie) = read_cookie_from_file(path) {
             return Ok(cookie);

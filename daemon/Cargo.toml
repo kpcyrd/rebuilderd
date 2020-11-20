@@ -30,7 +30,7 @@ chrono = { version = "0.4", features=["serde"] }
 dotenv = "0.15"
 serde = { version="1.0", features=["derive"] }
 rand = "0.7.3"
-dirs = "3.0"
+dirs-next = "2"
 toml = "0.5.6"
 
 # https://crates.io/crates/deb-version
