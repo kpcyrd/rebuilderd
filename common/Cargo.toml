@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd-common"
-version = "0.6.0"
+version = "0.7.0"
 description = "rebuilderd - common code"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0"
