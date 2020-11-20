@@ -72,7 +72,6 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
 
     let ctx = Context {
         script_location: None,
-        gen_diffoscope: config.gen_diffoscope,
         diffoscope: config.diffoscope.clone(),
     };
 
@@ -178,10 +177,15 @@ async fn main() -> Result<()> {
             run_worker_loop(&client, &config).await?;
         },
         SubCommand::Build(build) => {
+            // this is only really for debugging
+            let mut diffoscope = config::Diffoscope::default();
+            if build.gen_diffoscope {
+                diffoscope.enabled = true;
+            }
+
             let res = rebuild::rebuild(&build.distro, &Context {
                 script_location: build.script_location.as_ref(),
-                gen_diffoscope: build.gen_diffoscope,
-                diffoscope: config::Diffoscope::default(),
+                diffoscope,
             }, &build.input).await?;
 
             debug!("rebuild result object is {:?}", res);

@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 #[derive(Default)]
 pub struct Context<'a> {
     pub script_location: Option<&'a PathBuf>,
-    pub gen_diffoscope: bool,
     pub diffoscope: config::Diffoscope,
 }
 
@@ -67,7 +66,7 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
         let mut res = Rebuild::new(BuildStatus::Bad, log);
 
         // generate diffoscope diff if enabled
-        if ctx.gen_diffoscope {
+        if ctx.diffoscope.enabled {
             let output = Path::new("./build/").join(filename);
             if output.exists() {
                 let output = output.to_str()
