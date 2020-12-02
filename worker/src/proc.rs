@@ -24,7 +24,8 @@ pub struct Capture {
     limit: Option<usize>,
     kill_at_size_limit: bool,
     start: Instant,
-    closed: Option<Instant>,
+    sigterm_sent: Option<Instant>,
+    truncated: bool,
 }
 
 pub fn capture(opts: Options) -> Capture {
@@ -35,40 +36,30 @@ pub fn capture(opts: Options) -> Capture {
         limit: opts.limit,
         kill_at_size_limit: opts.kill_at_size_limit,
         start,
-        closed: None,
+        sigterm_sent: None,
+        truncated: false,
     }
 }
 
 impl Capture {
-    pub fn new(opts: Options) -> Capture {
-        let start = Instant::now();
-        Capture {
-            output: Vec::new(),
-            timeout: opts.timeout,
-            limit: opts.limit,
-            kill_at_size_limit: opts.kill_at_size_limit,
-            start,
-            closed: None,
-        }
-    }
-
     #[inline]
     pub fn into_output(self) -> Vec<u8> {
         self.output
     }
 
     pub async fn push_bytes(&mut self, child: &mut Child, slice: &[u8]) -> Result<()> {
-        if let Some(limit) = &self.limit {
-            if self.output.len() + slice.len() > *limit {
-                if self.closed.is_none() {
+        if !self.truncated {
+            if let Some(limit) = &self.limit {
+                if self.output.len() + slice.len() > *limit {
                     warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), limit);
                     self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT", self.kill_at_size_limit).await?;
+                    return Ok(());
                 }
-                return Ok(());
             }
+
+            self.output.extend(slice);
         }
 
-        self.output.extend(slice);
         Ok(())
     }
 
@@ -78,17 +69,18 @@ impl Capture {
                 info!("Sending SIGTERM to child(pid={})", pid);
                 signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM)?;
             }
-            self.closed = Some(Instant::now());
+            self.sigterm_sent = Some(Instant::now());
         }
 
-        self.output.extend(format!("\n\n{}\n", reason).as_bytes());
+        self.output.extend(format!("\n\n{}\n\n", reason).as_bytes());
+        self.truncated = true;
         Ok(())
     }
 
     pub async fn next_wakeup(&mut self, child: &mut Child) -> Result<Duration> {
         // check if we need to SIGKILL due to SIGTERM timeout
-        if let Some(closed) = self.closed {
-            if closed.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
+        if let Some(sigterm_sent) = self.sigterm_sent {
+            if sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
                 if let Some(pid) = child.id() {
                     warn!("child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL", pid, SIGKILL_DELAY);
                     // child.id is going to return None after this
@@ -100,7 +92,7 @@ impl Capture {
         // check if the process timed out and we need to SIGTERM
         if let Some(remaining) = self.timeout.checked_sub(self.start.elapsed()) {
             return Ok(remaining);
-        } else if self.closed.is_none() {
+        } else if self.sigterm_sent.is_none() {
             // the process has timed out, sending SIGTERM
             warn!("child timed out, killing...");
             self.truncate(child, "TRUNCATED DUE TO TIMEOUT", true).await?;
