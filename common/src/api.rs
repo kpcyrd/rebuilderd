@@ -310,20 +310,15 @@ pub enum BuildStatus {
     Fail,
 }
 
-use base64_serde::base64_serde_type;
-use base64::STANDARD;
-base64_serde_type!(Base64Standard, STANDARD);
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rebuild {
     pub status: BuildStatus,
-    #[serde(with="Base64Standard")]
-    pub log: Vec<u8>,
+    pub log: String,
     pub diffoscope: Option<String>,
 }
 
 impl Rebuild {
-    pub fn new(status: BuildStatus, log: Vec<u8>) -> Rebuild {
+    pub fn new(status: BuildStatus, log: String) -> Rebuild {
         Rebuild {
             status,
             log,

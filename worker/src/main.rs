@@ -20,6 +20,7 @@ pub mod auth;
 pub mod config;
 pub mod diffoscope;
 pub mod download;
+pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
@@ -111,7 +112,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 },
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
-                    Rebuild::new(BuildStatus::Fail, Vec::new())
+                    Rebuild::new(BuildStatus::Fail, String::new())
                 },
             };
             let report = BuildReport {

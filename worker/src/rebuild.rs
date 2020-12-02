@@ -1,17 +1,14 @@
 use crate::config;
+use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
-use futures::select;
-use futures_util::FutureExt;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::Command;
 use std::borrow::Cow;
-use std::process::Stdio;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 #[derive(Default)]
 pub struct Context<'a> {
@@ -86,43 +83,16 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
 }
 
 // TODO: automatically truncate logs to a max-length if configured
-async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
+async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, String)> {
     // TODO: establish a common interface to interface with distro rebuilders
-    info!("Executing rebuilder backend at {:?}, url={:?}, path={:?}", bin, url, path);
-    let mut child = Command::new(&bin)
-        .args(&[url, path])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let args = &[url, path];
 
-    let mut child_stdout = child.stdout.take().unwrap();
-    let mut child_stderr = child.stderr.take().unwrap();
+    let timeout = 3600 * 24; // 24h
 
-    let mut buf_stdout = [0u8; 4096];
-    let mut buf_stderr = [0u8; 4096];
-
-    let mut stdout = tokio::io::stdout();
-    let mut stderr = tokio::io::stderr();
-
-    let mut log = Vec::new();
-    loop {
-        select! {
-            n = child_stdout.read(&mut buf_stdout).fuse() => {
-                let n = n?;
-                log.extend(&buf_stdout[..n]);
-                stdout.write(&buf_stdout[..n]).await?;
-            },
-            n = child_stderr.read(&mut buf_stderr).fuse() => {
-                let n = n?;
-                log.extend(&buf_stderr[..n]);
-                stderr.write(&buf_stderr[..n]).await?;
-            },
-            status = child.wait().fuse() => {
-                let status = status?;
-                info!("Rebuilder backend finished: exit={}, url={:?}, path={:?}", status, url, path);
-                return Ok((status.success(), log));
-            }
-        }
-    }
+    let opts = proc::Options {
+        timeout: Duration::from_secs(timeout),
+        limit: None,
+        kill_at_size_limit: false,
+    };
+    proc::run(bin, args, opts).await
 }

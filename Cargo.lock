@@ -385,16 +385,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
-name = "base64-serde"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e964e3e0a930303c7c0bdb28ebf691dd98d9eee4b8b68019d2c995710b58a18"
-dependencies = [
- "base64",
- "serde",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1788,8 +1778,6 @@ name = "rebuilderd-common"
 version = "0.7.0"
 dependencies = [
  "anyhow",
- "base64",
- "base64-serde",
  "chrono",
  "colored",
  "dirs-next",
