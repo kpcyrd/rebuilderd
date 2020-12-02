@@ -11,7 +11,15 @@ pub struct ConfigFile {
     #[serde(default)]
     pub gen_diffoscope: bool,
     #[serde(default)]
+    pub build: Build,
+    #[serde(default)]
     pub diffoscope: Diffoscope,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct Build {
+    pub timeout: Option<u64>,
+    pub max_bytes: Option<usize>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]

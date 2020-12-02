@@ -1,3 +1,3 @@
 #!/bin/sh
 set -xe
-repro -- "${2}"
+repro -- "${1}"

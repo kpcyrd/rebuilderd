@@ -10,9 +10,10 @@ use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-#[derive(Default)]
 pub struct Context<'a> {
+    pub distro: &'a Distro,
     pub script_location: Option<&'a PathBuf>,
+    pub build: config::Build,
     pub diffoscope: config::Diffoscope,
 }
 
@@ -38,22 +39,14 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder backend")
 }
 
-pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
+pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let (input, filename) = download(url, &tmp)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
-    let script = if let Some(script) = ctx.script_location {
-        Cow::Borrowed(script)
-    } else {
-        let script = locate_script(distro, None)
-            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", distro))?;
-        Cow::Owned(script)
-    };
-
-    let (success, log) = verify(&script, &url.to_string(), &input).await?;
+    let (success, log) = verify(ctx, &input).await?;
 
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
@@ -83,16 +76,26 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
 }
 
 // TODO: automatically truncate logs to a max-length if configured
-async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, String)> {
-    // TODO: establish a common interface to interface with distro rebuilders
-    let args = &[url, path];
+async fn verify<'a>(ctx: &Context<'a>, path: &str) -> Result<(bool, String)> {
+    let bin = if let Some(script) = ctx.script_location {
+        Cow::Borrowed(script)
+    } else {
+        let script = locate_script(ctx.distro, None)
+            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro))?;
+        Cow::Owned(script)
+    };
 
-    let timeout = 3600 * 24; // 24h
+    // TODO: establish a common interface to interface with distro rebuilders
+    // TODO: specify the path twice because the 2nd argument used to be the path
+    // TODO: we want to move this to the first instead. the 2nd argument can be removed in the future
+    let args = &[path, path];
+
+    let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
-        limit: None,
+        limit: ctx.build.max_bytes,
         kill_at_size_limit: false,
     };
-    proc::run(bin, args, opts).await
+    proc::run(bin.as_ref(), args, opts).await
 }
