@@ -144,3 +144,100 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
     let output = String::from_utf8_lossy(&output);
     Ok((success, output.into_owned()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn script(script: &str, opts: Options) -> Result<(bool, String, Duration)> {
+        let start = Instant::now();
+        let path = Path::new("sh");
+        let (success, output) = run(path, &["-c", script], opts).await?;
+        let duration = start.elapsed();
+        Ok((success, output, duration))
+    }
+
+    #[tokio::test]
+    async fn hello_world() {
+        let (success, output, _) = script("echo hello world", Options {
+            timeout: Duration::from_secs(600),
+            limit: None,
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(success);
+        assert_eq!(output, "hello world\n");
+    }
+
+    #[tokio::test]
+    async fn size_limit_no_kill() {
+        let (success, output, _) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+        done
+        ", Options {
+            timeout: Duration::from_secs(600),
+            limit: Some(50),
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+    }
+
+    #[tokio::test]
+    async fn size_limit_kill() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 0.5
+        done
+        ", Options {
+            timeout: Duration::from_secs(600),
+            limit: Some(50),
+            kill_at_size_limit: true,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn timeout() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 1
+        done
+        ", Options {
+            timeout: Duration::from_millis(1500),
+            limit: None,
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn size_limit_no_kill_but_timeout() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 0.1
+        done
+        ", Options {
+            timeout: Duration::from_millis(1500),
+            limit: Some(50),
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
+}
