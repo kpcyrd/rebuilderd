@@ -14,14 +14,14 @@ const SIGKILL_DELAY: u64 = 10;
 
 pub struct Options {
     pub timeout: Duration,
-    pub limit: Option<usize>,
+    pub size_limit: Option<usize>,
     pub kill_at_size_limit: bool,
 }
 
 pub struct Capture {
     output: Vec<u8>,
     timeout: Duration,
-    limit: Option<usize>,
+    size_limit: Option<usize>,
     kill_at_size_limit: bool,
     start: Instant,
     sigterm_sent: Option<Instant>,
@@ -33,7 +33,7 @@ pub fn capture(opts: Options) -> Capture {
     Capture {
         output: Vec::new(),
         timeout: opts.timeout,
-        limit: opts.limit,
+        size_limit: opts.size_limit,
         kill_at_size_limit: opts.kill_at_size_limit,
         start,
         sigterm_sent: None,
@@ -49,9 +49,9 @@ impl Capture {
 
     pub async fn push_bytes(&mut self, child: &mut Child, slice: &[u8]) -> Result<()> {
         if !self.truncated {
-            if let Some(limit) = &self.limit {
-                if self.output.len() + slice.len() > *limit {
-                    warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), limit);
+            if let Some(size_limit) = &self.size_limit {
+                if self.output.len() + slice.len() > *size_limit {
+                    warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), size_limit);
                     self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT", self.kill_at_size_limit).await?;
                     return Ok(());
                 }
@@ -161,7 +161,7 @@ mod tests {
     async fn hello_world() {
         let (success, output, _) = script("echo hello world", Options {
             timeout: Duration::from_secs(600),
-            limit: None,
+            size_limit: None,
             kill_at_size_limit: false,
         }).await.unwrap();
         assert!(success);
@@ -176,7 +176,7 @@ mod tests {
         done
         ", Options {
             timeout: Duration::from_secs(600),
-            limit: Some(50),
+            size_limit: Some(50),
             kill_at_size_limit: false,
         }).await.unwrap();
         assert!(success);
@@ -193,7 +193,7 @@ mod tests {
         done
         ", Options {
             timeout: Duration::from_secs(600),
-            limit: Some(50),
+            size_limit: Some(50),
             kill_at_size_limit: true,
         }).await.unwrap();
         assert!(!success);
@@ -212,7 +212,7 @@ mod tests {
         done
         ", Options {
             timeout: Duration::from_millis(1500),
-            limit: None,
+            size_limit: None,
             kill_at_size_limit: false,
         }).await.unwrap();
         assert!(!success);
@@ -231,7 +231,7 @@ mod tests {
         done
         ", Options {
             timeout: Duration::from_millis(1500),
-            limit: Some(50),
+            size_limit: Some(50),
             kill_at_size_limit: false,
         }).await.unwrap();
         assert!(!success);

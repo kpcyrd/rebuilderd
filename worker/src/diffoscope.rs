@@ -14,7 +14,7 @@ pub async fn diffoscope(a: &str, b: &str, settings: &config::Diffoscope) -> Resu
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
-        limit: settings.max_bytes,
+        size_limit: settings.max_bytes,
         kill_at_size_limit: true,
     };
     let bin = Path::new("diffoscope");
