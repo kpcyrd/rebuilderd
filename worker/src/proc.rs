@@ -14,17 +14,18 @@ const SIGKILL_DELAY: u64 = 10;
 
 pub struct Options {
     pub timeout: Duration,
-    pub limit: Option<usize>,
+    pub size_limit: Option<usize>,
     pub kill_at_size_limit: bool,
 }
 
 pub struct Capture {
     output: Vec<u8>,
     timeout: Duration,
-    limit: Option<usize>,
+    size_limit: Option<usize>,
     kill_at_size_limit: bool,
     start: Instant,
-    closed: Option<Instant>,
+    sigterm_sent: Option<Instant>,
+    truncated: bool,
 }
 
 pub fn capture(opts: Options) -> Capture {
@@ -32,43 +33,33 @@ pub fn capture(opts: Options) -> Capture {
     Capture {
         output: Vec::new(),
         timeout: opts.timeout,
-        limit: opts.limit,
+        size_limit: opts.size_limit,
         kill_at_size_limit: opts.kill_at_size_limit,
         start,
-        closed: None,
+        sigterm_sent: None,
+        truncated: false,
     }
 }
 
 impl Capture {
-    pub fn new(opts: Options) -> Capture {
-        let start = Instant::now();
-        Capture {
-            output: Vec::new(),
-            timeout: opts.timeout,
-            limit: opts.limit,
-            kill_at_size_limit: opts.kill_at_size_limit,
-            start,
-            closed: None,
-        }
-    }
-
     #[inline]
     pub fn into_output(self) -> Vec<u8> {
         self.output
     }
 
     pub async fn push_bytes(&mut self, child: &mut Child, slice: &[u8]) -> Result<()> {
-        if let Some(limit) = &self.limit {
-            if self.output.len() + slice.len() > *limit {
-                if self.closed.is_none() {
-                    warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), limit);
+        if !self.truncated {
+            if let Some(size_limit) = &self.size_limit {
+                if self.output.len() + slice.len() > *size_limit {
+                    warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), size_limit);
                     self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT", self.kill_at_size_limit).await?;
+                    return Ok(());
                 }
-                return Ok(());
             }
+
+            self.output.extend(slice);
         }
 
-        self.output.extend(slice);
         Ok(())
     }
 
@@ -78,17 +69,18 @@ impl Capture {
                 info!("Sending SIGTERM to child(pid={})", pid);
                 signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM)?;
             }
-            self.closed = Some(Instant::now());
+            self.sigterm_sent = Some(Instant::now());
         }
 
-        self.output.extend(format!("\n\n{}\n", reason).as_bytes());
+        self.output.extend(format!("\n\n{}\n\n", reason).as_bytes());
+        self.truncated = true;
         Ok(())
     }
 
     pub async fn next_wakeup(&mut self, child: &mut Child) -> Result<Duration> {
         // check if we need to SIGKILL due to SIGTERM timeout
-        if let Some(closed) = self.closed {
-            if closed.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
+        if let Some(sigterm_sent) = self.sigterm_sent {
+            if sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
                 if let Some(pid) = child.id() {
                     warn!("child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL", pid, SIGKILL_DELAY);
                     // child.id is going to return None after this
@@ -100,7 +92,7 @@ impl Capture {
         // check if the process timed out and we need to SIGTERM
         if let Some(remaining) = self.timeout.checked_sub(self.start.elapsed()) {
             return Ok(remaining);
-        } else if self.closed.is_none() {
+        } else if self.sigterm_sent.is_none() {
             // the process has timed out, sending SIGTERM
             warn!("child timed out, killing...");
             self.truncate(child, "TRUNCATED DUE TO TIMEOUT", true).await?;
@@ -151,4 +143,101 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
 
     let output = String::from_utf8_lossy(&output);
     Ok((success, output.into_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn script(script: &str, opts: Options) -> Result<(bool, String, Duration)> {
+        let start = Instant::now();
+        let path = Path::new("sh");
+        let (success, output) = run(path, &["-c", script], opts).await?;
+        let duration = start.elapsed();
+        Ok((success, output, duration))
+    }
+
+    #[tokio::test]
+    async fn hello_world() {
+        let (success, output, _) = script("echo hello world", Options {
+            timeout: Duration::from_secs(600),
+            size_limit: None,
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(success);
+        assert_eq!(output, "hello world\n");
+    }
+
+    #[tokio::test]
+    async fn size_limit_no_kill() {
+        let (success, output, _) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+        done
+        ", Options {
+            timeout: Duration::from_secs(600),
+            size_limit: Some(50),
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+    }
+
+    #[tokio::test]
+    async fn size_limit_kill() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 0.5
+        done
+        ", Options {
+            timeout: Duration::from_secs(600),
+            size_limit: Some(50),
+            kill_at_size_limit: true,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn timeout() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 1
+        done
+        ", Options {
+            timeout: Duration::from_millis(1500),
+            size_limit: None,
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
+
+    #[tokio::test]
+    async fn size_limit_no_kill_but_timeout() {
+        let (success, output, duration) = script("
+        for x in `seq 100`; do
+            /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
+            sleep 0.1
+        done
+        ", Options {
+            timeout: Duration::from_millis(1500),
+            size_limit: Some(50),
+            kill_at_size_limit: false,
+        }).await.unwrap();
+        assert!(!success);
+        assert_eq!(output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+        assert!(duration > Duration::from_secs(1));
+        assert!(duration < Duration::from_secs(2));
+    }
 }
