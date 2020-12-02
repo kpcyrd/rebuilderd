@@ -196,7 +196,7 @@ async fn main() -> Result<()> {
         };
         let rebuild = Rebuild {
             diffoscope: None,
-            log: Vec::new(),
+            log: String::new(),
             status: BuildStatus::Bad,
         };
         let report = BuildReport {
@@ -273,7 +273,7 @@ async fn main() -> Result<()> {
         };
         let rebuild = Rebuild {
             diffoscope: None,
-            log: Vec::new(),
+            log: String::new(),
             status: BuildStatus::Good,
         };
         let report = BuildReport {

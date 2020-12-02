@@ -52,7 +52,7 @@ impl NewBuild {
     pub fn from_api(report: &BuildReport) -> NewBuild {
         NewBuild {
             diffoscope: report.rebuild.diffoscope.clone(),
-            build_log: report.rebuild.log.clone(),
+            build_log: report.rebuild.log.as_bytes().to_vec(),
         }
     }
 }

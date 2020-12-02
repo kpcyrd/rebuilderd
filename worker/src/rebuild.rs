@@ -1,21 +1,19 @@
 use crate::config;
+use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
-use futures::select;
-use futures_util::FutureExt;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::Command;
 use std::borrow::Cow;
-use std::process::Stdio;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-#[derive(Default)]
 pub struct Context<'a> {
+    pub distro: &'a Distro,
     pub script_location: Option<&'a PathBuf>,
+    pub build: config::Build,
     pub diffoscope: config::Diffoscope,
 }
 
@@ -41,22 +39,14 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder backend")
 }
 
-pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
+pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let (input, filename) = download(url, &tmp)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
-    let script = if let Some(script) = ctx.script_location {
-        Cow::Borrowed(script)
-    } else {
-        let script = locate_script(distro, None)
-            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", distro))?;
-        Cow::Owned(script)
-    };
-
-    let (success, log) = verify(&script, &url.to_string(), &input).await?;
+    let (success, log) = verify(ctx, &input).await?;
 
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
@@ -86,43 +76,26 @@ pub async fn rebuild<'a>(distro: &Distro, ctx: &Context<'a>, url: &str) -> Resul
 }
 
 // TODO: automatically truncate logs to a max-length if configured
-async fn verify(bin: &Path, url: &str, path: &str) -> Result<(bool, Vec<u8>)> {
+async fn verify<'a>(ctx: &Context<'a>, path: &str) -> Result<(bool, String)> {
+    let bin = if let Some(script) = ctx.script_location {
+        Cow::Borrowed(script)
+    } else {
+        let script = locate_script(ctx.distro, None)
+            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro))?;
+        Cow::Owned(script)
+    };
+
     // TODO: establish a common interface to interface with distro rebuilders
-    info!("Executing rebuilder backend at {:?}, url={:?}, path={:?}", bin, url, path);
-    let mut child = Command::new(&bin)
-        .args(&[url, path])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+    // TODO: specify the path twice because the 2nd argument used to be the path
+    // TODO: we want to move this to the first instead. the 2nd argument can be removed in the future
+    let args = &[path, path];
 
-    let mut child_stdout = child.stdout.take().unwrap();
-    let mut child_stderr = child.stderr.take().unwrap();
+    let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
-    let mut buf_stdout = [0u8; 4096];
-    let mut buf_stderr = [0u8; 4096];
-
-    let mut stdout = tokio::io::stdout();
-    let mut stderr = tokio::io::stderr();
-
-    let mut log = Vec::new();
-    loop {
-        select! {
-            n = child_stdout.read(&mut buf_stdout).fuse() => {
-                let n = n?;
-                log.extend(&buf_stdout[..n]);
-                stdout.write(&buf_stdout[..n]).await?;
-            },
-            n = child_stderr.read(&mut buf_stderr).fuse() => {
-                let n = n?;
-                log.extend(&buf_stderr[..n]);
-                stderr.write(&buf_stderr[..n]).await?;
-            },
-            status = child.wait().fuse() => {
-                let status = status?;
-                info!("Rebuilder backend finished: exit={}, url={:?}, path={:?}", status, url, path);
-                return Ok((status.success(), log));
-            }
-        }
-    }
+    let opts = proc::Options {
+        timeout: Duration::from_secs(timeout),
+        limit: ctx.build.max_bytes,
+        kill_at_size_limit: false,
+    };
+    proc::run(bin.as_ref(), args, opts).await
 }

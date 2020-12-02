@@ -20,6 +20,7 @@ pub mod auth;
 pub mod config;
 pub mod diffoscope;
 pub mod download;
+pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
@@ -71,11 +72,13 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
     let input = item.package.url.to_string();
 
     let ctx = Context {
+        distro: &distro,
         script_location: None,
+        build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
     };
 
-    let mut rebuild = Box::pin(rebuild::rebuild(&distro, &ctx, &input));
+    let mut rebuild = Box::pin(rebuild::rebuild(&ctx, &input));
     loop {
         select! {
             res = &mut rebuild => {
@@ -111,7 +114,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 },
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
-                    Rebuild::new(BuildStatus::Fail, Vec::new())
+                    Rebuild::new(BuildStatus::Fail, String::new())
                 },
             };
             let report = BuildReport {
@@ -186,8 +189,10 @@ async fn main() -> Result<()> {
                 diffoscope.enabled = true;
             }
 
-            let res = rebuild::rebuild(&build.distro, &Context {
+            let res = rebuild::rebuild(&Context {
+                distro: &build.distro,
                 script_location: build.script_location.as_ref(),
+                build: config::Build::default(),
                 diffoscope,
             }, &build.input).await?;
 
