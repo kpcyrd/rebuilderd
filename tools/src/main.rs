@@ -78,6 +78,7 @@ async fn main() -> Result<()> {
 
     match args.subcommand {
         SubCommand::Status => {
+            let mut stdout = io::stdout();
             for worker in client.with_auth_cookie()?.list_workers().await? {
                 let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
                 let status = if let Some(status) = worker.status {
@@ -85,7 +86,9 @@ async fn main() -> Result<()> {
                 } else {
                     "idle".blue()
                 };
-                println!("{:-40} => {}", label, status);
+                if write!(stdout, "{:-40} => {}", label, status).is_err() {
+                    break;
+                }
             }
         },
         SubCommand::Pkgs(Pkgs::Sync(args)) => sync(client.with_auth_cookie()?, args).await?,
@@ -116,6 +119,7 @@ async fn main() -> Result<()> {
             if ls.json {
                 print_json(&pkgs)?;
             } else {
+                let mut stdout = io::stdout();
                 for pkg in pkgs {
                     let status_str = format!("[{}]", pkg.status.fancy()).bold();
 
@@ -134,12 +138,14 @@ async fn main() -> Result<()> {
                         info.push_str(&format!(", #{}", build_id));
                     }
 
-                    println!("{} {:-60} ({}) {:?}",
+                    if write!(stdout, "{} {:-60} ({}) {:?}",
                         status_str,
                         pkg_str,
                         info,
                         pkg.url,
-                    );
+                    ).is_err() {
+                        break;
+                    }
                 }
             }
         },
@@ -167,6 +173,7 @@ async fn main() -> Result<()> {
             if ls.json {
                 print_json(&pkgs)?;
             } else {
+                let mut stdout = io::stdout();
                 for q in pkgs.queue {
                     let pkg = q.package;
 
@@ -187,7 +194,7 @@ async fn main() -> Result<()> {
                         Cow::Borrowed("")
                     });
 
-                    println!("{} {:-60} {} {:19} {:?} {:?} {:?}",
+                    if write!(stdout, "{} {:-60} {} {:19} {:?} {:?} {:?}",
                         q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
                         pkg_str,
                         running.green(),
@@ -195,7 +202,9 @@ async fn main() -> Result<()> {
                         pkg.distro,
                         pkg.suite,
                         pkg.architecture,
-                    );
+                    ).is_err() {
+                        break;
+                    }
                 }
             }
         },
