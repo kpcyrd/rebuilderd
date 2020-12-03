@@ -180,7 +180,7 @@ async fn main() -> Result<()> {
                         q.version,
                     );
 
-                    let running = format!("{:11}", if let Some(started_at) = q.started_at {
+                    let running = format!("{:>11}", if let Some(started_at) = q.started_at {
                         let duration = (pkgs.now - started_at).num_seconds();
                         Cow::Owned(utils::secs_to_human(duration))
                     } else {
