@@ -16,7 +16,7 @@ pub struct Args {
     #[structopt(short, long)]
     pub config: Option<PathBuf>,
     /// Bypass tty detection and always use colors
-    #[structopt(long, global=true)]
+    #[structopt(short="C", long, global=true)]
     pub color: bool,
     /// Verbose logging
     #[structopt(short)]
