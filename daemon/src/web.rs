@@ -11,7 +11,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 impl fmt::Display for Error {
     fn fmt(&self, w: &mut fmt::Formatter) -> fmt::Result {
-        self.err.fmt(w)
+        write!(w, "{:#}", self.err)
     }
 }
 
