@@ -27,8 +27,11 @@ pub struct Args {
 
 #[derive(Debug, StructOpt)]
 pub enum SubCommand {
+    /// Show worker status
     Status,
+    /// Package related subcommands
     Pkgs(Pkgs),
+    /// Queue related subcommands
     Queue(Queue),
     /// Generate shell completions
     Completions(Completions),
@@ -36,9 +39,13 @@ pub enum SubCommand {
 
 #[derive(Debug, StructOpt)]
 pub enum Pkgs {
+    /// Sync package index
     Sync(PkgsSync),
+    /// List known packages
     Ls(PkgsList),
+    /// Sync package index with profile
     SyncProfile(PkgsSyncProfile),
+    /// Requeue a given package
     Requeue(PkgsRequeue),
 }
 
@@ -110,8 +117,11 @@ pub struct PkgsRequeue {
 
 #[derive(Debug, StructOpt)]
 pub enum Queue {
+    /// List the current build queue
     Ls(QueueList),
+    /// Add a new task to the queue manually
     Push(QueuePush),
+    /// Drop packages from queue matching given filter
     #[structopt(name="drop")]
     Delete(QueueDrop),
 }
