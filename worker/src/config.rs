@@ -20,6 +20,8 @@ pub struct ConfigFile {
 pub struct Build {
     pub timeout: Option<u64>,
     pub max_bytes: Option<usize>,
+    #[serde(default)]
+    pub silent: bool,
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]

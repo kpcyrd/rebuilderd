@@ -32,6 +32,10 @@ _max_bytes=_
 	When reaching this limit the log is truncated but the rebuilder backend is
 	*not* terminated.
 
+_silent=_
+	By default build output is forwarded to stdout/stderr.
+	This can be disabled by settings this to true.
+
 ## [diffoscope]
 
 _enabled=_

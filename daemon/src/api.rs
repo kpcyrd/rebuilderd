@@ -132,7 +132,8 @@ fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteC
         .context("Failed to get worker key")?;
 
     let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
-        let ip = header(req, real_ip_header)?;
+        let ip = header(req, real_ip_header)
+            .context("Failed to locate real ip header")?;
         ip.parse::<IpAddr>()
             .context("Can't parse real ip header as ip address")?
     } else {

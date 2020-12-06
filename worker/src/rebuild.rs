@@ -96,6 +96,7 @@ async fn verify<'a>(ctx: &Context<'a>, path: &str) -> Result<(bool, String)> {
         timeout: Duration::from_secs(timeout),
         size_limit: ctx.build.max_bytes,
         kill_at_size_limit: false,
+        passthrough: !ctx.build.silent,
     };
     proc::run(bin.as_ref(), args, opts).await
 }
