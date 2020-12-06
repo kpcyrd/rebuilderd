@@ -170,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn hello_world() {
-        let (success, output, _) = script("echo hello world", Options {
+        let (success, output, _) = script("/bin/echo hello world", Options {
             timeout: Duration::from_secs(600),
             size_limit: None,
             kill_at_size_limit: false,
