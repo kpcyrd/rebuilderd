@@ -1,6 +1,6 @@
 [package]
 name = "rebuildctl"
-version = "0.7.0"
+version = "0.8.0"
 description = "rebuilderd - rebuildctl client"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0"
@@ -16,7 +16,7 @@ assets = [
 ]
 
 [dependencies]
-rebuilderd-common = { version= "= 0.7.0", path="../common" }
+rebuilderd-common = { version= "= 0.8.0", path="../common" }
 structopt = "0.3"
 env_logger = "0.8"
 reqwest = { version="0.10.0", features=["json"] }
