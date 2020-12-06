@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
                 } else {
                     "idle".blue()
                 };
-                if write!(stdout, "{:-40} => {}", label, status).is_err() {
+                if writeln!(stdout, "{:-40} => {}", label, status).is_err() {
                     break;
                 }
             }
@@ -138,7 +138,7 @@ async fn main() -> Result<()> {
                         info.push_str(&format!(", #{}", build_id));
                     }
 
-                    if write!(stdout, "{} {:-60} ({}) {:?}",
+                    if writeln!(stdout, "{} {:-60} ({}) {:?}",
                         status_str,
                         pkg_str,
                         info,
@@ -194,7 +194,7 @@ async fn main() -> Result<()> {
                         Cow::Borrowed("")
                     });
 
-                    if write!(stdout, "{} {:-60} {} {:19} {:?} {:?} {:?}",
+                    if writeln!(stdout, "{} {:-60} {} {:19} {:?} {:?} {:?}",
                         q.queued_at.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
                         pkg_str,
                         running.green(),
