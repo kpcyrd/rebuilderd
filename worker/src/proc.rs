@@ -5,7 +5,7 @@ use rebuilderd_common::errors::*;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Command, Child};
 use tokio::select;
 use tokio::time;
@@ -16,6 +16,7 @@ pub struct Options {
     pub timeout: Duration,
     pub size_limit: Option<usize>,
     pub kill_at_size_limit: bool,
+    pub passthrough: bool,
 }
 
 pub struct Capture {
@@ -118,6 +119,10 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
     let mut buf_stdout = [0u8; 4096];
     let mut buf_stderr = [0u8; 4096];
 
+    let mut stdout = tokio::io::stdout();
+    let mut stderr = tokio::io::stderr();
+    let passthrough = opts.passthrough;
+
     let mut cap = capture(opts);
     let (success, output) = loop {
         let remaining = cap.next_wakeup(&mut child).await?;
@@ -126,10 +131,16 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
             n = child_stdout.read(&mut buf_stdout).fuse() => {
                 let n = n?;
                 cap.push_bytes(&mut child, &buf_stdout[..n]).await?;
+                if passthrough {
+                    stdout.write(&buf_stdout[..n]).await?;
+                }
             },
             n = child_stderr.read(&mut buf_stderr).fuse() => {
                 let n = n?;
                 cap.push_bytes(&mut child, &buf_stderr[..n]).await?;
+                if passthrough {
+                    stderr.write(&buf_stderr[..n]).await?;
+                }
             },
             status = child.wait().fuse() => {
                 let status = status?;
@@ -163,6 +174,7 @@ mod tests {
             timeout: Duration::from_secs(600),
             size_limit: None,
             kill_at_size_limit: false,
+            passthrough: false,
         }).await.unwrap();
         assert!(success);
         assert_eq!(output, "hello world\n");
@@ -178,6 +190,7 @@ mod tests {
             timeout: Duration::from_secs(600),
             size_limit: Some(50),
             kill_at_size_limit: false,
+            passthrough: false,
         }).await.unwrap();
         assert!(success);
         assert_eq!(output,
@@ -195,6 +208,7 @@ mod tests {
             timeout: Duration::from_secs(600),
             size_limit: Some(50),
             kill_at_size_limit: true,
+            passthrough: false,
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
@@ -214,6 +228,7 @@ mod tests {
             timeout: Duration::from_millis(1500),
             size_limit: None,
             kill_at_size_limit: false,
+            passthrough: false,
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
@@ -233,6 +248,7 @@ mod tests {
             timeout: Duration::from_millis(1500),
             size_limit: Some(50),
             kill_at_size_limit: false,
+            passthrough: false,
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
