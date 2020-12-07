@@ -6,16 +6,17 @@ use std::path::Path;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
 use std::io::prelude::*;
-use sodiumoxide::crypto::sign;
+use in_toto::crypto::{PrivateKey, KeyType};
 
 pub struct Profile {
-    key: String,
+    pub pubkey: String,
+    pub privkey: PrivateKey,
 }
 
 impl Profile {
     pub fn new_client(&self, config: ConfigFile, endpoint: String, signup_secret: Option<String>, auth_cookie: Option<String>) -> Client {
         let mut client = Client::new(config, Some(endpoint));
-        client.worker_key(self.key.clone());
+        client.worker_key(self.pubkey.clone());
         if let Some(signup_secret) = signup_secret {
             client.signup_secret(signup_secret);
         } else if let Some(auth_cookie) = auth_cookie {
@@ -25,24 +26,19 @@ impl Profile {
     }
 }
 
+#[inline]
 pub fn load() -> Result<Profile> {
-    let key = load_key("rebuilder.key")?;
-
-    Ok(Profile {
-        key,
-    })
+    load_key("rebuilder.key")
 }
 
-fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
+fn load_key<P: AsRef<Path>>(path: P) -> Result<Profile> {
     let path = path.as_ref();
 
-    let sk = if path.exists() {
+    let privkey = if path.exists() {
         let content = fs::read(path)?;
-        sign::SecretKey::from_slice(&content)
-            .ok_or_else(|| format_err!("failed to load secret key"))?
+        PrivateKey::from_ed25519(&content)?
     } else {
-        let (_, sk) = sign::gen_keypair();
-
+        let sk = PrivateKey::new(KeyType::Ed25519)?;
         let mut file = OpenOptions::new()
             .mode(0o640)
             .write(true)
@@ -50,10 +46,14 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<String> {
             .open(path)?;
         file.write_all(&sk[..])?;
 
-        sk
+        PrivateKey::from_ed25519(&sk)?
     };
 
-    let pk = sk.public_key();
-    let key = base64::encode(&pk[..]);
-    Ok(key)
+    let pk = privkey.public();
+    let pubkey = base64::encode(pk.as_bytes());
+
+    Ok(Profile {
+        pubkey,
+        privkey,
+    })
 }

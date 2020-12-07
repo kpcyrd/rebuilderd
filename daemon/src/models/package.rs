@@ -139,6 +139,19 @@ impl Package {
         };
         self.built_at = Some(Utc::now().naive_utc());
 
+        // TODO: remodel the database so we don't have to update to NULL
+        if self.attestation.is_none() {
+            info!("clearing old attestation");
+            diesel::update(packages::table
+                    .filter(id.eq(self.id))
+                    .filter(version.eq(&self.version))
+                )
+                .set(
+                    attestation.eq(None as Option<String>),
+                )
+                .execute(connection)?;
+        }
+
         diesel::update(packages::table
                 .filter(id.eq(self.id))
                 .filter(version.eq(&self.version))
@@ -156,6 +169,7 @@ impl Package {
             .set((
                 status.eq("UNKWN"),
                 build_id.eq(None as Option<i32>),
+                attestation.eq(None as Option<String>),
             ))
             .execute(connection)?;
         Ok(())
@@ -229,7 +243,7 @@ impl NewPackage {
             url: pkg.url,
             build_id: None,
             built_at: None,
-            attestation: None,
+            attestation: pkg.attestation,
             checksum: None,
             retries: 0,
             next_retry: None,

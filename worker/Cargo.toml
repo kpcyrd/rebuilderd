@@ -25,6 +25,7 @@ sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 base64 = "0.13"
 toml = "0.5.6"
 serde = { version="1.0", features=["derive"] }
+serde_json = "1"
 reqwest = { version="0.10.4", features = ["stream"] }
 tempfile = "3.1.0"
 url = "2.1.1"
@@ -33,3 +34,4 @@ futures-util = "0.3.7"
 futures = "0.3.7"
 tokio-compat-02 = "0.1.2"
 nix = "0.19.0"
+in-toto = "0.0.1-rc1"
