@@ -35,11 +35,15 @@ pub async fn run_config(config: Config) -> Result<()> {
     let pool = db::setup_pool("rebuilderd.db")?;
     let bind_addr = config.bind_addr.clone();
 
+    use std::sync::{Arc, RwLock};
+    let dashboard_cache = Arc::new(RwLock::new(api::DashboardState::new()));
+
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .data(pool.clone())
             .data(config.clone())
+            .data(dashboard_cache.clone())
             .service(api::list_workers)
             .service(api::list_pkgs)
             .service(api::list_queue)
@@ -50,6 +54,7 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::ping_build)
             .service(api::get_build_log)
             .service(api::get_diffoscope)
+            .service(api::get_dashboard)
             .service(
                 web::resource("/api/v0/build/report").app_data(
                     // change json extractor configuration

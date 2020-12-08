@@ -1,10 +1,11 @@
+use chrono::prelude::*;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use chrono::prelude::*;
-use serde::{Serialize, Deserialize};
 use crate::{Distro, PkgRelease, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
 use tokio_compat_02::FutureExt;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
@@ -331,4 +332,18 @@ impl Rebuild {
 pub struct BuildReport {
     pub queue: QueueItem,
     pub rebuild: Rebuild,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DashboardResponse {
+    pub suites: HashMap<String, SuiteStats>,
+    pub active_builds: Vec<QueueItem>,
+    pub now: NaiveDateTime,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SuiteStats {
+    pub good: usize,
+    pub unknown: usize,
+    pub bad: usize,
 }
