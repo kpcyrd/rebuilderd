@@ -15,6 +15,8 @@ use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
+const DASHBOARD_UPDATE_INTERVAL: u64 = 1; // seconds
+
 fn forbidden() -> web::Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
         .body("Authentication failed\n"))
@@ -422,7 +424,7 @@ impl DashboardState {
 
     pub fn is_fresh(&self) -> bool {
         if self.response.is_some() {
-            self.last_update.elapsed() < Duration::from_secs(10)
+            self.last_update.elapsed() < Duration::from_secs(DASHBOARD_UPDATE_INTERVAL)
         } else {
             false
         }
