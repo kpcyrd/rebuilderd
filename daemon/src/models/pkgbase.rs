@@ -66,6 +66,13 @@ impl PkgBase {
         Ok(pkgs)
     }
     */
+
+    pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::pkgbases::dsl::*;
+        diesel::delete(pkgbases.filter(id.eq(my_id)))
+            .execute(connection)?;
+        Ok(())
+    }
 }
 
 #[derive(Insertable, PartialEq, Debug, Clone)]

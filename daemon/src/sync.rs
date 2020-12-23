@@ -1,18 +1,17 @@
-use rebuilderd_common::errors::*;
 use crate::models;
-use rebuilderd_common::api::*;
-use rebuilderd_common::PkgRelease;
-use rebuilderd_common::Distro;
-use std::collections::{HashMap, HashSet};
 use crate::versions::PkgVerCmp;
 use diesel::SqliteConnection;
+use rebuilderd_common::{PkgRelease, Distro};
+use rebuilderd_common::api::*;
+use rebuilderd_common::errors::*;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
-fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<HashSet<String>> {
-    let mut known_pkgbases = HashSet::new();
+fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<HashMap<String, models::PkgBase>> {
+    let mut known_pkgbases = HashMap::new();
     for pkgbase in models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)? {
         debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
-        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version));
+        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version), pkgbase);
     }
 
     // TODO: come up with a better solution for this
@@ -23,7 +22,7 @@ fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -
 
     for pkgbase in more_pkgbases {
         debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
-        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version));
+        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version), pkgbase);
     }
 
     Ok(known_pkgbases)
@@ -32,6 +31,7 @@ fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -
 fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<Vec<(String, PkgRelease)>> {
     // expand groups into individual packages
     let known_pkgbases = get_known_pkgbases(import, connection)?;
+    let mut removed_pkgbases = known_pkgbases.clone();
 
     let mut import_pkgs = Vec::new();
     let mut insert_pkgbases = Vec::new();
@@ -46,7 +46,9 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
                 artifact.url,
             )));
         }
-        if !known_pkgbases.contains(&format!("{}-{}", base.base, base.version)) {
+        let key = format!("{}-{}", base.base, base.version);
+        removed_pkgbases.remove(&key);
+        if !known_pkgbases.contains_key(&key) {
             debug!("adding pkgbase to insert queue: {:?}", base);
             insert_pkgbases.push(models::NewPkgBase {
                 name: base.base,
@@ -65,6 +67,14 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
         debug!("pkgbase: {:?}", bases.len());
         models::NewPkgBase::insert_batch(bases, connection)?;
     }
+
+    // TODO: doing this could from the packages table, we need more refactoring first
+    /*
+    info!("removing pkgbases ({})", removed_pkgbases.len());
+    for (_, v) in removed_pkgbases {
+        models::PkgBase::delete(v.id, connection)?;
+    }
+    */
 
     Ok(import_pkgs)
 }
