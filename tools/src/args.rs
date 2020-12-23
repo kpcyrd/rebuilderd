@@ -74,6 +74,8 @@ pub struct PkgsSync {
     pub print_json: bool,
     #[structopt(long="maintainer")]
     pub maintainers: Vec<String>,
+    #[structopt(long="release")]
+    pub releases: Vec<String>,
     #[structopt(long="pkg")]
     pub pkgs: Vec<Pattern>,
     #[structopt(long="exclude")]

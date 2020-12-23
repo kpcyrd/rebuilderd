@@ -140,49 +140,50 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
 
 pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let client = reqwest::blocking::Client::new();
-    // source looks like: `http://deb.debian.org/debian`
-    // should be transformed to eg: `http://deb.debian.org/debian/dists/sid/main/source/Sources.xz`
-    // TODO: figure out suite and release
-    // TODO: multiple releases could share rebuilds
-    let db_url = format!("{}/dists/sid/main/source/Sources.xz", sync.source);
-    let bytes = fetch_url_or_path(&client, &db_url)?;
 
-    info!("Decompressing...");
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
-    for pkg in extract_pkgs(&bytes)? {
-        if !pkg.matches(&sync) {
-            continue;
-        }
+    for release in &sync.releases {
+        // source looks like: `http://deb.debian.org/debian`
+        // should be transformed to eg: `http://deb.debian.org/debian/dists/sid/main/source/Sources.xz`
+        let db_url = format!("{}/dists/{}/{}/source/Sources.xz", sync.source, release, sync.suite);
+        let bytes = fetch_url_or_path(&client, &db_url)?;
 
-        let directory = pkg.buildinfo_path()?;
-        for arch in expand_architectures(&pkg.architecture)? {
-            let url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
-                directory,
-                pkg.base,
-                pkg.version,
-                arch);
-
-            let mut group = PkgGroup::new(
-                pkg.base.clone(),
-                pkg.version.clone(),
-                Distro::Debian,
-                sync.suite.to_string(),
-                arch.clone(),
-                Some(url),
-            );
-            for bin in &pkg.binary {
-                group.add_artifact(PkgArtifact {
-                    name: bin.to_string(),
-                    url: format!("{}/{}/{}_{}_{}.deb",
-                        sync.source,
-                        pkg.directory,
-                        bin,
-                        pkg.version,
-                        arch,
-                    ),
-                });
+        info!("Decompressing...");
+        for pkg in extract_pkgs(&bytes)? {
+            if !pkg.matches(&sync) {
+                continue;
             }
-            bases.insert(pkg.base.clone(), group);
+
+            let directory = pkg.buildinfo_path()?;
+            for arch in expand_architectures(&pkg.architecture)? {
+                let url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
+                    directory,
+                    pkg.base,
+                    pkg.version,
+                    arch);
+
+                let mut group = PkgGroup::new(
+                    pkg.base.clone(),
+                    pkg.version.clone(),
+                    Distro::Debian,
+                    sync.suite.to_string(),
+                    arch.clone(),
+                    Some(url),
+                );
+                for bin in &pkg.binary {
+                    group.add_artifact(PkgArtifact {
+                        name: bin.to_string(),
+                        url: format!("{}/{}/{}_{}_{}.deb",
+                            sync.source,
+                            pkg.directory,
+                            bin,
+                            pkg.version,
+                            arch,
+                        ),
+                    });
+                }
+                bases.insert(format!("{}-{}", pkg.base, pkg.version), group);
+            }
         }
     }
 

@@ -25,6 +25,8 @@ impl SyncConfigFile {
 pub struct SyncProfile {
     pub distro: Distro,
     pub suite: String,
+    #[serde(default)]
+    pub releases: Vec<String>,
     pub architecture: String,
     pub source: String,
 

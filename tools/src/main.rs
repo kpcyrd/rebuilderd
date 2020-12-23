@@ -107,6 +107,7 @@ async fn main() -> Result<()> {
             sync(client.with_auth_cookie()?, PkgsSync {
                 distro: profile.distro,
                 suite: profile.suite,
+                releases: profile.releases,
                 architecture: profile.architecture,
                 source: profile.source,
 
