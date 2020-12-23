@@ -1,17 +1,16 @@
-use crate::schema::*;
 use chrono::{Utc, NaiveDateTime, Duration};
-use rebuilderd_common::Status;
+use crate::schema::*;
+use diesel::prelude::*;
+use rebuilderd_common::{PkgRelease, Distro, Status};
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
-use diesel::prelude::*;
-use rebuilderd_common::PkgRelease;
-use rebuilderd_common::Distro;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
 #[changeset_options(treat_none_as_null="true")]
 #[table_name="packages"]
 pub struct Package {
     pub id: i32,
+    pub base_id: Option<i32>,
     pub name: String,
     pub version: String,
     pub status: String,
@@ -95,7 +94,6 @@ impl Package {
         Ok(pkgs)
     }
 
-    /*
     // when updating the verify status, use a custom query that enforces a version match
     pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
@@ -104,7 +102,6 @@ impl Package {
             .execute(connection)?;
         Ok(())
     }
-    */
 
     pub fn bump_version(&mut self, connection: &SqliteConnection) -> Result<()> {
         self.status = Status::Unknown.to_string();
@@ -188,6 +185,7 @@ impl Package {
 #[derive(Insertable, PartialEq, Debug, Clone)]
 #[table_name="packages"]
 pub struct NewPackage {
+    pub base_id: Option<i32>,
     pub name: String,
     pub version: String,
     pub status: String,
@@ -218,8 +216,9 @@ impl NewPackage {
         Ok(())
     }
 
-    pub fn from_api(distro: Distro, pkg: PkgRelease) -> NewPackage {
+    pub fn from_api(distro: Distro, base_id: i32, pkg: PkgRelease) -> NewPackage {
         NewPackage {
+            base_id: Some(base_id),
             name: pkg.name,
             version: pkg.version,
             status: pkg.status.to_string(),

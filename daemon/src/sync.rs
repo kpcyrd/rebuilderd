@@ -3,26 +3,99 @@ use crate::models;
 use rebuilderd_common::api::*;
 use rebuilderd_common::PkgRelease;
 use rebuilderd_common::Distro;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use crate::versions::PkgVerCmp;
 use diesel::SqliteConnection;
 use std::cmp::Ordering;
 
-fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
-    info!("submitted packages {:?}", import.pkgs.len());
+fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<HashSet<String>> {
+    let mut known_pkgbases = HashSet::new();
+    for pkgbase in models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)? {
+        debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
+        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version));
+    }
 
+    // TODO: come up with a better solution for this
+    let more_pkgbases = match import.distro {
+        Distro::Archlinux => models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "any", connection)?,
+        Distro::Debian => models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "all", connection)?,
+    };
+
+    for pkgbase in more_pkgbases {
+        debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
+        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version));
+    }
+
+    Ok(known_pkgbases)
+}
+
+fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<Vec<(String, PkgRelease)>> {
     // expand groups into individual packages
+    let known_pkgbases = get_known_pkgbases(import, connection)?;
+
     let mut import_pkgs = Vec::new();
-    for base in import.pkgs.drain(..) {
-        for artifact in base.artifacts {
-            import_pkgs.push(PkgRelease::new(
+    let mut insert_pkgbases = Vec::new();
+    for mut base in import.pkgs.drain(..) {
+        for artifact in base.artifacts.drain(..) {
+            import_pkgs.push((base.base.clone(), PkgRelease::new(
                 artifact.name,
                 base.version.clone(),
                 import.distro,
                 base.suite.clone(),
                 base.architecture.clone(),
                 artifact.url,
-            ));
+            )));
+        }
+        if !known_pkgbases.contains(&format!("{}-{}", base.base, base.version)) {
+            debug!("adding pkgbase to insert queue: {:?}", base);
+            insert_pkgbases.push(models::NewPkgBase {
+                name: base.base,
+                version: base.version,
+                distro: base.distro,
+                suite: base.suite,
+                architecture: base.architecture,
+                retries: 0,
+                next_retry: None,
+            });
+        }
+    }
+
+    info!("inserting pkgbases ({})", insert_pkgbases.len());
+    for bases in insert_pkgbases.chunks(1_000) {
+        debug!("pkgbase: {:?}", bases.len());
+        models::NewPkgBase::insert_batch(bases, connection)?;
+    }
+
+    Ok(import_pkgs)
+}
+
+fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
+    info!("submitted packages {:?}", import.pkgs.len());
+
+    // expand groups into individual packages
+    let mut import_pkgs = insert_pkgbases(import, connection)?;
+
+    // ensure base_id is set
+    // TODO: remove this after a few releases until we're sure base_id is always set
+    for (base, pkg) in &import_pkgs {
+        let existing_pkgs = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, None, connection)?;
+        for mut existing in existing_pkgs {
+            trace!("existing package: {:?}", existing);
+            if existing.base_id.is_none() {
+                debug!("fixing base_id on: {:?}", existing);
+                let pkgbases = models::PkgBase::get_by(&base, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?
+                    .into_iter()
+                    .filter(|b| b.version == pkg.version)
+                    .collect::<Vec<_>>();
+
+                if pkgbases.len() != 1 {
+                    bail!("Failed to locate pkgbase: {:?}/{:?}/{:?} ({:?}, {:?})", base, pkg.distro, pkg.suite, pkg.version, pkg.architecture);
+                }
+                let pkgbase = &pkgbases[0];
+
+                existing.base_id = Some(pkgbase.id);
+                existing.update(connection)?;
+            }
         }
     }
 
@@ -42,14 +115,14 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
         .collect::<HashMap<_, _>>();
     info!("existing packages {:?}", pkgs.len());
 
-    let mut new_pkgs = HashMap::<_, PkgRelease>::new();
+    let mut new_pkgs = HashMap::<_, (String, PkgRelease)>::new();
     let mut updated_pkgs = HashMap::<_, models::Package>::new();
     let mut deleted_pkgs = pkgs.clone();
 
-    for pkg in import_pkgs.drain(..) {
+    for (base, pkg) in import_pkgs.drain(..) {
         deleted_pkgs.remove_entry(&pkg.name);
 
-        if let Some(cur) = new_pkgs.get_mut(&pkg.name) {
+        if let Some((_, cur)) = new_pkgs.get_mut(&pkg.name) {
             cur.bump_package(&import.distro, &pkg)?;
         } else if let Some(cur) = updated_pkgs.get_mut(&pkg.name) {
             cur.bump_package(&import.distro, &pkg)?;
@@ -58,7 +131,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
                 updated_pkgs.insert(pkg.name, old.clone());
             }
         } else {
-            new_pkgs.insert(pkg.name.clone(), pkg);
+            new_pkgs.insert(pkg.name.clone(), (base, pkg));
         }
     }
 
@@ -68,18 +141,37 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     // TODO: if the package is queued, don't queue it again. Right now we can't rebuild the non-latest version anyway
 
     info!("new packages: {:?}", new_pkgs.len());
-    let new_pkgs = new_pkgs.into_iter()
-        .map(|(_, v)| models::NewPackage::from_api(import.distro, v))
-        .collect::<Vec<_>>();
-    for pkgs in new_pkgs.chunks(1_000) {
-        debug!("new: {:?}", pkgs.len());
-        models::NewPackage::insert_batch(pkgs, connection)?;
+    let mut insert_pkgs = Vec::new();
+    for (_, (base, v)) in new_pkgs {
+        let pkgbases = models::PkgBase::get_by(&base, &v.distro, &v.suite, Some(&v.architecture), connection)?
+            .into_iter()
+            .filter(|b| b.version == v.version)
+            .collect::<Vec<_>>();
+
+        if pkgbases.len() != 1 {
+            bail!("Failed to locate pkgbase: {:?}/{:?}/{:?} ({:?}, {:?})", base, v.distro, v.suite, v.version, v.architecture);
+        }
+        let pkgbase = &pkgbases[0];
+
+        insert_pkgs.push(models::NewPackage::from_api(import.distro, pkgbase.id, v));
+    }
+
+    for insert_pkgs in insert_pkgs.chunks(1_000) {
+        debug!("new: {:?}", insert_pkgs.len());
+        models::NewPackage::insert_batch(insert_pkgs, connection)?;
 
         // this is needed because diesel doesn't return ids when inserting into sqlite
         // this is obviously slow and needs to be refactored
-        for pkg in pkgs {
-            let pkgs = models::Package::get_by(&pkg.name, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?;
-            for pkg in pkgs {
+        for new_pkg in insert_pkgs {
+            let pkgs = models::Package::get_by(&new_pkg.name, &new_pkg.distro, &new_pkg.suite, Some(&new_pkg.architecture), connection)?;
+            for mut pkg in pkgs {
+                // TODO: this migration code is only necessary for a few releases
+                if pkg.base_id.is_none() {
+                    info!("updating base_id on {:?}/{:?}/{:?} {:?} -> {:?}", pkg.distro, pkg.suite, pkg.name, pkg.version, new_pkg.base_id);
+                    pkg.base_id = new_pkg.base_id;
+                    pkg.update(connection)?;
+                }
+
                 queue.push((pkg.id, pkg.version));
             }
         }
