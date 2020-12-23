@@ -3,6 +3,7 @@ use colored::*;
 use chrono::NaiveDateTime;
 use strum_macros::{EnumString, AsRefStr, Display};
 use serde::{Serialize, Deserialize};
+use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -49,6 +50,57 @@ impl PkgRelease {
             built_at: None,
             attestation: None,
             next_retry: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct PkgGroup {
+    pub base: String,
+    pub version: String,
+
+    pub distro: String,
+    pub suite: String,
+    pub architecture: String,
+
+    pub input: Option<String>,
+    pub artifacts: Vec<PkgArtifact>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct PkgArtifact {
+    pub name: String,
+    pub url: String,
+}
+
+impl PkgGroup {
+    pub fn new(base: String, version: String, distro: Distro, suite: String, architecture: String, input: Option<String>) -> PkgGroup {
+        PkgGroup {
+            base,
+            version,
+            distro: distro.to_string(),
+            suite,
+            architecture,
+            input,
+            artifacts: Vec::new(),
+        }
+    }
+
+    pub fn add_artifact(&mut self, artifact: PkgArtifact) {
+        self.artifacts.push(artifact);
+    }
+
+    pub fn input(&self) -> Result<&str> {
+        if let Some(input) = &self.input {
+            Ok(input.as_str())
+        } else if !self.artifacts.is_empty() {
+            let mut artifacts = Vec::from_iter(self.artifacts.iter().collect::<Vec<_>>());
+            artifacts.sort_by_key(|a| &a.name);
+            // we've checked that artifacts is not empty
+            let input = artifacts.into_iter().next().unwrap();
+            Ok(&input.url)
+        } else {
+            bail!("Package group has no artifacts")
         }
     }
 }

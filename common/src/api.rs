@@ -2,7 +2,7 @@ use crate::config::ConfigFile;
 use crate::errors::*;
 use chrono::prelude::*;
 use serde::{Serialize, Deserialize};
-use crate::{Distro, PkgRelease, Status};
+use crate::{Distro, PkgRelease, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use tokio_compat_02::FutureExt;
@@ -239,7 +239,7 @@ pub struct SuiteImport {
     pub distro: Distro,
     pub suite: String,
     pub architecture: String,
-    pub pkgs: Vec<PkgRelease>,
+    pub pkgs: Vec<PkgGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -10,6 +10,23 @@ use std::cmp::Ordering;
 
 fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("submitted packages {:?}", import.pkgs.len());
+
+    // expand groups into individual packages
+    let mut import_pkgs = Vec::new();
+    for base in import.pkgs.drain(..) {
+        for artifact in base.artifacts {
+            import_pkgs.push(PkgRelease::new(
+                artifact.name,
+                base.version.clone(),
+                import.distro,
+                base.suite.clone(),
+                base.architecture.clone(),
+                artifact.url,
+            ));
+        }
+    }
+
+    // run regular import
     let mut pkgs = Vec::new();
     pkgs.extend(models::Package::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)?);
 
@@ -29,7 +46,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     let mut updated_pkgs = HashMap::<_, models::Package>::new();
     let mut deleted_pkgs = pkgs.clone();
 
-    for pkg in import.pkgs.drain(..) {
+    for pkg in import_pkgs.drain(..) {
         deleted_pkgs.remove_entry(&pkg.name);
 
         if let Some(cur) = new_pkgs.get_mut(&pkg.name) {

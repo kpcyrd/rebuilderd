@@ -45,6 +45,8 @@ pub enum Pkgs {
     Ls(PkgsList),
     /// Sync package index with profile
     SyncProfile(PkgsSyncProfile),
+    /// Read a package sync from stdin
+    SyncStdin(PkgsSyncStdin),
     /// Requeue a given package
     Requeue(PkgsRequeue),
 }
@@ -56,6 +58,10 @@ pub struct PkgsSyncProfile {
     pub profile: String,
     #[structopt(long="sync-config", default_value="/etc/rebuilderd-sync.conf")]
     pub config_file: String,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsSyncStdin {
 }
 
 #[derive(Debug, StructOpt)]
