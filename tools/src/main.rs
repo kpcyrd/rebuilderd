@@ -117,14 +117,20 @@ async fn main() -> Result<()> {
                 excludes: patterns_from(&profile.excludes)?,
             }).await?;
         },
-        SubCommand::Pkgs(Pkgs::SyncStdin(_args)) => {
+        SubCommand::Pkgs(Pkgs::SyncStdin(sync)) => {
             let mut stdin = tokio::io::stdin();
             let mut buf = Vec::new();
             stdin.read_to_end(&mut buf).await?;
 
-            let sync = serde_json::from_slice(&buf)
+            let pkgs = serde_json::from_slice(&buf)
                 .context("Failed to deserialize pkg import from stdin")?;
-            sync_import(&client, &sync).await?;
+
+            sync_import(&client, &SuiteImport {
+                distro: sync.distro,
+                suite: sync.suite,
+                architecture: sync.architecture,
+                pkgs,
+            }).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {

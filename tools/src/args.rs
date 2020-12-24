@@ -62,6 +62,9 @@ pub struct PkgsSyncProfile {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSyncStdin {
+    pub distro: Distro,
+    pub suite: String,
+    pub architecture: String,
 }
 
 #[derive(Debug, StructOpt)]
