@@ -47,7 +47,6 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         sync_import(client, &SuiteImport {
             distro: sync.distro,
             suite: sync.suite,
-            architecture: sync.architecture,
             pkgs,
         }).await?;
     }
@@ -102,13 +101,20 @@ async fn main() -> Result<()> {
         SubCommand::Pkgs(Pkgs::Sync(args)) => sync(client.with_auth_cookie()?, args).await?,
         SubCommand::Pkgs(Pkgs::SyncProfile(args)) => {
             let mut config = SyncConfigFile::load(&args.config_file)?;
-            let profile = config.profiles.remove(&args.profile)
+            let mut profile = config.profiles.remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
+
+            // TODO: remove this after we've deprecated architecture=
+            if let Some(arch) = profile.architecture {
+                warn!("Deprecated option in config: replace `architecture = \"{}\"` with `architectures = [\"{}\"]`", arch, arch);
+                profile.architectures.push(arch)
+            }
+
             sync(client.with_auth_cookie()?, PkgsSync {
                 distro: profile.distro,
                 suite: profile.suite,
                 releases: profile.releases,
-                architecture: profile.architecture,
+                architectures: profile.architectures,
                 source: profile.source,
 
                 print_json: args.print_json,
@@ -117,14 +123,19 @@ async fn main() -> Result<()> {
                 excludes: patterns_from(&profile.excludes)?,
             }).await?;
         },
-        SubCommand::Pkgs(Pkgs::SyncStdin(_args)) => {
+        SubCommand::Pkgs(Pkgs::SyncStdin(sync)) => {
             let mut stdin = tokio::io::stdin();
             let mut buf = Vec::new();
             stdin.read_to_end(&mut buf).await?;
 
-            let sync = serde_json::from_slice(&buf)
+            let pkgs = serde_json::from_slice(&buf)
                 .context("Failed to deserialize pkg import from stdin")?;
-            sync_import(&client, &sync).await?;
+
+            sync_import(&client, &SuiteImport {
+                distro: sync.distro,
+                suite: sync.suite,
+                pkgs,
+            }).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {

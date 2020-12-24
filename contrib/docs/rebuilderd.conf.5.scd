@@ -96,7 +96,7 @@ _retry_delay_base=_
 
 ## IMPORTANT: in production, make sure either `authorized_workers` or `signup_secret` is configured.
 #[worker]
-## If we have a fixed set of workers we can whitelist the keys here.
+## If we have a fixed set of workers we can allow-list the keys here.
 #authorized_workers = ["key1", "key2"]
 ## If we want to spawn new workers dynamically we can configure a sign up secret below.
 ## Use `pwgen -1s 32` to generate one.

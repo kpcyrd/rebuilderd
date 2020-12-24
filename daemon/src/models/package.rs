@@ -69,24 +69,22 @@ impl Package {
         Ok(pkgs)
     }
 
-    pub fn list_distro_suite_architecture(my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Vec<Package>> {
+    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<Package>> {
         use crate::schema::packages::dsl::*;
         let pkgs = packages
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
-            .filter(architecture.eq(my_architecture))
             .load::<Package>(connection)?;
         Ok(pkgs)
     }
 
-    pub fn list_distro_suite_architecture_due_retries(my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
+    pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
         use crate::schema::packages::dsl::*;
         use crate::schema::queue;
         let pkgs = packages
             .select((id, version))
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
-            .filter(architecture.eq(my_architecture))
             .filter(next_retry.le(Utc::now().naive_utc()))
             .left_outer_join(queue::table.on(id.eq(queue::package_id)))
             .filter(queue::id.is_null())

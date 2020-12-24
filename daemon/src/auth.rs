@@ -34,7 +34,7 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
         // TODO: we do not challenge the worker keys yet
         // Vec<String>::contains() is inefficient with &str
         if cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
-            debug!("worker authenticated by whitelisted key");
+            debug!("worker authenticated by allow-listed key");
             return Ok(());
         }
 

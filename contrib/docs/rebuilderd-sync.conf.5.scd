@@ -23,8 +23,13 @@ _suite=_
 	This is for packages that have multiple suites/repositories, like *main*,
 	*contrib*, *non-free* or *core*, *extra* and *community*.
 
-_architecture=_
-	The architecture of the package list we want to import.
+_architectures=_
+	The architectures of the package list we want to import.
+
+_releases=_
+	Import specific releases. This option has no effect in rolling-release
+	distributions like Arch Linux but is important for eg. Debian. If the same
+	version is present in multiple releases the package is only imported once.
 
 _source=_
 	This is the url we want to import from. For Arch Linux this might look
@@ -69,7 +74,7 @@ suite = "core"
 architecture = "x86_64"
 source = "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch"
 
-## rebuild community packages of specific maintainers, or whitelist packages by name.
+## rebuild community packages of specific maintainers, or allow-list packages by name.
 ## If no filter is set, all packages are imported, if both filters are set the package only
 ## has to match one of them to be included.
 #[profile."archlinux-community"]

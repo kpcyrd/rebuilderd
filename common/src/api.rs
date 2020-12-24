@@ -239,7 +239,6 @@ pub enum JobAssignment {
 pub struct SuiteImport {
     pub distro: Distro,
     pub suite: String,
-    pub architecture: String,
     pub pkgs: Vec<PkgGroup>,
 }
 

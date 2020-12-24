@@ -51,7 +51,6 @@ async fn initial_import(client: &Client) -> Result<()> {
     client.sync_suite(&SuiteImport {
         distro,
         suite,
-        architecture,
         pkgs,
     }).await?;
 

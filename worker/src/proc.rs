@@ -2,6 +2,7 @@ use futures_util::FutureExt;
 use nix::unistd::Pid;
 use nix::sys::signal::{self, Signal};
 use rebuilderd_common::errors::*;
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -17,6 +18,7 @@ pub struct Options {
     pub size_limit: Option<usize>,
     pub kill_at_size_limit: bool,
     pub passthrough: bool,
+    pub envs: HashMap<String, String>,
 }
 
 pub struct Capture {
@@ -111,6 +113,7 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .envs(&opts.envs)
         .spawn()?;
 
     let mut child_stdout = child.stdout.take().unwrap();
@@ -175,6 +178,7 @@ mod tests {
             size_limit: None,
             kill_at_size_limit: false,
             passthrough: false,
+            envs: HashMap::new(),
         }).await.unwrap();
         assert!(success);
         assert_eq!(output, "hello world\n");
@@ -191,6 +195,7 @@ mod tests {
             size_limit: Some(50),
             kill_at_size_limit: false,
             passthrough: false,
+            envs: HashMap::new(),
         }).await.unwrap();
         assert!(success);
         assert_eq!(output,
@@ -209,6 +214,7 @@ mod tests {
             size_limit: Some(50),
             kill_at_size_limit: true,
             passthrough: false,
+            envs: HashMap::new(),
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
@@ -229,6 +235,7 @@ mod tests {
             size_limit: None,
             kill_at_size_limit: false,
             passthrough: false,
+            envs: HashMap::new(),
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
@@ -249,6 +256,7 @@ mod tests {
             size_limit: Some(50),
             kill_at_size_limit: false,
             passthrough: false,
+            envs: HashMap::new(),
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,

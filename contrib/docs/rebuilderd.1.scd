@@ -41,7 +41,7 @@ find a pre-configured value we're going to generate one and write it to
 # WORKER AUTHENTICATION
 
 There are two ways to authenticate workers. If you work with a fixed number of
-workers you can whitelist their keys:
+workers you can allow-list their keys:
 
 ```
 [worker]
