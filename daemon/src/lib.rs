@@ -1,15 +1,16 @@
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
 
-use crate::config::Config;
-use crate::dashboard::DashboardState;
 use actix_web::{App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
-use std::path::PathBuf;
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
+use crate::config::Config;
+use crate::dashboard::DashboardState;
 use rebuilderd_common::api::{BuildReport, SuiteImport};
 use rebuilderd_common::errors::*;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
+use structopt::StructOpt;
+use structopt::clap::AppSettings;
 
 pub mod api;
 pub mod auth;
@@ -37,7 +38,6 @@ pub async fn run_config(config: Config) -> Result<()> {
     let pool = db::setup_pool("rebuilderd.db")?;
     let bind_addr = config.bind_addr.clone();
 
-    use std::sync::{Arc, RwLock};
     let dashboard_cache = Arc::new(RwLock::new(DashboardState::new()));
 
     HttpServer::new(move || {
