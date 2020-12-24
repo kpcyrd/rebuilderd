@@ -126,7 +126,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("existing packages {:?}", pkgs.len());
 
     let mut new_pkgs = HashMap::<_, (String, PkgRelease)>::new();
-    let mut updated_pkgs = HashMap::<_, models::Package>::new();
+    let mut updated_pkgs = HashMap::<_, (String, models::Package)>::new();
     let mut deleted_pkgs = pkgs.clone();
 
     for (base, pkg) in import_pkgs.drain(..) {
@@ -134,11 +134,11 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
 
         if let Some((_, cur)) = new_pkgs.get_mut(&pkg.name) {
             cur.bump_package(&import.distro, &pkg)?;
-        } else if let Some(cur) = updated_pkgs.get_mut(&pkg.name) {
+        } else if let Some((_, cur)) = updated_pkgs.get_mut(&pkg.name) {
             cur.bump_package(&import.distro, &pkg)?;
         } else if let Some(old) = pkgs.get_mut(&pkg.name) {
             if old.bump_package(&import.distro, &pkg)? == Ordering::Greater {
-                updated_pkgs.insert(pkg.name, old.clone());
+                updated_pkgs.insert(pkg.name, (base, old.clone()));
             }
         } else {
             new_pkgs.insert(pkg.name.clone(), (base, pkg));
@@ -188,7 +188,19 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     info!("updated_pkgs packages: {:?}", updated_pkgs.len());
-    for (_, mut pkg) in updated_pkgs {
+    for (_, (base, mut pkg)) in updated_pkgs {
+        let pkgbases = models::PkgBase::get_by(&base, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?
+            .into_iter()
+            .filter(|b| b.version == pkg.version)
+            .collect::<Vec<_>>();
+
+        if pkgbases.len() != 1 {
+            bail!("Failed to locate pkgbase: {:?}/{:?}/{:?} ({:?}, {:?})", base, pkg.distro, pkg.suite, pkg.version, pkg.architecture);
+        }
+
+        let pkgbase = &pkgbases[0];
+        pkg.base_id = Some(pkgbase.id);
+
         debug!("update: {:?}", pkg);
         pkg.bump_version(connection)?;
         queue.push((pkg.id, pkg.version.clone()));
