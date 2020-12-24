@@ -46,9 +46,11 @@ Run a rebuild worker:
 cd worker; cargo run connect http://127.0.0.1:8484
 ```
 
-Afterwards you should import some packages:
+Afterwards it's time to import some packages:
 ```
-cd tools; cargo run pkgs sync archlinux community x86_64 'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' --maintainer kpcyrd
+cd tools; cargo run pkgs sync archlinux community \
+    'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
+    --architecture x86_64 --maintainer kpcyrd
 ```
 
 The `--maintainer` option is optional and allows you to rebuild packages by a specific maintainer only.
