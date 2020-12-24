@@ -1,16 +1,18 @@
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
-use crate::web;
-use rebuilderd_common::errors::*;
 use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
-use crate::models;
-use rebuilderd_common::api::*;
-use rebuilderd_common::PkgRelease;
+use crate::dashboard::DashboardState;
 use crate::db::Pool;
+use crate::models;
 use crate::sync;
+use crate::web;
 use diesel::SqliteConnection;
+use rebuilderd_common::PkgRelease;
+use rebuilderd_common::api::*;
+use rebuilderd_common::errors::*;
 use std::net::IpAddr;
+use std::sync::{Arc, RwLock};
 
 fn forbidden() -> web::Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
@@ -401,4 +403,24 @@ pub async fn get_diffoscope(
     } else {
         not_found()
     }
+}
+
+#[get("/api/v0/dashboard")]
+pub async fn get_dashboard(
+    pool: web::Data<Pool>,
+    lock: web::Data<Arc<RwLock<DashboardState>>>,
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
+    let stale = {
+        let state = lock.read().unwrap();
+        !state.is_fresh()
+    };
+    if stale {
+        let mut state = lock.write().unwrap();
+        debug!("Updating cached dashboard");
+        state.update(connection.as_ref())?;
+    }
+    let state = lock.read().unwrap();
+    let resp = state.get_response()?;
+    Ok(HttpResponse::Ok().json(resp))
 }
