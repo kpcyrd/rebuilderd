@@ -16,13 +16,13 @@ packages can be reproduced from the given source code.
 [1]: https://github.com/archlinux/archlinux-repro
 
 It tracks the state of successfully verified packages and optionally generates
-a report of differences generated with [diffoscope][2] for debugging. Note that
-due to the early state of this technology a failed rebuild is more likely due
-to an undeterministic build process instead of a supply chain compromise, but
-if multiple rebuilders you trust report 100% reproducible for the set of
-packages you use you can be confident that the binaries on your system
-haven't been tampered with. People are encouraged to run their own
-rebuilders if they can afford to.
+a report of differences with [diffoscope][2] for debugging. Note that due to
+the early state of this technology a failed rebuild is more likely due to an
+undeterministic build process instead of a supply chain compromise, but if
+multiple rebuilders you trust report 100% reproducible for the set of packages
+you use you can be confident that the binaries on your system haven't been
+tampered with. People are encouraged to run their own rebuilders if they can
+afford to.
 
 [2]: https://diffoscope.org/
 
