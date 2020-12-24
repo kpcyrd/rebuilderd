@@ -338,6 +338,7 @@ pub struct BuildReport {
 pub struct DashboardResponse {
     pub suites: HashMap<String, SuiteStats>,
     pub active_builds: Vec<QueueItem>,
+    pub queue_length: usize,
     pub now: NaiveDateTime,
 }
 

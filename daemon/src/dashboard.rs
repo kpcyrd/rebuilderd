@@ -31,12 +31,10 @@ impl DashboardState {
     }
 
     pub fn update(&mut self, connection: &diesel::SqliteConnection) -> Result<()> {
-        const LIMIT: Option<i64> = Some(25);
-
         models::Queued::free_stale_jobs(connection)?;
-        // TODO: this should list jobs that are specifically active
-        let queue = models::Queued::list(LIMIT, connection)?;
         let pkgs = models::Package::list(connection)?;
+        let queue = models::Queued::list(None, connection)?;
+        let queue_length = queue.len();
 
         let mut suites = HashMap::new();
         for pkg in pkgs {
@@ -66,6 +64,7 @@ impl DashboardState {
         self.response = Some(DashboardResponse {
             suites,
             active_builds,
+            queue_length,
             now,
         });
         self.last_update = Instant::now();
