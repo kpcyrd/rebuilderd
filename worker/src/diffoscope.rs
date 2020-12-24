@@ -1,6 +1,7 @@
 use crate::config;
 use crate::proc;
 use rebuilderd_common::errors::*;
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
@@ -17,6 +18,7 @@ pub async fn diffoscope(a: &str, b: &str, settings: &config::Diffoscope) -> Resu
         size_limit: settings.max_bytes,
         kill_at_size_limit: true,
         passthrough: false,
+        envs: HashMap::new(),
     };
     let bin = Path::new("diffoscope");
     let (_success, output) = proc::run(bin, &args, opts).await?;

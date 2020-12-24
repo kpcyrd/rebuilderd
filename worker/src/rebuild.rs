@@ -7,6 +7,7 @@ use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -92,11 +93,15 @@ async fn verify<'a>(ctx: &Context<'a>, path: &str) -> Result<(bool, String)> {
 
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
+    let mut envs = HashMap::new();
+    envs.insert("REBUILDERD_OUTDIR".into(), "./build".into());
+
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
         size_limit: ctx.build.max_bytes,
         kill_at_size_limit: false,
         passthrough: !ctx.build.silent,
+        envs,
     };
     proc::run(bin.as_ref(), args, opts).await
 }
