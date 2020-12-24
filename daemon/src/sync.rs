@@ -1,7 +1,7 @@
 use crate::models;
 use crate::versions::PkgVerCmp;
 use diesel::SqliteConnection;
-use rebuilderd_common::{PkgRelease, Distro};
+use rebuilderd_common::PkgRelease;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::cmp::Ordering;
@@ -9,22 +9,10 @@ use std::collections::HashMap;
 
 fn get_known_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<HashMap<String, models::PkgBase>> {
     let mut known_pkgbases = HashMap::new();
-    for pkgbase in models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)? {
+    for pkgbase in models::PkgBase::list_distro_suite(import.distro.as_ref(), &import.suite, connection)? {
         debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
         known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version), pkgbase);
     }
-
-    // TODO: come up with a better solution for this
-    let more_pkgbases = match import.distro {
-        Distro::Archlinux => models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "any", connection)?,
-        Distro::Debian => models::PkgBase::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "all", connection)?,
-    };
-
-    for pkgbase in more_pkgbases {
-        debug!("known pkgbase: {}-{}", pkgbase.name, pkgbase.version);
-        known_pkgbases.insert(format!("{}-{}", pkgbase.name, pkgbase.version), pkgbase);
-    }
-
     Ok(known_pkgbases)
 }
 
@@ -110,15 +98,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     // run regular import
-    let mut pkgs = Vec::new();
-    pkgs.extend(models::Package::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, &import.architecture, connection)?);
-
-    // TODO: come up with a better solution for this
-    if import.distro == Distro::Archlinux {
-        pkgs.extend(models::Package::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "any", connection)?);
-    } else if import.distro == Distro::Debian {
-        pkgs.extend(models::Package::list_distro_suite_architecture(import.distro.as_ref(), &import.suite, "all", connection)?);
-    };
+    let pkgs = models::Package::list_distro_suite(import.distro.as_ref(), &import.suite, connection)?;
 
     let mut pkgs = pkgs.into_iter()
         .map(|pkg| (pkg.name.clone(), pkg))
@@ -225,7 +205,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
 
 fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("selecting packages with due retries");
-    let queue = models::Package::list_distro_suite_architecture_due_retries(import.distro.as_ref(), &import.suite, &import.architecture, connection)?;
+    let queue = models::Package::list_distro_suite_due_retries(import.distro.as_ref(), &import.suite, connection)?;
 
     info!("queueing new jobs");
     for pkgs in queue.chunks(1_000) {

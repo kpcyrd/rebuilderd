@@ -141,35 +141,39 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     };
 
     let client = reqwest::blocking::Client::new();
-    let db = mirror_to_url(&source, &sync.suite, &sync.architecture, &format!("{}.db", sync.suite))?;
-    let bytes = fetch_url_or_path(&client, &db)?;
 
-    info!("Parsing index ({} bytes)...", bytes.len());
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
-    for pkg in extract_pkgs(&bytes)? {
-        if !pkg.matches(&sync) {
-            continue;
-        }
+    for arch in &sync.architectures {
+        let db = mirror_to_url(&source, &sync.suite, &arch, &format!("{}.db", sync.suite))?;
+        let bytes = fetch_url_or_path(&client, &db)?;
 
-        let url = mirror_to_url(&source, &sync.suite, &sync.architecture, &pkg.filename)?;
-        let artifact = PkgArtifact {
-            name: pkg.name,
-            url,
-        };
+        info!("Parsing index ({} bytes)...", bytes.len());
+        for pkg in extract_pkgs(&bytes)? {
+            if !pkg.matches(&sync) {
+                continue;
+            }
 
-        if let Some(group) = bases.get_mut(&pkg.base) {
-            group.add_artifact(artifact);
-        } else {
-            let mut group = PkgGroup::new(
-                pkg.base.clone(),
-                pkg.version,
-                Distro::Archlinux,
-                sync.suite.to_string(),
-                pkg.architecture,
-                None,
-            );
-            group.add_artifact(artifact);
-            bases.insert(pkg.base, group);
+            let url = mirror_to_url(&source, &sync.suite, &arch, &pkg.filename)?;
+            let artifact = PkgArtifact {
+                name: pkg.name,
+                url,
+            };
+
+            if let Some(group) = bases.get_mut(&pkg.base) {
+                // TODO: multiple architectures could have the exact same package with arch=any
+                group.add_artifact(artifact);
+            } else {
+                let mut group = PkgGroup::new(
+                    pkg.base.clone(),
+                    pkg.version,
+                    Distro::Archlinux,
+                    sync.suite.to_string(),
+                    pkg.architecture,
+                    None,
+                );
+                group.add_artifact(artifact);
+                bases.insert(pkg.base, group);
+            }
         }
     }
 

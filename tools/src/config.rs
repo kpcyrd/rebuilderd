@@ -27,7 +27,9 @@ pub struct SyncProfile {
     pub suite: String,
     #[serde(default)]
     pub releases: Vec<String>,
-    pub architecture: String,
+    pub architecture: Option<String>,
+    #[serde(default)]
+    pub architectures: Vec<String>,
     pub source: String,
 
     #[serde(default)]

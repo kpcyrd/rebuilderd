@@ -64,15 +64,15 @@ pub struct PkgsSyncProfile {
 pub struct PkgsSyncStdin {
     pub distro: Distro,
     pub suite: String,
-    pub architecture: String,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSync {
     pub distro: Distro,
     pub suite: String,
-    pub architecture: String,
     pub source: String,
+    #[structopt(long="arch")]
+    pub architectures: Vec<String>,
     #[structopt(long="print-json")]
     pub print_json: bool,
     #[structopt(long="maintainer")]

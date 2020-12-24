@@ -17,12 +17,11 @@ pub struct PkgBase {
 }
 
 impl PkgBase {
-    pub fn list_distro_suite_architecture(my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let bases = pkgbases
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
-            .filter(architecture.eq(my_architecture))
             .load::<PkgBase>(connection)?;
         Ok(bases)
     }
@@ -51,14 +50,13 @@ impl PkgBase {
     }
 
     /*
-    pub fn list_due_retries(my_distro: &str, my_suite: &str, my_architecture: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
+    pub fn list_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
         use crate::schema::pkgbases::dsl::*;
         use crate::schema::queue;
         let pkgs = pkgbases
             .select((id, version))
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
-            .filter(architecture.eq(my_architecture))
             .filter(next_retry.le(Utc::now().naive_utc()))
             .left_outer_join(queue::table.on(id.eq(queue::package_id)))
             .filter(queue::id.is_null())
