@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn no_filter_but_blacklist_match() {
+    fn no_filter_but_excludes_match() {
         let m = gen_pkg().matches(&gen_filter(Filter {
             maintainers: Vec::new(),
             pkgs: Vec::new(),
@@ -170,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn no_filter_and_no_blacklist_match() {
+    fn no_filter_and_no_excludes_match() {
         let m = gen_pkg().matches(&gen_filter(Filter {
             maintainers: Vec::new(),
             pkgs: Vec::new(),
@@ -180,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn pkg_name_and_maintainer_match_and_no_blacklist_match() {
+    fn pkg_name_and_maintainer_match_and_no_excludes_match() {
         let m = gen_pkg().matches(&gen_filter(Filter {
             maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
             pkgs: vec!["rebuilderd".to_string()],
@@ -190,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn pkg_name_and_maintainer_match_but_blacklist_match() {
+    fn pkg_name_and_maintainer_match_but_excludes_match() {
         let m = gen_pkg().matches(&gen_filter(Filter {
             maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
             pkgs: vec!["rebuilderd".to_string()],

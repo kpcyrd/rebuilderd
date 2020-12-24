@@ -59,6 +59,15 @@ Sync a set of packages into rebuilderd and automatically queue them for
 verification. For an in-depth description of how the filters work you can look
 into *rebuilderd-sync.conf*(5).
 
+*--architecture <architecture>*
+	The architecture that should be imported (if needed). This option can be
+	specified multiple times. The specific values are distro specific, like
+	x86_64 for Arch Linux or amd64 for debian.
+
+*--release <release>*
+	The releases that should be imported (if needed). This option can be
+	specified multiple times.
+
 *--print-json*
 	Do a dry-run and only show what we would sync instead of actually sending
 	it to rebuilderd.
@@ -73,7 +82,7 @@ into *rebuilderd-sync.conf*(5).
 	Always ignore packages that match this pattern, even if it also matches one
 	of the other filters.
 
-*rebuildctl pkgs sync* archlinux community x86_64 \\++
+*rebuildctl pkgs sync* archlinux community --architecture x86_64 \\++
 \	'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \\++
 \	--maintainer kpcyrd --print-json
 

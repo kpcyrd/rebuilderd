@@ -71,7 +71,7 @@ pub struct PkgsSync {
     pub distro: Distro,
     pub suite: String,
     pub source: String,
-    #[structopt(long="arch")]
+    #[structopt(long="architecture")]
     pub architectures: Vec<String>,
     #[structopt(long="print-json")]
     pub print_json: bool,
