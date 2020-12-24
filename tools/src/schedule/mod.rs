@@ -69,6 +69,7 @@ mod tests {
             suite: "community".to_string(),
             architecture: "x86_64".to_string(),
             source: "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch".to_string(),
+            releases: Vec::new(),
 
             print_json: false,
             maintainers: f.maintainers,
@@ -80,6 +81,7 @@ mod tests {
     fn gen_pkg() -> ArchPkg {
         ArchPkg {
             name: "rebuilderd".to_string(),
+            base: "rebuilderd".to_string(),
             filename: "rebuilderd-0.2.1-1-x86_64.pkg.tar.zst".to_string(),
             version: "0.2.1-1".to_string(),
             architecture: "x86_64".to_string(),

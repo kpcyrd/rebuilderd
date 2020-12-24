@@ -3,7 +3,7 @@ use colored::Colorize;
 use env_logger::Env;
 use rebuilderd::config::Config;
 use rebuilderd_common::Distro;
-use rebuilderd_common::PkgRelease;
+use rebuilderd_common::{PkgGroup, PkgArtifact, PkgRelease};
 use rebuilderd_common::Status;
 use rebuilderd_common::api::*;
 use rebuilderd_common::config::*;
@@ -32,16 +32,21 @@ async fn initial_import(client: &Client) -> Result<()> {
     let distro = Distro::Archlinux;
     let suite = "core".to_string();
     let architecture = "x86_64".to_string();
-    let pkgs = vec![
-        PkgRelease::new(
-            "zstd".to_string(),
-            "1.4.5-1".to_string(),
-            Distro::Archlinux,
-            "core".to_string(),
-            "x86_64".to_string(),
-            "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string(),
-        ),
-    ];
+
+    let url = "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string();
+    let mut group = PkgGroup::new(
+        "pkgbase".to_string(),
+        "1.4.5-1".to_string(),
+        Distro::Archlinux,
+        suite.clone(),
+        architecture.clone(),
+        None,
+    );
+    group.add_artifact(PkgArtifact {
+        name: "zstd".to_string(),
+        url,
+    });
+    let pkgs = vec![group];
 
     client.sync_suite(&SuiteImport {
         distro,

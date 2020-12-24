@@ -63,6 +63,7 @@ impl PkgVerCmp for models::Package {
 
     fn apply_fields(&mut self, new: &PkgRelease) {
         self.version = new.version.clone();
+        self.architecture = new.architecture.clone();
         self.url = new.url.clone();
     }
 }

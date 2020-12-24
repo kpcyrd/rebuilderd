@@ -2,8 +2,9 @@ use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use flate2::read::GzDecoder;
 use nom::bytes::complete::take_till;
-use rebuilderd_common::{PkgRelease, Distro};
+use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
 use rebuilderd_common::errors::*;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use tar::{Archive, EntryType};
@@ -37,6 +38,7 @@ fn mirror_to_url(mut mirror: &str, repo: &str, arch: &str, file: &str) -> Result
 #[derive(Debug)]
 pub struct ArchPkg {
     pub name: String,
+    pub base: String,
     pub filename: String,
     pub version: String,
     pub architecture: String,
@@ -57,6 +59,7 @@ impl Pkg for ArchPkg {
 #[derive(Debug, Default)]
 pub struct NewPkg {
     name: Vec<String>,
+    base: Vec<String>,
     filename: Vec<String>,
     version: Vec<String>,
     architecture: Vec<String>,
@@ -68,11 +71,12 @@ impl TryInto<ArchPkg> for NewPkg {
 
     fn try_into(self: NewPkg) -> Result<ArchPkg> {
         Ok(ArchPkg {
-            name: self.name.get(0).ok_or_else(|| format_err!("Missing name field"))?.to_string(),
-            filename: self.filename.get(0).ok_or_else(|| format_err!("Missing filename field"))?.to_string(),
-            version: self.version.get(0).ok_or_else(|| format_err!("Missing version field"))?.to_string(),
-            architecture: self.architecture.get(0).ok_or_else(|| format_err!("Missing architecture field"))?.to_string(),
-            packager: self.packager.get(0).ok_or_else(|| format_err!("Missing packager field"))?.to_string(),
+            name: self.name.get(0).ok_or_else(|| anyhow!("Missing pkg name field"))?.to_string(),
+            base: self.base.get(0).ok_or_else(|| anyhow!("Missing pkg base field"))?.to_string(),
+            filename: self.filename.get(0).ok_or_else(|| anyhow!("Missing filename field"))?.to_string(),
+            version: self.version.get(0).ok_or_else(|| anyhow!("Missing version field"))?.to_string(),
+            architecture: self.architecture.get(0).ok_or_else(|| anyhow!("Missing architecture field"))?.to_string(),
+            packager: self.packager.get(0).ok_or_else(|| anyhow!("Missing packager field"))?.to_string(),
         })
     }
 }
@@ -113,6 +117,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
                 match key {
                     "%FILENAME%" => pkg.filename = values,
                     "%NAME%" => pkg.name = values,
+                    "%BASE%" => pkg.base = values,
                     "%VERSION%" => pkg.version = values,
                     "%ARCH%" => pkg.architecture = values,
                     "%PACKAGER%" => pkg.packager = values,
@@ -127,7 +132,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
     Ok(pkgs)
 }
 
-pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
+pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let source = if sync.source.ends_with(".db") {
         warn!("Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch");
         "https://mirrors.kernel.org/archlinux/$repo/os/$arch"
@@ -139,25 +144,36 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
     let db = mirror_to_url(&source, &sync.suite, &sync.architecture, &format!("{}.db", sync.suite))?;
     let bytes = fetch_url_or_path(&client, &db)?;
 
-    info!("Parsing index...");
-    let mut pkgs = Vec::new();
+    info!("Parsing index ({} bytes)...", bytes.len());
+    let mut bases: HashMap<_, PkgGroup> = HashMap::new();
     for pkg in extract_pkgs(&bytes)? {
         if !pkg.matches(&sync) {
             continue;
         }
 
         let url = mirror_to_url(&source, &sync.suite, &sync.architecture, &pkg.filename)?;
-        pkgs.push(PkgRelease::new(
-            pkg.name,
-            pkg.version,
-            Distro::Archlinux,
-            sync.suite.to_string(),
-            pkg.architecture,
+        let artifact = PkgArtifact {
+            name: pkg.name,
             url,
-        ));
+        };
+
+        if let Some(group) = bases.get_mut(&pkg.base) {
+            group.add_artifact(artifact);
+        } else {
+            let mut group = PkgGroup::new(
+                pkg.base.clone(),
+                pkg.version,
+                Distro::Archlinux,
+                sync.suite.to_string(),
+                pkg.architecture,
+                None,
+            );
+            group.add_artifact(artifact);
+            bases.insert(pkg.base, group);
+        }
     }
 
-    Ok(pkgs)
+    Ok(bases.drain().map(|(_, v)| v).collect())
 }
 
 #[cfg(test)]

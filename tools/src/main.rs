@@ -11,6 +11,7 @@ use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
+use tokio::io::AsyncReadExt;
 use colored::*;
 
 pub mod args;
@@ -34,16 +35,16 @@ fn print_json<S: Serialize>(x: &S) -> Result<()> {
 }
 
 pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
-    let pkgs = match sync.distro {
+    let mut pkgs = match sync.distro {
         Distro::Archlinux => schedule::archlinux::sync(&sync)?,
         Distro::Debian => schedule::debian::sync(&sync)?,
     };
+    pkgs.sort_by(|a, b| a.base.cmp(&b.base));
 
     if sync.print_json {
         print_json(&pkgs)?;
     } else {
-        info!("Sending current suite to api...");
-        client.sync_suite(&SuiteImport {
+        sync_import(client, &SuiteImport {
             distro: sync.distro,
             suite: sync.suite,
             architecture: sync.architecture,
@@ -51,6 +52,13 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         }).await?;
     }
 
+    Ok(())
+}
+
+pub async fn sync_import(client: &Client, sync: &SuiteImport) -> Result<()> {
+    info!("Sending current suite to api...");
+    client.sync_suite(sync).await
+        .context("Failed to send import to daemon")?;
     Ok(())
 }
 
@@ -99,6 +107,7 @@ async fn main() -> Result<()> {
             sync(client.with_auth_cookie()?, PkgsSync {
                 distro: profile.distro,
                 suite: profile.suite,
+                releases: profile.releases,
                 architecture: profile.architecture,
                 source: profile.source,
 
@@ -107,6 +116,15 @@ async fn main() -> Result<()> {
                 pkgs: patterns_from(&profile.pkgs)?,
                 excludes: patterns_from(&profile.excludes)?,
             }).await?;
+        },
+        SubCommand::Pkgs(Pkgs::SyncStdin(_args)) => {
+            let mut stdin = tokio::io::stdin();
+            let mut buf = Vec::new();
+            stdin.read_to_end(&mut buf).await?;
+
+            let sync = serde_json::from_slice(&buf)
+                .context("Failed to deserialize pkg import from stdin")?;
+            sync_import(&client, &sync).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {

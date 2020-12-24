@@ -45,6 +45,8 @@ pub enum Pkgs {
     Ls(PkgsList),
     /// Sync package index with profile
     SyncProfile(PkgsSyncProfile),
+    /// Read a package sync from stdin
+    SyncStdin(PkgsSyncStdin),
     /// Requeue a given package
     Requeue(PkgsRequeue),
 }
@@ -59,6 +61,10 @@ pub struct PkgsSyncProfile {
 }
 
 #[derive(Debug, StructOpt)]
+pub struct PkgsSyncStdin {
+}
+
+#[derive(Debug, StructOpt)]
 pub struct PkgsSync {
     pub distro: Distro,
     pub suite: String,
@@ -68,6 +74,8 @@ pub struct PkgsSync {
     pub print_json: bool,
     #[structopt(long="maintainer")]
     pub maintainers: Vec<String>,
+    #[structopt(long="release")]
+    pub releases: Vec<String>,
     #[structopt(long="pkg")]
     pub pkgs: Vec<Pattern>,
     #[structopt(long="exclude")]

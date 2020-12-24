@@ -1,8 +1,9 @@
 use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use lzma::LzmaReader;
-use rebuilderd_common::{PkgRelease, Distro};
+use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
 use rebuilderd_common::errors::*;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::BufReader;
 use std::io::prelude::*;
@@ -16,7 +17,7 @@ pub fn any_architectures() -> Vec<String> {
 
 #[derive(Debug)]
 pub struct DebianPkg {
-    package: String,
+    base: String,
     binary: Vec<String>,
     version: String,
     directory: String,
@@ -25,6 +26,7 @@ pub struct DebianPkg {
 }
 
 impl DebianPkg {
+    // this is necessary because the buildinfo folder structure doesn't align with `Directory:` in Sources.xz
     fn buildinfo_path(&self) -> Result<String> {
         let idx = self.directory.find('/') .unwrap();
         let (_, directory) = self.directory.split_at(idx+1);
@@ -38,7 +40,7 @@ impl DebianPkg {
 
 impl Pkg for DebianPkg {
     fn pkg_name(&self) -> &str {
-        &self.package
+        &self.base
     }
 
     fn from_maintainer(&self, maintainers: &[String]) -> bool {
@@ -50,7 +52,7 @@ impl Pkg for DebianPkg {
 
 #[derive(Debug, Default)]
 pub struct NewPkg {
-    package: Option<String>,
+    base: Option<String>,
     binary: Option<Vec<String>>,
     version: Option<String>,
     directory: Option<String>,
@@ -65,7 +67,7 @@ impl TryInto<DebianPkg> for NewPkg {
 
     fn try_into(self: NewPkg) -> Result<DebianPkg> {
         Ok(DebianPkg {
-            package: self.package.ok_or_else(|| format_err!("Missing package field"))?,
+            base: self.base.ok_or_else(|| format_err!("Missing pkg base field"))?,
             binary: self.binary.ok_or_else(|| format_err!("Missing binary field"))?,
             version: self.version.ok_or_else(|| format_err!("Missing version field"))?,
             directory: self.directory.ok_or_else(|| format_err!("Missing directory field"))?,
@@ -92,7 +94,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<DebianPkg>> {
         if let Some(idx) = line.find(": ") {
             let (a, b) = line.split_at(idx);
             match a {
-                "Package" => pkg.package = Some(b[2..].to_string()),
+                "Package" => pkg.base = Some(b[2..].to_string()),
                 "Binary" => {
                     let mut binaries = Vec::new();
                     for binary in b[2..].split(", ") {
@@ -136,37 +138,54 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
     }
 }
 
-pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgRelease>> {
+pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let client = reqwest::blocking::Client::new();
-    let bytes = fetch_url_or_path(&client, &sync.source)?;
 
-    info!("Decompressing...");
-    let mut pkgs = Vec::new();
-    for pkg in extract_pkgs(&bytes)? {
-        if !pkg.matches(&sync) {
-            continue;
-        }
+    let mut bases: HashMap<_, PkgGroup> = HashMap::new();
+    for release in &sync.releases {
+        // source looks like: `http://deb.debian.org/debian`
+        // should be transformed to eg: `http://deb.debian.org/debian/dists/sid/main/source/Sources.xz`
+        let db_url = format!("{}/dists/{}/{}/source/Sources.xz", sync.source, release, sync.suite);
+        let bytes = fetch_url_or_path(&client, &db_url)?;
 
-        let directory = pkg.buildinfo_path()?;
-        for bin in &pkg.binary {
+        info!("Decompressing...");
+        for pkg in extract_pkgs(&bytes)? {
+            if !pkg.matches(&sync) {
+                continue;
+            }
+
+            let directory = pkg.buildinfo_path()?;
             for arch in expand_architectures(&pkg.architecture)? {
                 let url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
                     directory,
-                    bin,
+                    pkg.base,
                     pkg.version,
                     arch);
 
-                pkgs.push(PkgRelease::new(
-                    bin.to_string(),
-                    pkg.version.to_string(),
+                let mut group = PkgGroup::new(
+                    pkg.base.clone(),
+                    pkg.version.clone(),
                     Distro::Debian,
                     sync.suite.to_string(),
-                    arch,
-                    url,
-                ));
+                    arch.clone(),
+                    Some(url),
+                );
+                for bin in &pkg.binary {
+                    group.add_artifact(PkgArtifact {
+                        name: bin.to_string(),
+                        url: format!("{}/{}/{}_{}_{}.deb",
+                            sync.source,
+                            pkg.directory,
+                            bin,
+                            pkg.version,
+                            arch,
+                        ),
+                    });
+                }
+                bases.insert(format!("{}-{}", pkg.base, pkg.version), group);
             }
         }
     }
 
-    Ok(pkgs)
+    Ok(bases.drain().map(|(_, v)| v).collect())
 }
