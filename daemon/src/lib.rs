@@ -2,6 +2,7 @@
 #[macro_use] extern crate diesel_migrations;
 
 use crate::config::Config;
+use crate::dashboard::DashboardState;
 use actix_web::{App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
 use std::path::PathBuf;
@@ -13,6 +14,7 @@ use rebuilderd_common::errors::*;
 pub mod api;
 pub mod auth;
 pub mod config;
+pub mod dashboard;
 pub mod db;
 pub mod schema;
 pub mod sync;
@@ -36,7 +38,7 @@ pub async fn run_config(config: Config) -> Result<()> {
     let bind_addr = config.bind_addr.clone();
 
     use std::sync::{Arc, RwLock};
-    let dashboard_cache = Arc::new(RwLock::new(api::DashboardState::new()));
+    let dashboard_cache = Arc::new(RwLock::new(DashboardState::new()));
 
     HttpServer::new(move || {
         App::new()
