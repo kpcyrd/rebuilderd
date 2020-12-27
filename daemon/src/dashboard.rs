@@ -14,6 +14,12 @@ pub struct DashboardState {
     last_update: Instant,
 }
 
+impl Default for DashboardState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DashboardState {
     pub fn new() -> DashboardState {
         DashboardState {

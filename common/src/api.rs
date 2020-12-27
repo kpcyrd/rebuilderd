@@ -232,7 +232,7 @@ pub struct WorkQuery {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum JobAssignment {
     Nothing,
-    Rebuild(QueueItem),
+    Rebuild(Box<QueueItem>),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

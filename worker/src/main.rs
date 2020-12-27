@@ -118,7 +118,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
                 },
             };
             let report = BuildReport {
-                queue: rb,
+                queue: *rb,
                 rebuild,
             };
             info!("Sending build report to rebuilderd...");

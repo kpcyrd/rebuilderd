@@ -40,7 +40,7 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder backend")
 }
 
-pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
+pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let (input, filename) = download(url, &tmp)
@@ -77,7 +77,7 @@ pub async fn rebuild<'a>(ctx: &Context<'a>, url: &str) -> Result<Rebuild> {
 }
 
 // TODO: automatically truncate logs to a max-length if configured
-async fn verify<'a>(ctx: &Context<'a>, path: &str) -> Result<(bool, String)> {
+async fn verify(ctx: &Context<'_>, path: &str) -> Result<(bool, String)> {
     let bin = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {

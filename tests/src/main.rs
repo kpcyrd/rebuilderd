@@ -195,7 +195,7 @@ async fn main() -> Result<()> {
         let task = client.pop_queue(&WorkQuery {}).await?;
 
         let queue = match task {
-            JobAssignment::Rebuild(item) => item,
+            JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
         let rebuild = Rebuild {
@@ -272,7 +272,7 @@ async fn main() -> Result<()> {
         let task = client.pop_queue(&WorkQuery {}).await?;
 
         let queue = match task {
-            JobAssignment::Rebuild(item) => item,
+            JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
         let rebuild = Rebuild {

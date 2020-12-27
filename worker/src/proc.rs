@@ -135,14 +135,14 @@ pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, Stri
                 let n = n?;
                 cap.push_bytes(&mut child, &buf_stdout[..n]).await?;
                 if passthrough {
-                    stdout.write(&buf_stdout[..n]).await?;
+                    stdout.write_all(&buf_stdout[..n]).await?;
                 }
             },
             n = child_stderr.read(&mut buf_stderr).fuse() => {
                 let n = n?;
                 cap.push_bytes(&mut child, &buf_stderr[..n]).await?;
                 if passthrough {
-                    stderr.write(&buf_stderr[..n]).await?;
+                    stderr.write_all(&buf_stderr[..n]).await?;
                 }
             },
             status = child.wait().fuse() => {
