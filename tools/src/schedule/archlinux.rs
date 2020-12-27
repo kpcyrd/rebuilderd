@@ -95,18 +95,9 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
             entry.read_to_string(&mut content)?;
 
             let mut iter = content.split('\n');
-            loop {
-                let key = match iter.next() {
-                    Some(key) => key,
-                    _ => break,
-                };
-
+            while let Some(key) = iter.next() {
                 let mut values = Vec::new();
-                loop {
-                    let value = match iter.next() {
-                        Some(value) => value,
-                        _ => break,
-                    };
+                for value in &mut iter {
                     if !value.is_empty() {
                         values.push(value.to_string());
                     } else {

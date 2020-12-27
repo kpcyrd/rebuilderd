@@ -207,7 +207,7 @@ pub async fn pop_queue(
 
 
         let status = format!("working hard on {} {}", item.package.name, item.package.version);
-        (JobAssignment::Rebuild(item), Some(status))
+        (JobAssignment::Rebuild(Box::new(item)), Some(status))
     } else {
         (JobAssignment::Nothing, None)
     };
