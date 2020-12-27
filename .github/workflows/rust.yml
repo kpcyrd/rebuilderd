@@ -8,18 +8,33 @@ on:
 
 jobs:
   build:
-
+    name: build
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
-
     - name: Install dependencies
       run: sudo apt-get install libsodium-dev libsqlite3-dev
-
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
     - name: Run integration tests
       run: cd tests; cargo run -- --cookie test
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+        components: clippy
+    - name: Install dependencies
+      run: sudo apt-get install libsodium-dev libsqlite3-dev
+    - uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all --lib --tests -- --deny warnings
