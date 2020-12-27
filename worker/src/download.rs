@@ -32,10 +32,11 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
         .await
         .context("Failed to create output file")?;
 
-    let mut bytes: u64 = 0;
+    let mut bytes = 0;
     while let Some(item) = stream.next().compat().await {
         let item = item?;
-        bytes += f.write(&item).await? as u64;
+        f.write_all(&item).await?;
+        bytes += item.len();
     }
     info!("Downloaded {} bytes", bytes);
 
