@@ -1,4 +1,4 @@
-use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, post, HttpRequest, HttpResponse, Responder, http};
 use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
@@ -83,6 +83,16 @@ pub async fn list_pkgs(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     let connection = pool.get().map_err(Error::from)?;
+    let mut builder = HttpResponse::Ok();
+
+    // Set Last-Modified header to the most recent build package time
+    match models::Package::most_recent_built_at(connection.as_ref())? {
+        None => {},
+        Some(built_at) => {
+            let datetime: DateTime<Utc> = DateTime::from_utc(built_at, Utc);
+            builder.set(http::header::LastModified(std::time::SystemTime::from(datetime).into()));
+        }
+    }
 
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref())? {
@@ -105,7 +115,7 @@ pub async fn list_pkgs(
         pkgs.push(pkg.into_api_item()?);
     }
 
-    Ok(HttpResponse::Ok().json(pkgs))
+    Ok(builder.json(pkgs))
 }
 
 #[post("/api/v0/queue/list")]
