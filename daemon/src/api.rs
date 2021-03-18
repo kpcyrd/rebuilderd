@@ -15,18 +15,18 @@ use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
-fn forbidden() -> web::Result<HttpResponse> {
-    Ok(HttpResponse::Forbidden()
-        .body("Authentication failed\n"))
+fn forbidden() -> HttpResponse {
+    HttpResponse::Forbidden()
+        .body("Authentication failed\n")
 }
 
-fn not_found() -> web::Result<HttpResponse> {
-    Ok(HttpResponse::NotFound()
-        .body("Not found\n"))
+fn not_found() -> HttpResponse {
+    HttpResponse::NotFound()
+        .body("Not found\n")
 }
 
-fn not_modified() -> web::Result<HttpResponse> {
-    Ok(HttpResponse::NotModified().body(""))
+fn not_modified() -> HttpResponse {
+    HttpResponse::NotModified().body("")
 }
 
 pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
@@ -50,7 +50,7 @@ pub async fn list_workers(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let connection = pool.get().map_err(Error::from)?;
@@ -68,7 +68,7 @@ pub async fn sync_work(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let import = import.into_inner();
@@ -103,7 +103,7 @@ pub async fn list_pkgs(
         let latest_built_at = DateTime::from_utc(latest_built_at, Utc);
         if let Some(duration) = modified_since_duration(&req, latest_built_at) {
             if duration.num_seconds() >= 0 {
-                return not_modified();
+                return Ok(not_modified());
             }
         }
         let latest_built_at = SystemTime::from(latest_built_at);
@@ -189,7 +189,7 @@ pub async fn push_queue(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let query = query.into_inner();
@@ -218,7 +218,7 @@ pub async fn pop_queue(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let connection = pool.get().map_err(Error::from)?;
@@ -252,7 +252,7 @@ pub async fn drop_from_queue(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let query = query.into_inner();
@@ -276,7 +276,7 @@ pub async fn requeue_pkg(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let connection = pool.get().map_err(Error::from)?;
@@ -328,7 +328,7 @@ pub async fn ping_build(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let connection = pool.get().map_err(Error::from)?;
@@ -360,7 +360,7 @@ pub async fn report_build(
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
-        return forbidden();
+        return Ok(forbidden());
     }
 
     let connection = pool.get().map_err(Error::from)?;
@@ -396,7 +396,7 @@ pub async fn get_build_log(
 
     let build = match models::Build::get_id(*id, connection.as_ref()) {
         Ok(build) => build,
-        Err(_) => return not_found(),
+        Err(_) => return Ok(not_found()),
     };
 
     let resp = HttpResponse::Ok()
@@ -416,7 +416,7 @@ pub async fn get_diffoscope(
 
     let build = match models::Build::get_id(*id, connection.as_ref()) {
         Ok(build) => build,
-        Err(_) => return not_found(),
+        Err(_) => return Ok(not_found()),
     };
 
     if let Some(diffoscope) = build.diffoscope {
@@ -427,7 +427,7 @@ pub async fn get_diffoscope(
             .body(diffoscope);
         Ok(resp)
     } else {
-        not_found()
+        Ok(not_found())
     }
 }
 
