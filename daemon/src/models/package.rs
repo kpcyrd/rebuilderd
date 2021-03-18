@@ -163,6 +163,14 @@ impl Package {
         Ok(())
     }
 
+    pub fn most_recent_built_at(connection: &SqliteConnection) -> Result<Option<NaiveDateTime>> {
+        use crate::schema::packages::dsl::*;
+
+        let latest_built = packages.select(diesel::dsl::max(built_at)).first(connection)?;
+
+        Ok(latest_built)
+    }
+
     pub fn into_api_item(self) -> Result<PkgRelease> {
         Ok(PkgRelease {
             name: self.name,

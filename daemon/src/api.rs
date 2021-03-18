@@ -1,4 +1,4 @@
-use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, post, HttpRequest, HttpResponse, Responder, http};
 use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
@@ -13,6 +13,7 @@ use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
+use std::time::SystemTime;
 
 fn forbidden() -> web::Result<HttpResponse> {
     Ok(HttpResponse::Forbidden()
@@ -24,12 +25,22 @@ fn not_found() -> web::Result<HttpResponse> {
         .body("Not found\n"))
 }
 
+fn not_modified() -> web::Result<HttpResponse> {
+    Ok(HttpResponse::NotModified().body(""))
+}
+
 pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
     let value = req.headers().get(key)
         .ok_or_else(|| format_err!("Missing header"))?
         .to_str()
         .context("Failed to decode header value")?;
     Ok(value)
+}
+
+fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option<chrono::Duration> {
+    header(req, &http::header::IF_MODIFIED_SINCE.as_str()).ok()
+        .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
+        .map(|value| value.signed_duration_since(datetime))
 }
 
 #[get("/api/v0/workers")]
@@ -79,11 +90,26 @@ fn opt_filter(this: &str, filter: Option<&str>) -> bool {
 
 #[get("/api/v0/pkgs/list")]
 pub async fn list_pkgs(
+    req: HttpRequest,
     query: web::Query<ListPkgs>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     let connection = pool.get().map_err(Error::from)?;
+    let mut builder = HttpResponse::Ok();
 
+    // Set Last-Modified header to the most recent build package time
+    // If If-Modified-Since header is set, compare it to the latest built time.
+    if let Some(latest_built_at) = models::Package::most_recent_built_at(connection.as_ref())? {
+        let latest_built_at = DateTime::from_utc(latest_built_at, Utc);
+        if let Some(duration) = modified_since_duration(&req, latest_built_at) {
+            if duration.num_seconds() >= 0 {
+                return not_modified();
+            }
+        }
+        let latest_built_at = SystemTime::from(latest_built_at);
+        builder.set(http::header::LastModified(latest_built_at.into()));
+    }
+ 
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref())? {
         if opt_filter(&pkg.name, query.name.as_deref()) {
@@ -105,7 +131,7 @@ pub async fn list_pkgs(
         pkgs.push(pkg.into_api_item()?);
     }
 
-    Ok(HttpResponse::Ok().json(pkgs))
+    Ok(builder.json(pkgs))
 }
 
 #[post("/api/v0/queue/list")]
