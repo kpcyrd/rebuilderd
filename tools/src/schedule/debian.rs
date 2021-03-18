@@ -27,14 +27,14 @@ pub struct DebianPkg {
 
 impl DebianPkg {
     // this is necessary because the buildinfo folder structure doesn't align with `Directory:` in Sources.xz
-    fn buildinfo_path(&self) -> Result<String> {
+    fn buildinfo_path(&self) -> String {
         let idx = self.directory.find('/') .unwrap();
         let (_, directory) = self.directory.split_at(idx+1);
 
         let idx = directory.find('/') .unwrap();
         let (_, directory) = directory.split_at(idx+1);
 
-        Ok(directory.to_string())
+        directory.to_string()
     }
 }
 
@@ -154,7 +154,7 @@ pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 continue;
             }
 
-            let directory = pkg.buildinfo_path()?;
+            let directory = pkg.buildinfo_path();
             for arch in expand_architectures(&pkg.architecture)? {
                 let url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
                     directory,
