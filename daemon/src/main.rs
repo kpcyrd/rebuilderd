@@ -16,7 +16,7 @@ struct Args {
     config: Option<PathBuf>,
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::from_args();
 

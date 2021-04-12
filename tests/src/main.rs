@@ -73,7 +73,7 @@ async fn test<T: Sized>(label: &str, f: impl futures::Future<Output=Result<T>>) 
     r
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn spawn_server(config: Config) {
     if let Err(err) = rebuilderd::run_config(config).await {
         error!("daemon errored: {:#}", err);

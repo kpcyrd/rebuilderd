@@ -19,7 +19,7 @@ assets = [
 rebuilderd-common = { version= "= 0.9.1", path="../common" }
 structopt = "0.3"
 env_logger = "0.8"
-reqwest = { version="0.10.0", features=["json"] }
+reqwest = { version="0.11", features=["json"] }
 chrono = { version = "0.4", features=["serde"] }
 rust-lzma = "0.5.1"
 tar = "0.4"
@@ -31,4 +31,4 @@ toml = "0.5.6"
 dirs-next = "2"
 glob = "0.3.0"
 nom = "6"
-tokio = { version="0.3.2", features=["macros", "rt-multi-thread", "io-std", "io-util"] }
+tokio = { version="1", features=["macros", "rt-multi-thread", "io-std", "io-util"] }

@@ -2,7 +2,6 @@ use futures_util::StreamExt;
 use rebuilderd_common::errors::*;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio_compat_02::FutureExt;
 use url::Url;
 
 pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, String)> {
@@ -23,7 +22,6 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
     let client = reqwest::Client::new();
     let mut stream = client.get(&url.to_string())
         .send()
-        .compat()
         .await?
         .error_for_status()?
         .bytes_stream();
@@ -33,7 +31,7 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
         .context("Failed to create output file")?;
 
     let mut bytes = 0;
-    while let Some(item) = stream.next().compat().await {
+    while let Some(item) = stream.next().await {
         let item = item?;
         f.write_all(&item).await?;
         bytes += item.len();
