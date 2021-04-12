@@ -78,7 +78,7 @@ impl TryInto<DebianPkg> for NewPkg {
 }
 
 pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<DebianPkg>> {
-    let r = LzmaReader::new_decompressor(&bytes[..])?;
+    let r = LzmaReader::new_decompressor(bytes)?;
     let r = BufReader::new(r);
 
     let mut pkg = NewPkg::default();

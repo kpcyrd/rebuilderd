@@ -74,6 +74,7 @@ pub fn setup_auth_cookie() -> Result<String> {
         thread_rng()
             .sample_iter(&Alphanumeric)
             .take(32)
+            .map(char::from)
             .collect()
     };
 

@@ -6,7 +6,6 @@ use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use tokio_compat_02::FutureExt;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
 pub const WORKER_KEY_HEADER: &str = "X-Worker-Key";
@@ -99,7 +98,6 @@ impl Client {
     pub async fn list_workers(&self) -> Result<Vec<Worker>> {
         let workers = self.get("/api/v0/workers")
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -112,7 +110,6 @@ impl Client {
         self.post("/api/v0/pkgs/sync")
             .json(import)
             .send()
-            .compat()
             .await?
             .error_for_status()?;
         Ok(())
@@ -122,7 +119,6 @@ impl Client {
         let pkgs = self.get("/api/v0/pkgs/list")
             .query(list)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -134,7 +130,6 @@ impl Client {
         let pkgs = self.post("/api/v0/queue/list")
             .json(list)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -146,7 +141,6 @@ impl Client {
         self.post("/api/v0/queue/push")
             .json(push)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -158,7 +152,6 @@ impl Client {
         let assignment = self.post("/api/v0/queue/pop")
             .json(query)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -170,7 +163,6 @@ impl Client {
         self.post("/api/v0/queue/drop")
             .json(query)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -182,7 +174,6 @@ impl Client {
         self.post("/api/v0/pkg/requeue")
             .json(requeue)
             .send()
-            .compat()
             .await?
             .error_for_status()?
             .json()
@@ -194,7 +185,6 @@ impl Client {
         self.post("/api/v0/build/ping")
             .json(ticket)
             .send()
-            .compat()
             .await?
             .error_for_status()?;
         Ok(())
@@ -204,7 +194,6 @@ impl Client {
         self.post("/api/v0/build/report")
             .json(ticket)
             .send()
-            .compat()
             .await?
             .error_for_status()?;
         Ok(())

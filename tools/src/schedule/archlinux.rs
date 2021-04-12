@@ -82,7 +82,7 @@ impl TryInto<ArchPkg> for NewPkg {
 }
 
 pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
-    let tar = GzDecoder::new(&bytes[..]);
+    let tar = GzDecoder::new(bytes);
     let mut archive = Archive::new(tar);
 
     let mut pkgs = Vec::new();
