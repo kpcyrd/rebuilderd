@@ -26,13 +26,70 @@ afford to.
 
 [2]: https://diffoscope.org/
 
-# Setup
+# Accessing a rebuilderd instance in your browser
+
+Many instance run a web frontend to display their results. [rebuilderd-website]
+is a very good choice and the software powering the Arch Linux rebuilderd
+instance:
+
+[rebuilderd-website]: https://gitlab.archlinux.org/archlinux/rebuilderd-website
+
+https://reproducible.archlinux.org/
+
+Loading the index of all packages may take a short time.
+
+# Scripting access to a rebuilderd instance
+
+It's also possible to query and manage a rebuilderd instance in a scriptable
+way. It's recommended to install the `rebuildctl` commandline util to do this:
+
+    pacman -S rebuilderd
+
+You can then query a rebuilderd instance for the status of a specific package:
+
+    rebuildctl -H https://reproducible.archlinux.org pkgs ls --name rebuilderd
+
+You have to specify which instance you want to query because there's no
+definite truth™. You could ask multiple instances though, including one you
+operate yourself.
+
+If the rebuilder seems to have outdated data or lists a package as unknown the
+update may still be in the build queue. You can query the build queue of an
+instance like this:
+
+    rebuildctl -H https://reproducible.archlinux.org queue ls --head
+
+If there's no output that means the build queue is empty.
+
+If you're the administrator of this instance you can also run commands like:
+
+    rebuildctl status
+
+Or immediately retry all failed rebuild attempts (there's an automatic retry on
+by default):
+
+    rebuildctl pkgs requeue --status BAD --reset
+
+# Running a rebuilderd instance yourself
+
+![journalctl output of a rebuilderd-worker](.github/assets/mOWZt75.png)
+
+"I compile everything from source" - a significant amount of real world binary
+packages can already be reproduced today. The more people run rebuilders, the
+harder it is to compromise all of them.
+
+At the current stage of the project we're interested in every rebuilder there
+is! Most rebuilderd discussion currently happens in #archlinux-reprodubile on
+freenode, feel free to drop by if you're running a instance or considering
+setting one up. Having a few unreproducible packages is normal (even if it's
+slightly more than the official rebuilder), but having additional people
+confirm successful rebuilds is very helpful.
 
 ## Arch Linux
 
 Please see the setup instructions in the [Arch Linux Wiki](https://wiki.archlinux.org/index.php/Rebuilderd).
 
-## Development
+# Development
 
 A rebuilder consists of the `rebuilderd` daemon and >= 1 workers:
 
