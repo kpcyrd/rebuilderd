@@ -64,8 +64,8 @@ struct Connect {
 
 #[derive(Debug, StructOpt)]
 struct Diffoscope {
-    pub a: String,
-    pub b: String,
+    pub a: PathBuf,
+    pub b: PathBuf,
 }
 
 async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {

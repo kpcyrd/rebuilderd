@@ -41,13 +41,14 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder backend")
 }
 
-fn path_to_string(path: &Path) -> Result<&str> {
+fn path_to_string(path: &Path) -> Result<String> {
     let s = path.to_str()
         .with_context(|| anyhow!("Path contains invalid characters: {:?}", path))?;
-    Ok(s)
+    Ok(s.to_string())
 }
 
 pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
+    // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let inputs_dir = tmp.path().join("inputs");
@@ -58,12 +59,16 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     fs::create_dir(&out_dir)
         .context("Failed to create out/ temp dir")?;
 
-    let (pkg_path, filename) = download(url, &inputs_dir)
+    // download
+    let filename = download(url, &inputs_dir)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
-    let (success, log) = verify(ctx, &out_dir, &pkg_path).await?;
+    // rebuild
+    let input_path = inputs_dir.join(&filename);
+    let (success, log) = verify(ctx, &out_dir, &input_path).await?;
 
+    // process result
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
         Ok(Rebuild::new(BuildStatus::Good, log))
@@ -75,7 +80,7 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
         if ctx.diffoscope.enabled {
             let output = out_dir.join(filename);
             if output.exists() {
-                let diff = diffoscope(&pkg_path, path_to_string(&output)?, &ctx.diffoscope)
+                let diff = diffoscope(&input_path, &output, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
@@ -88,7 +93,7 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     }
 }
 
-async fn verify(ctx: &Context<'_>, out_dir: &Path, pkg_path: &str) -> Result<(bool, String)> {
+async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<(bool, String)> {
     let bin = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {
@@ -100,7 +105,7 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, pkg_path: &str) -> Result<(bo
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
     let mut envs = HashMap::new();
-    envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?.into());
+    envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?);
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
@@ -109,5 +114,5 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, pkg_path: &str) -> Result<(bo
         passthrough: !ctx.build.silent,
         envs,
     };
-    proc::run(bin.as_ref(), &[pkg_path], opts).await
+    proc::run(bin.as_ref(), &[input_path], opts).await
 }

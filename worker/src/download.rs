@@ -1,11 +1,11 @@
 use futures_util::StreamExt;
 use rebuilderd_common::errors::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub async fn download(url: &str, path: &Path) -> Result<(String, String)> {
+pub async fn download(url: &str, path: &Path) -> Result<PathBuf> {
     let url = url.parse::<Url>()
         .context("Failed to parse input as url")?;
 
@@ -39,8 +39,5 @@ pub async fn download(url: &str, path: &Path) -> Result<(String, String)> {
     }
     info!("Downloaded {} bytes", bytes);
 
-    let target = target.to_str()
-        .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
-
-    Ok((target.to_string(), filename.to_string()))
+    Ok(PathBuf::from(filename))
 }
