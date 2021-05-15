@@ -5,8 +5,8 @@ use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub async fn download(url: &str, path: &Path) -> Result<PathBuf> {
-    let url = url.parse::<Url>()
+pub async fn download(url_str: &str, path: &Path) -> Result<PathBuf> {
+    let url = url_str.parse::<Url>()
         .context("Failed to parse input as url")?;
 
     let filename = url.path_segments()
@@ -19,7 +19,7 @@ pub async fn download(url: &str, path: &Path) -> Result<PathBuf> {
 
     let target = path.join(filename);
 
-    info!("Downloading {:?} to {:?}", url, target);
+    info!("Downloading {:?} to {:?}", url_str, target);
     let client = reqwest::Client::new();
     let mut stream = client.get(&url.to_string())
         .send()
