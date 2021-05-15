@@ -1,10 +1,11 @@
 use futures_util::StreamExt;
 use rebuilderd_common::errors::*;
+use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, String)> {
+pub async fn download(url: &str, path: &Path) -> Result<(String, String)> {
     let url = url.parse::<Url>()
         .context("Failed to parse input as url")?;
 
@@ -16,7 +17,7 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
         bail!("Filename is empty");
     }
 
-    let target = tmp.path().join(filename);
+    let target = path.join(filename);
 
     info!("Downloading {:?} to {:?}", url, target);
     let client = reqwest::Client::new();

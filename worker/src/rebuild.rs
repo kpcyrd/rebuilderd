@@ -1,13 +1,14 @@
 use crate::config;
-use crate::proc;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
+use crate::proc;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -40,14 +41,28 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     bail!("Failed to find a rebuilder backend")
 }
 
+fn path_to_string(path: &Path) -> Result<&str> {
+    let s = path.to_str()
+        .with_context(|| anyhow!("Path contains invalid characters: {:?}", path))?;
+    Ok(s)
+}
+
 pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
-    let (input, filename) = download(url, &tmp)
+    let inputs_dir = tmp.path().join("inputs");
+    fs::create_dir(&inputs_dir)
+        .context("Failed to create inputs/ temp dir")?;
+
+    let out_dir = tmp.path().join("out");
+    fs::create_dir(&out_dir)
+        .context("Failed to create out/ temp dir")?;
+
+    let (pkg_path, filename) = download(url, &inputs_dir)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
 
-    let (success, log) = verify(ctx, &input).await?;
+    let (success, log) = verify(ctx, &out_dir, &pkg_path).await?;
 
     if success {
         info!("Rebuilder backend indicated a success rebuild!");
@@ -58,12 +73,9 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
 
         // generate diffoscope diff if enabled
         if ctx.diffoscope.enabled {
-            let output = Path::new("./build/").join(filename);
+            let output = out_dir.join(filename);
             if output.exists() {
-                let output = output.to_str()
-                    .ok_or_else(|| format_err!("Output path contains invalid characters"))?;
-
-                let diff = diffoscope(&input, output, &ctx.diffoscope)
+                let diff = diffoscope(&pkg_path, path_to_string(&output)?, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
@@ -76,8 +88,7 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     }
 }
 
-// TODO: automatically truncate logs to a max-length if configured
-async fn verify(ctx: &Context<'_>, path: &str) -> Result<(bool, String)> {
+async fn verify(ctx: &Context<'_>, out_dir: &Path, pkg_path: &str) -> Result<(bool, String)> {
     let bin = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {
@@ -86,15 +97,10 @@ async fn verify(ctx: &Context<'_>, path: &str) -> Result<(bool, String)> {
         Cow::Owned(script)
     };
 
-    // TODO: establish a common interface to interface with distro rebuilders
-    // TODO: specify the path twice because the 2nd argument used to be the path
-    // TODO: we want to move this to the first instead. the 2nd argument can be removed in the future
-    let args = &[path, path];
-
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
     let mut envs = HashMap::new();
-    envs.insert("REBUILDERD_OUTDIR".into(), "./build".into());
+    envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?.into());
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
@@ -103,5 +109,5 @@ async fn verify(ctx: &Context<'_>, path: &str) -> Result<(bool, String)> {
         passthrough: !ctx.build.silent,
         envs,
     };
-    proc::run(bin.as_ref(), args, opts).await
+    proc::run(bin.as_ref(), &[pkg_path], opts).await
 }
