@@ -1,3 +1,3 @@
 #!/bin/sh
 set -xe
-repro -o "${REBUILDERD_OUTDIR}" -- "${1}"
+OUTDIR="${REBUILDERD_OUTDIR}" repro -- "${1}"
