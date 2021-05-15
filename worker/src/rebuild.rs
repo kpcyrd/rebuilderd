@@ -9,6 +9,7 @@ use rebuilderd_common::errors::{Context as _};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::fs::File;
@@ -50,8 +51,8 @@ fn path_to_string(path: &Path) -> Result<String> {
 }
 
 pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
-    let mut buf1 : &mut [u8] = &mut [0u8; 4096];
-    let mut buf2 : &mut [u8] = &mut [0u8; 4096];
+    let mut buf1 = [0u8; 4096];
+    let mut buf2 = [0u8; 4096];
 
     info!("Comparing {:?} with {:?}", a, b);
     let mut f1 = File::open(a).await
@@ -62,14 +63,14 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     let mut pos = 0;
     loop {
         // read up to 4k bytes from the first file
-        let n = f1.read_buf(&mut buf1).await?;
+        let n = f1.read_buf(&mut &mut buf1[..]).await?;
 
         // check if the first file is end-of-file
         if n == 0 {
             debug!("First file is at end-of-file");
 
             // check if other file is eof too
-            let n = f2.read_buf(&mut buf2).await?;
+            let n = f2.read_buf(&mut &mut buf2[..]).await?;
             if n > 0 {
                 info!("Files are not identical, {:?} is longer", b);
                 return Ok(false);
@@ -79,7 +80,15 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
         }
 
         // check the same chunk in the other file
-        f2.read_exact(&mut buf2[..n]).await?;
+        match f2.read_exact(&mut buf2[..n]).await {
+            Ok(n) => n,
+            Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
+                info!("Files are not identical, {:?} is shorter", b);
+                return Ok(false);
+            },
+            err => err?,
+        };
+
         if buf1[..n] != buf2[..n] {
             // get the exact position
             // this can't panic because we've already checked the slices are not equal
@@ -165,4 +174,45 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<
     let (_success, log) = proc::run(bin.as_ref(), &[input_path], opts).await?;
 
     Ok(log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn compare_files_equal() {
+        let equal = compare_files(Path::new("src/main.rs"), Path::new("src/main.rs")).await.unwrap();
+        assert!(equal);
+    }
+
+    #[tokio::test]
+    async fn compare_files_not_equal1() {
+        let equal = compare_files(Path::new("src/main.rs"), Path::new("Cargo.toml")).await.unwrap();
+        assert!(!equal);
+    }
+
+    #[tokio::test]
+    async fn compare_files_not_equal2() {
+        let equal = compare_files(Path::new("Cargo.toml"), Path::new("src/main.rs")).await.unwrap();
+        assert!(!equal);
+    }
+
+    #[tokio::test]
+    async fn compare_large_files_equal() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a"), &[0u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("b"), &[0u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
+        assert!(equal);
+    }
+
+    #[tokio::test]
+    async fn compare_large_files_not_equal() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a"), &[0u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("b"), &[1u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
+        assert!(!equal);
+    }
 }
