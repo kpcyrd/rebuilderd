@@ -11,6 +11,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 
 pub struct Context<'a> {
     pub distro: &'a Distro,
@@ -47,6 +49,53 @@ fn path_to_string(path: &Path) -> Result<String> {
     Ok(s.to_string())
 }
 
+pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
+    let mut buf1 : &mut [u8] = &mut [0u8; 4096];
+    let mut buf2 : &mut [u8] = &mut [0u8; 4096];
+
+    info!("Comparing {:?} with {:?}", a, b);
+    let mut f1 = File::open(a).await
+        .with_context(|| anyhow!("Failed to open {:?}", a))?;
+    let mut f2 = File::open(b).await
+        .with_context(|| anyhow!("Failed to open {:?}", b))?;
+
+    let mut pos = 0;
+    loop {
+        // read up to 4k bytes from the first file
+        let n = f1.read_buf(&mut buf1).await?;
+
+        // check if the first file is end-of-file
+        if n == 0 {
+            debug!("First file is at end-of-file");
+
+            // check if other file is eof too
+            let n = f2.read_buf(&mut buf2).await?;
+            if n > 0 {
+                info!("Files are not identical, {:?} is longer", b);
+                return Ok(false);
+            } else {
+                return Ok(true);
+            }
+        }
+
+        // check the same chunk in the other file
+        f2.read_exact(&mut buf2[..n]).await?;
+        if buf1[..n] != buf2[..n] {
+            // get the exact position
+            // this can't panic because we've already checked the slices are not equal
+            let pos = pos + buf1[..n].iter().zip(
+                buf2[..n].iter()
+            ).position(|(a,b)|a != b).unwrap();
+            info!("Files {:?} and {:?} differ at position {}", a, b, pos);
+
+            return Ok(false);
+        }
+
+        // advance the number of bytes that are equal
+        pos += n;
+    }
+}
+
 pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
@@ -66,34 +115,33 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
 
     // rebuild
     let input_path = inputs_dir.join(&filename);
-    let (success, log) = verify(ctx, &out_dir, &input_path).await?;
+    let log = verify(ctx, &out_dir, &input_path).await?;
 
     // process result
-    if success {
-        info!("Rebuilder backend indicated a success rebuild!");
+    let output_path = out_dir.join(&filename);
+    if !output_path.exists() {
+        info!("Build failed, no output artifact found at {:?}", output_path);
+        Ok(Rebuild::new(BuildStatus::Bad, log))
+    } else if compare_files(&input_path, &output_path).await? {
+        info!("Files are identical, marking as GOOD");
         Ok(Rebuild::new(BuildStatus::Good, log))
     } else {
-        info!("Rebuilder backend exited with non-zero exit code");
+        info!("Build successful but artifacts differ");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
 
         // generate diffoscope diff if enabled
         if ctx.diffoscope.enabled {
-            let output = out_dir.join(filename);
-            if output.exists() {
-                let diff = diffoscope(&input_path, &output, &ctx.diffoscope)
-                    .await
-                    .context("Failed to run diffoscope")?;
-                res.diffoscope = Some(diff);
-            } else {
-                info!("Skipping diffoscope because rebuilder script did not produce output");
-            }
+            let diff = diffoscope(&input_path, &output_path, &ctx.diffoscope)
+                .await
+                .context("Failed to run diffoscope")?;
+            res.diffoscope = Some(diff);
         }
 
         Ok(res)
     }
 }
 
-async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<(bool, String)> {
+async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<String> {
     let bin = if let Some(script) = ctx.script_location {
         Cow::Borrowed(script)
     } else {
@@ -114,5 +162,7 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<
         passthrough: !ctx.build.silent,
         envs,
     };
-    proc::run(bin.as_ref(), &[input_path], opts).await
+    let (_success, log) = proc::run(bin.as_ref(), &[input_path], opts).await?;
+
+    Ok(log)
 }
