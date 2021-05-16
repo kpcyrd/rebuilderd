@@ -11,6 +11,7 @@ use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::select;
@@ -202,6 +203,9 @@ async fn main() -> Result<()> {
                 info!("Package verified successfully");
             } else {
                 error!("Package failed to verify");
+                if let Some(diffoscope) = res.diffoscope {
+                    io::stdout().write_all(diffoscope.as_bytes()).ok();
+                }
             }
         },
         SubCommand::Diffoscope(diffoscope) => {
