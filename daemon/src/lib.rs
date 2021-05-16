@@ -1,14 +1,17 @@
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
 
-use actix_web::{App, HttpServer, FromRequest};
 use actix_web::middleware::Logger;
+use actix_web::{App, HttpServer, FromRequest};
 use crate::config::Config;
 use crate::dashboard::DashboardState;
+use diesel::RunQueryDsl;
 use rebuilderd_common::api::{BuildReport, SuiteImport};
 use rebuilderd_common::errors::*;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+use std::thread;
+use std::time::Duration;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
 
@@ -39,6 +42,26 @@ pub async fn run_config(config: Config) -> Result<()> {
     let bind_addr = config.bind_addr.clone();
 
     let dashboard_cache = Arc::new(RwLock::new(DashboardState::new()));
+
+    {
+        let pool = pool.clone();
+        thread::spawn(move || {
+            let connection = pool.get().expect("Failed to get connection from pool");
+            loop {
+                let query = diesel::sql_query("delete from builds as b where not exists (select 1 from packages as p where p.build_id = b.id);");
+                info!("Deleting orphaned builds...");
+                match query.execute(&connection) {
+                    Ok(affected) => {
+                        info!("Deleted {} orphaned builds", affected);
+                    }
+                    Err(err) => {
+                        error!("Failed to delete orphaned builds: {:#}", err);
+                    }
+                }
+                thread::sleep(Duration::from_secs(24 * 3600));
+            }
+        });
+    }
 
     HttpServer::new(move || {
         App::new()
