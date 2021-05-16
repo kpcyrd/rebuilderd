@@ -12,8 +12,8 @@ Independent verification system of binary packages.
 - [Accessing a rebuilderd instance in your browser](#accessing-a-rebuilderd-instance-in-your-browser)
 - [Scripting access to a rebuilderd instance](#scripting-access-to-a-rebuilderd-instance)
 - [Running a rebuilderd instance yourself](#running-a-rebuilderd-instance-yourself)
-    - [Arch Linux](#arch-linux) (Supported)
-    - Debian (Planned)
+    - [Rebuilding Arch Linux](#rebuilding-arch-linux) (Supported)
+    - Rebuilding Debian (Planned)
 - [Development](#development)
     - [Dependencies](#dependencies)
 - [Funding](#funding)
@@ -95,7 +95,7 @@ setting one up. Having a few unreproducible packages is normal (even if it's
 slightly more than the official rebuilder), but having additional people
 confirm successful rebuilds is very helpful.
 
-## Arch Linux
+## Rebuilding Arch Linux
 
 Please see the setup instructions in the [Arch Linux Wiki](https://wiki.archlinux.org/index.php/Rebuilderd).
 
@@ -132,17 +132,17 @@ To inspect the queue run:
 cd tools; cargo run queue ls
 ```
 
-# Dependencies
+## Dependencies
 
 Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev
 
 # Funding
 
-Development is currently funded by:
+Rebuilderd development is currently funded by:
 
 - kpcyrd's savings account
 
-Please consider [supporting the project](https://github.com/sponsors/kpcyrd).
+Please consider [supporting the project on github sponsors](https://github.com/sponsors/kpcyrd).
 
 # License
 
