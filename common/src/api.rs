@@ -5,6 +5,7 @@ use crate::{Distro, PkgRelease, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
@@ -67,7 +68,7 @@ impl Client {
         self.signup_secret = Some(secret.into());
     }
 
-    pub fn get(&self, path: &'static str) -> RequestBuilder {
+    pub fn get(&self, path: Cow<'static,str>) -> RequestBuilder {
         let mut req = self.client.get(&format!("{}{}", self.endpoint, path));
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
@@ -81,7 +82,7 @@ impl Client {
         req
     }
 
-    pub fn post(&self, path: &'static str) -> RequestBuilder {
+    pub fn post(&self, path: Cow<'static, str>) -> RequestBuilder {
         let mut req = self.client.post(&format!("{}{}", self.endpoint, path));
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
@@ -96,7 +97,7 @@ impl Client {
     }
 
     pub async fn list_workers(&self) -> Result<Vec<Worker>> {
-        let workers = self.get("/api/v0/workers")
+        let workers = self.get(Cow::Borrowed("/api/v0/workers"))
             .send()
             .await?
             .error_for_status()?
@@ -107,7 +108,7 @@ impl Client {
     }
 
     pub async fn sync_suite(&self, import: &SuiteImport) -> Result<()> {
-        self.post("/api/v0/pkgs/sync")
+        self.post(Cow::Borrowed("/api/v0/pkgs/sync"))
             .json(import)
             .send()
             .await?
@@ -116,7 +117,7 @@ impl Client {
     }
 
     pub async fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
-        let pkgs = self.get("/api/v0/pkgs/list")
+        let pkgs = self.get(Cow::Borrowed("/api/v0/pkgs/list"))
             .query(list)
             .send()
             .await?
@@ -126,8 +127,42 @@ impl Client {
         Ok(pkgs)
     }
 
+    pub async fn match_one_pkg(&self, list: &ListPkgs) -> Result<PkgRelease> {
+        let pkgs = self.list_pkgs(list).await?;
+
+        if pkgs.len() > 1 {
+            bail!("Filter matched too many packages: {}", pkgs.len());
+        }
+
+        let pkg = pkgs.into_iter()
+            .next()
+            .context("Filter didn't match any packages on this rebuilder")?;
+
+        Ok(pkg)
+    }
+
+    pub async fn fetch_log(&self, id: i32) -> Result<Vec<u8>> {
+        let log = self.get(Cow::Owned(format!("/api/v0/builds/{}/log", id)))
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        Ok(log.to_vec())
+    }
+
+    pub async fn fetch_diffoscope(&self, id: i32) -> Result<Vec<u8>> {
+        let log = self.get(Cow::Owned(format!("/api/v0/builds/{}/diffoscope", id)))
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        Ok(log.to_vec())
+    }
+
     pub async fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
-        let pkgs = self.post("/api/v0/queue/list")
+        let pkgs = self.post(Cow::Borrowed("/api/v0/queue/list"))
             .json(list)
             .send()
             .await?
@@ -138,7 +173,7 @@ impl Client {
     }
 
     pub async fn push_queue(&self, push: &PushQueue) -> Result<()> {
-        self.post("/api/v0/queue/push")
+        self.post(Cow::Borrowed("/api/v0/queue/push"))
             .json(push)
             .send()
             .await?
@@ -149,7 +184,7 @@ impl Client {
     }
 
     pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
-        let assignment = self.post("/api/v0/queue/pop")
+        let assignment = self.post(Cow::Borrowed("/api/v0/queue/pop"))
             .json(query)
             .send()
             .await?
@@ -160,7 +195,7 @@ impl Client {
     }
 
     pub async fn drop_queue(&self, query: &DropQueueItem) -> Result<()> {
-        self.post("/api/v0/queue/drop")
+        self.post(Cow::Borrowed("/api/v0/queue/drop"))
             .json(query)
             .send()
             .await?
@@ -171,7 +206,7 @@ impl Client {
     }
 
     pub async fn requeue_pkgs(&self, requeue: &RequeueQuery) -> Result<()> {
-        self.post("/api/v0/pkg/requeue")
+        self.post(Cow::Borrowed("/api/v0/pkg/requeue"))
             .json(requeue)
             .send()
             .await?
@@ -182,7 +217,7 @@ impl Client {
     }
 
     pub async fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
-        self.post("/api/v0/build/ping")
+        self.post(Cow::Borrowed("/api/v0/build/ping"))
             .json(ticket)
             .send()
             .await?
@@ -191,7 +226,7 @@ impl Client {
     }
 
     pub async fn report_build(&self, ticket: &BuildReport) -> Result<()> {
-        self.post("/api/v0/build/report")
+        self.post(Cow::Borrowed("/api/v0/build/report"))
             .json(ticket)
             .send()
             .await?

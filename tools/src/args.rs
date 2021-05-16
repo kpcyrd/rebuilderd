@@ -49,6 +49,10 @@ pub enum Pkgs {
     SyncStdin(PkgsSyncStdin),
     /// Requeue a given package
     Requeue(PkgsRequeue),
+    /// Access the build log of the last rebuild
+    Log(PkgsLog),
+    /// Access the diffoscope of the last rebuild (if there is any)
+    Diffoscope(PkgsDiffoscope),
 }
 
 #[derive(Debug, StructOpt)]
@@ -86,44 +90,54 @@ pub struct PkgsSync {
 }
 
 #[derive(Debug, StructOpt)]
-pub struct PkgsList {
+pub struct PkgsFilter {
+    /// Filter packages matching this name
     #[structopt(long)]
     pub name: Option<String>,
+    /// Filter packages matching this status
     #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
     pub status: Option<Status>,
+    /// Filter packages matching this distro
     #[structopt(long)]
     pub distro: Option<String>,
+    /// Filter packages matching this suite
     #[structopt(long)]
     pub suite: Option<String>,
+    /// Filter packages matching this architecture
     #[structopt(long)]
     pub architecture: Option<String>,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsList {
+    #[structopt(flatten)]
+    pub filter: PkgsFilter,
     #[structopt(long)]
     pub json: bool,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsRequeue {
-    /// Requeue packages matching this name
-    #[structopt(long)]
-    pub name: Option<String>,
-    /// Requeue packages matching this status
-    #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
-    pub status: Option<Status>,
+    #[structopt(flatten)]
+    pub filter: PkgsFilter,
     /// Requeue with given priority
     #[structopt(long, default_value="0")]
     pub priority: i32,
-    /// Requeue packages matching this distro
-    #[structopt(long)]
-    pub distro: Option<String>,
-    /// Requeue packages matching this suite
-    #[structopt(long)]
-    pub suite: Option<String>,
-    /// Requeue packages matching this architecture
-    #[structopt(long)]
-    pub architecture: Option<String>,
     /// Reset the status back to UNKWN
     #[structopt(long)]
     pub reset: bool,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsLog {
+    #[structopt(flatten)]
+    pub filter: PkgsFilter,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsDiffoscope {
+    #[structopt(flatten)]
+    pub filter: PkgsFilter,
 }
 
 #[derive(Debug, StructOpt)]
