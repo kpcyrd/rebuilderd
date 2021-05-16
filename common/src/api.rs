@@ -127,8 +127,32 @@ impl Client {
         Ok(pkgs)
     }
 
+    pub async fn match_one_pkg(&self, list: &ListPkgs) -> Result<PkgRelease> {
+        let pkgs = self.list_pkgs(list).await?;
+
+        if pkgs.len() > 1 {
+            bail!("Filter matched too many packages: {}", pkgs.len());
+        }
+
+        let pkg = pkgs.into_iter()
+            .next()
+            .context("Filter didn't match any packages on this rebuilder")?;
+
+        Ok(pkg)
+    }
+
     pub async fn fetch_log(&self, id: i32) -> Result<Vec<u8>> {
         let log = self.get(Cow::Owned(format!("/api/v0/builds/{}/log", id)))
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        Ok(log.to_vec())
+    }
+
+    pub async fn fetch_diffoscope(&self, id: i32) -> Result<Vec<u8>> {
+        let log = self.get(Cow::Owned(format!("/api/v0/builds/{}/diffoscope", id)))
             .send()
             .await?
             .error_for_status()?

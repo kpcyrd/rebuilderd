@@ -190,27 +190,34 @@ async fn main() -> Result<()> {
             }).await?;
         },
         SubCommand::Pkgs(Pkgs::Log(args)) => {
-            let pkgs = client.list_pkgs(&ListPkgs {
+            let pkg = client.match_one_pkg(&ListPkgs {
                 name: args.filter.name,
                 status: args.filter.status,
                 distro: args.filter.distro,
                 suite: args.filter.suite,
                 architecture: args.filter.architecture,
-            }).await.context("Failed to fetch package list")?;
-
-            if pkgs.is_empty() {
-                bail!("Filter didn't match any packages on this rebuilder");
-            }
-            if pkgs.len() > 1 {
-                bail!("Filter matched more than one packages: {}", pkgs.len());
-            }
-            let pkg = &pkgs[0];
+            }).await.context("Failed to fetch package")?;
 
             let build_id = pkg.build_id
                 .context("Package has not been built yet")?;
 
             let log = client.fetch_log(build_id).await.context("Failed to fetch build log")?;
             io::stdout().write_all(&log).ok();
+        },
+        SubCommand::Pkgs(Pkgs::Diffoscope(args)) => {
+            let pkg = client.match_one_pkg(&ListPkgs {
+                name: args.filter.name,
+                status: args.filter.status,
+                distro: args.filter.distro,
+                suite: args.filter.suite,
+                architecture: args.filter.architecture,
+            }).await.context("Failed to fetch package")?;
+
+            let build_id = pkg.build_id
+                .context("Package has not been built yet")?;
+
+            let diffoscope = client.fetch_diffoscope(build_id).await.context("Failed to fetch diffoscope")?;
+            io::stdout().write_all(&diffoscope).ok();
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {
