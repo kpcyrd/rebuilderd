@@ -1,11 +1,12 @@
 use futures_util::StreamExt;
 use rebuilderd_common::errors::*;
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use url::Url;
 
-pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, String)> {
-    let url = url.parse::<Url>()
+pub async fn download(url_str: &str, path: &Path) -> Result<PathBuf> {
+    let url = url_str.parse::<Url>()
         .context("Failed to parse input as url")?;
 
     let filename = url.path_segments()
@@ -16,9 +17,9 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
         bail!("Filename is empty");
     }
 
-    let target = tmp.path().join(filename);
+    let target = path.join(filename);
 
-    info!("Downloading {:?} to {:?}", url, target);
+    info!("Downloading {:?} to {:?}", url_str, target);
     let client = reqwest::Client::new();
     let mut stream = client.get(&url.to_string())
         .send()
@@ -38,8 +39,5 @@ pub async fn download(url: &str, tmp: &tempfile::TempDir) -> Result<(String, Str
     }
     info!("Downloaded {} bytes", bytes);
 
-    let target = target.to_str()
-        .ok_or_else(|| format_err!("Input path contains invalid characters"))?;
-
-    Ok((target.to_string(), filename.to_string()))
+    Ok(PathBuf::from(filename))
 }

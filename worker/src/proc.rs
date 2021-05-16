@@ -1,8 +1,10 @@
 use futures_util::FutureExt;
-use nix::unistd::Pid;
 use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use rebuilderd_common::errors::*;
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::fmt;
 use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -106,7 +108,10 @@ impl Capture {
     }
 }
 
-pub async fn run(bin: &Path, args: &[&str], opts: Options) -> Result<(bool, String)> {
+pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, String)>
+    where I: IntoIterator<Item = S> + fmt::Debug,
+    S: AsRef<OsStr>,
+{
     info!("Running {:?} {:?}", bin, args);
     let mut child = Command::new(bin)
         .args(args)
