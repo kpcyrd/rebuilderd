@@ -139,11 +139,11 @@ async fn main() -> Result<()> {
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let pkgs = client.list_pkgs(&ListPkgs {
-                name: ls.name,
-                status: ls.status,
-                distro: ls.distro,
-                suite: ls.suite,
-                architecture: ls.architecture,
+                name: ls.filter.name,
+                status: ls.filter.status,
+                distro: ls.filter.distro,
+                suite: ls.filter.suite,
+                architecture: ls.filter.architecture,
             }).await?;
             if ls.json {
                 print_json(&pkgs)?;
@@ -180,14 +180,37 @@ async fn main() -> Result<()> {
         },
         SubCommand::Pkgs(Pkgs::Requeue(args)) => {
             client.with_auth_cookie()?.requeue_pkgs(&RequeueQuery {
-                name: args.name,
-                status: args.status,
+                name: args.filter.name,
+                status: args.filter.status,
                 priority: args.priority,
-                distro: args.distro,
-                suite: args.suite,
-                architecture: args.architecture,
+                distro: args.filter.distro,
+                suite: args.filter.suite,
+                architecture: args.filter.architecture,
                 reset: args.reset,
             }).await?;
+        },
+        SubCommand::Pkgs(Pkgs::Log(args)) => {
+            let pkgs = client.list_pkgs(&ListPkgs {
+                name: args.filter.name,
+                status: args.filter.status,
+                distro: args.filter.distro,
+                suite: args.filter.suite,
+                architecture: args.filter.architecture,
+            }).await.context("Failed to fetch package list")?;
+
+            if pkgs.is_empty() {
+                bail!("Filter didn't match any packages on this rebuilder");
+            }
+            if pkgs.len() > 1 {
+                bail!("Filter matched more than one packages: {}", pkgs.len());
+            }
+            let pkg = &pkgs[0];
+
+            let build_id = pkg.build_id
+                .context("Package has not been built yet")?;
+
+            let log = client.fetch_log(build_id).await.context("Failed to fetch build log")?;
+            io::stdout().write_all(&log).ok();
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {
