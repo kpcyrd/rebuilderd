@@ -9,6 +9,16 @@ Independent verification system of binary packages.
 
 ![rebuildctl pkgs ls example output](.github/assets/Vx35qrG.png)
 
+- [Accessing a rebuilderd instance in your browser](#accessing-a-rebuilderd-instance-in-your-browser)
+- [Scripting access to a rebuilderd instance](#scripting-access-to-a-rebuilderd-instance)
+- [Running a rebuilderd instance yourself](#running-a-rebuilderd-instance-yourself)
+    - [Arch Linux](#arch-linux) (Supported)
+    - Debian (Planned)
+- [Development](#development)
+    - [Dependencies](#dependencies)
+- [Funding](#funding)
+- [License](#license)
+
 rebuilderd monitors the package repository of a linux distribution and uses
 rebuilder backends like [archlinux-repro][1] to verify the provided binary
 packages can be reproduced from the given source code.
@@ -125,13 +135,6 @@ cd tools; cargo run queue ls
 # Dependencies
 
 Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev
-
-# Support
-
-| Distro     | Status       |
-| ---------- | ------------ |
-| Arch Linux | Experimental |
-| Debian     | Planned      |
 
 # Funding
 
