@@ -225,7 +225,7 @@ mod tests {
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
         assert!(duration > Duration::from_secs(1));
-        assert!(duration < Duration::from_secs(2));
+        assert!(duration < Duration::from_secs(5));
     }
 
     #[tokio::test]

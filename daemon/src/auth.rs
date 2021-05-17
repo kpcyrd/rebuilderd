@@ -6,7 +6,7 @@ use rand::distributions::Alphanumeric;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::env;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
@@ -83,8 +83,13 @@ pub fn setup_auth_cookie() -> Result<String> {
     } else if let Some(data_dir) = dirs_next::data_dir() {
         data_dir.join("rebuilderd-auth-cookie")
     } else {
-        PathBuf::from("auth-cookie")
+        PathBuf::from("./auth-cookie")
     };
+
+    if let Some(parent) = cookie_path.parent() {
+        debug!("Ensuring parent directory for auth cookie exists: {:?}", parent);
+        fs::create_dir_all(parent)?;
+    }
 
     debug!("Writing auth cookie to {:?}", cookie_path);
     let mut file = OpenOptions::new()
