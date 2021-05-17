@@ -1,4 +1,4 @@
 disable-tag = true
 no-dev-version = true
 consolidate-commits = true
-pre-release-commit-message = "Release 0.11.0"
+pre-release-commit-message = "Release 0.12.0"
