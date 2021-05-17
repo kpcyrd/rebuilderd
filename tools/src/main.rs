@@ -1,21 +1,22 @@
+use colored::*;
 use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
 use glob::Pattern;
-use serde::Serialize;
-use std::borrow::Cow;
-use std::io;
-use std::io::prelude::*;
-use structopt::StructOpt;
 use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
+use serde::Serialize;
+use std::borrow::Cow;
+use std::io::prelude::*;
+use std::io;
+use structopt::StructOpt;
 use tokio::io::AsyncReadExt;
-use colored::*;
 
 pub mod args;
 pub mod config;
+pub mod pager;
 pub mod schedule;
 
 fn patterns_from(patterns: &[String]) -> Result<Vec<Pattern>> {
@@ -202,7 +203,7 @@ async fn main() -> Result<()> {
                 .context("Package has not been built yet")?;
 
             let log = client.fetch_log(build_id).await.context("Failed to fetch build log")?;
-            io::stdout().write_all(&log).ok();
+            pager::write(&log)?;
         },
         SubCommand::Pkgs(Pkgs::Diffoscope(args)) => {
             let pkg = client.match_one_pkg(&ListPkgs {
@@ -217,7 +218,7 @@ async fn main() -> Result<()> {
                 .context("Package has not been built yet")?;
 
             let diffoscope = client.fetch_diffoscope(build_id).await.context("Failed to fetch diffoscope")?;
-            io::stdout().write_all(&diffoscope).ok();
+            pager::write(&diffoscope)?;
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {
