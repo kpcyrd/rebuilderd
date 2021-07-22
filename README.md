@@ -140,9 +140,9 @@ Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev
 
 Rebuilderd development is currently funded by:
 
-- kpcyrd's savings account
-
-Please consider [supporting the project on github sponsors](https://github.com/sponsors/kpcyrd).
+- ~~kpcyrd's savings account~~
+- Google and The Linux Foundation
+- People like you and me on [github sponsors](https://github.com/sponsors/kpcyrd)
 
 # License
 
