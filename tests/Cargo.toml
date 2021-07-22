@@ -10,7 +10,7 @@ publish = false
 [dependencies]
 actix-web = "3"
 colored = "2"
-env_logger = "0.8"
+env_logger = "0.9"
 futures = "0.3.8"
 rebuilderd = { version= "= 0.12.0", path="../daemon" }
 rebuilderd-common = { version= "= 0.12.0", path="../common" }

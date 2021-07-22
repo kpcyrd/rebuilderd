@@ -20,7 +20,7 @@ assets = [
 [dependencies]
 rebuilderd-common = { version= "= 0.12.0", path="../common" }
 structopt = "0.3"
-env_logger = "0.8"
+env_logger = "0.9"
 sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 base64 = "0.13"
 toml = "0.5.6"
@@ -31,4 +31,4 @@ url = "2.1.1"
 tokio = { version="1", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
 futures-util = "0.3.7"
 futures = "0.3.7"
-nix = "0.20"
+nix = "0.22"
