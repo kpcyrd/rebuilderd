@@ -19,6 +19,7 @@ table! {
         url -> Text,
         build_id -> Nullable<Integer>,
         built_at -> Nullable<Timestamp>,
+        has_diffoscope -> Bool,
         attestation -> Nullable<Text>,
         checksum -> Nullable<Text>,
         retries -> Integer,
