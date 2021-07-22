@@ -373,6 +373,8 @@ pub async fn report_build(
     let build = build.insert(&connection.as_ref())?;
     pkg.build_id = Some(build);
 
+    pkg.has_diffoscope = report.rebuild.diffoscope.is_some();
+
     if report.rebuild.status == BuildStatus::Good {
         pkg.next_retry = None;
     } else {
