@@ -115,7 +115,7 @@ cd worker; cargo run connect http://127.0.0.1:8484
 
 Afterwards it's time to import some packages:
 ```
-cd tools; cargo run pkgs sync archlinux community \
+cd tools; cargo run --release -- pkgs sync archlinux community \
     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
     --architecture x86_64 --maintainer kpcyrd
 ```
