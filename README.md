@@ -92,7 +92,7 @@ harder it is to compromise all of them.
 
 At the current stage of the project we're interested in every rebuilder there
 is! Most rebuilderd discussion currently happens in #archlinux-reprodubile on
-freenode, feel free to drop by if you're running a instance or considering
+libera, feel free to drop by if you're running a instance or considering
 setting one up. Having a few unreproducible packages is normal (even if it's
 slightly more than the official rebuilder), but having additional people
 confirm successful rebuilds is very helpful.
