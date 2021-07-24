@@ -138,15 +138,16 @@ pub fn expand_architectures(arch: &str) -> Result<Vec<String>> {
     }
 }
 
-pub fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let client = reqwest::blocking::Client::new();
+pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
+    let client = reqwest::Client::new();
 
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
     for release in &sync.releases {
         // source looks like: `http://deb.debian.org/debian`
         // should be transformed to eg: `http://deb.debian.org/debian/dists/sid/main/source/Sources.xz`
         let db_url = format!("{}/dists/{}/{}/source/Sources.xz", sync.source, release, sync.suite);
-        let bytes = fetch_url_or_path(&client, &db_url)?;
+        let bytes = fetch_url_or_path(&client, &db_url)
+            .await?;
 
         info!("Decompressing...");
         for pkg in extract_pkgs(&bytes)? {
