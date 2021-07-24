@@ -1,9 +1,11 @@
-# rebuilderd(1) [![crates.io][crates-img]][crates] [![irc.freenode.net.org:6697/#rebuilderd][irc-img]][irc]
+# rebuilderd(1) [![crates.io][crates-img]][crates] [![cncf slack][cncf-img]][cncf] [![irc.libera.chat:6697/#archlinux-reproducible][irc-img]][irc]
 
 [crates-img]:   https://img.shields.io/crates/v/rebuilderd.svg
 [crates]:       https://crates.io/crates/rebuilderd
-[irc-img]:      https://img.shields.io/badge/freenode-%23rebuilderd-blue.svg
-[irc]:          https://webchat.freenode.net/#rebuilderd
+[cncf-img]:     https://img.shields.io/badge/cncf-%23rebuilderd-blue.svg
+[cncf]:         https://cloud-native.slack.com/messages/rebuilderd/
+[irc-img]:      https://img.shields.io/badge/libera-%23archlinux--reproducible-blue.svg
+[irc]:          https://web.libera.chat/#archlinux-reproducible
 
 Independent verification system of binary packages.
 
