@@ -110,12 +110,12 @@ cd daemon; cargo run
 
 Run a rebuild worker:
 ```
-cd worker; cargo run connect http://127.0.0.1:8484
+cd worker; cargo run -- connect http://127.0.0.1:8484
 ```
 
 Afterwards it's time to import some packages:
 ```
-cd tools; cargo run --release -- pkgs sync archlinux community \
+cd tools; cargo run -- pkgs sync archlinux community \
     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
     --architecture x86_64 --maintainer kpcyrd
 ```
@@ -124,12 +124,12 @@ The `--maintainer` option is optional and allows you to rebuild packages by a sp
 
 To show the current status of our imported packages run:
 ```
-cd tools; cargo run pkgs ls
+cd tools; cargo run -- pkgs ls
 ```
 
 To inspect the queue run:
 ```
-cd tools; cargo run queue ls
+cd tools; cargo run -- queue ls
 ```
 
 ## Dependencies
