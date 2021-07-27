@@ -37,8 +37,8 @@ fn print_json<S: Serialize>(x: &S) -> Result<()> {
 
 pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let mut pkgs = match sync.distro {
-        Distro::Archlinux => schedule::archlinux::sync(&sync)?,
-        Distro::Debian => schedule::debian::sync(&sync)?,
+        Distro::Archlinux => schedule::archlinux::sync(&sync).await?,
+        Distro::Debian => schedule::debian::sync(&sync).await?,
     };
     pkgs.sort_by(|a, b| a.base.cmp(&b.base));
 
