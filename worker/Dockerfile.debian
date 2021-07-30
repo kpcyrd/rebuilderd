@@ -4,13 +4,12 @@ RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
 COPY . .
 RUN cd worker; cargo build --release
 
-FROM debian:buster
-RUN echo 'deb http://deb.debian.org/debian buster-backports main' > /etc/apt/sources.list.d/backports.list
-RUN apt-get update && apt-get install -y libssl-dev libsodium-dev devscripts/buster-backports sbuild
+FROM debian:bullseye
+RUN apt-get update && apt-get install -y libssl-dev libsodium-dev devscripts sbuild mmdebstrap
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-debian.sh \
     /usr/local/libexec/rebuilderd/
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd-worker \
     /usr/local/bin/
-CMD ["rebuilderd-worker"]
+ENTRYPOINT ["rebuilderd-worker"]
