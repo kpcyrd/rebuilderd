@@ -12,11 +12,11 @@ pub fn write(buf: &[u8]) -> Result<()> {
             .context("Failed to spawn pager")?;
 
         if let Some(mut stdin) = cmd.stdin.take() {
-            stdin.write_all(&buf).ok();
+            stdin.write_all(buf).ok();
         }
         cmd.wait()?;
     } else {
-        io::stdout().write_all(&buf).ok();
+        io::stdout().write_all(buf).ok();
     }
     Ok(())
 }

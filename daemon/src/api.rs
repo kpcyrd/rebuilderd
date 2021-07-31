@@ -38,7 +38,7 @@ pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
 }
 
 fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option<chrono::Duration> {
-    header(req, &http::header::IF_MODIFIED_SINCE.as_str()).ok()
+    header(req, http::header::IF_MODIFIED_SINCE.as_str()).ok()
         .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
         .map(|value| value.signed_duration_since(datetime))
 }
@@ -177,7 +177,7 @@ fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteC
     } else {
         let worker = models::NewWorker::new(key.to_string(), ip, None);
         worker.insert(connection)?;
-        get_worker_from_request(req, &cfg, connection)
+        get_worker_from_request(req, cfg, connection)
     }
 }
 
@@ -370,7 +370,7 @@ pub async fn report_build(
     let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
 
     let build = models::NewBuild::from_api(&report);
-    let build = build.insert(&connection.as_ref())?;
+    let build = build.insert(connection.as_ref())?;
     pkg.build_id = Some(build);
 
     pkg.has_diffoscope = report.rebuild.diffoscope.is_some();

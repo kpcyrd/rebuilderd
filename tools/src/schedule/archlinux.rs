@@ -135,17 +135,17 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
 
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
     for arch in &sync.architectures {
-        let db = mirror_to_url(&source, &sync.suite, &arch, &format!("{}.db", sync.suite))?;
+        let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
         let bytes = fetch_url_or_path(&client, &db)
             .await?;
 
         info!("Parsing index ({} bytes)...", bytes.len());
         for pkg in extract_pkgs(&bytes)? {
-            if !pkg.matches(&sync) {
+            if !pkg.matches(sync) {
                 continue;
             }
 
-            let url = mirror_to_url(&source, &sync.suite, &arch, &pkg.filename)?;
+            let url = mirror_to_url(source, &sync.suite, arch, &pkg.filename)?;
             let artifact = PkgArtifact {
                 name: pkg.name,
                 url,

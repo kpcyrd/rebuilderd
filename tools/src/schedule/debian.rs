@@ -151,7 +151,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
 
         info!("Decompressing...");
         for pkg in extract_pkgs(&bytes)? {
-            if !pkg.matches(&sync) {
+            if !pkg.matches(sync) {
                 continue;
             }
 
