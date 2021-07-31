@@ -79,7 +79,7 @@ impl DashboardState {
 
     pub fn get_response(&self) -> Result<&DashboardResponse> {
         if let Some(resp) =&self.response {
-            Ok(&resp)
+            Ok(resp)
         } else {
             bail!("No cached state")
         }

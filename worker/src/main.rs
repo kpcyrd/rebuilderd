@@ -73,7 +73,7 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
     let input = item.package.url.to_string();
 
     let ctx = Context {
-        distro: &distro,
+        distro,
         script_location: None,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
@@ -104,7 +104,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
         JobAssignment::Rebuild(rb) => {
             info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
             let distro = rb.package.distro.parse::<Distro>()?;
-            let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &rb, config).await {
+            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, &distro, &rb, config).await {
                 Ok(res) => {
                     if res.status == BuildStatus::Good {
                         info!("Package successfully verified");

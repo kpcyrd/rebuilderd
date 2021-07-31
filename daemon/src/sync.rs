@@ -81,7 +81,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
             trace!("existing package: {:?}", existing);
             if existing.base_id.is_none() {
                 debug!("fixing base_id on: {:?}", existing);
-                let pkgbases = models::PkgBase::get_by(&base, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?
+                let pkgbases = models::PkgBase::get_by(base, &pkg.distro, &pkg.suite, Some(&pkg.architecture), connection)?
                     .into_iter()
                     .filter(|b| b.version == pkg.version)
                     .collect::<Vec<_>>();
