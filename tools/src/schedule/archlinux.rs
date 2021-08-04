@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
+use crate::decompress;
 use crate::schedule::{Pkg, fetch_url_or_path};
-use flate2::read::GzDecoder;
 use nom::bytes::complete::take_till;
 use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
 use rebuilderd_common::errors::*;
@@ -82,7 +82,8 @@ impl TryInto<ArchPkg> for NewPkg {
 }
 
 pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
-    let tar = GzDecoder::new(bytes);
+    let comp = decompress::detect_compression(bytes);
+    let tar = decompress::stream(comp, bytes)?;
     let mut archive = Archive::new(tar);
 
     let mut pkgs = Vec::new();
