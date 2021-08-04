@@ -16,6 +16,7 @@ use tokio::io::AsyncReadExt;
 
 pub mod args;
 pub mod config;
+pub mod decompress;
 pub mod pager;
 pub mod schedule;
 
