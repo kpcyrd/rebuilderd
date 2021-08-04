@@ -1,3 +1,3 @@
 #!/bin/sh
 set -xe
-debrebuild --output="${REBUILDERD_OUTDIR}" --builder=mmdebstrap -- "${1}"
+debrebuild --buildresults="${REBUILDERD_OUTDIR}" --builder=mmdebstrap -- "${1}"
