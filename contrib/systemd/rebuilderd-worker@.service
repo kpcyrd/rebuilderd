@@ -2,10 +2,11 @@
 Description=rebuilderd-worker: rebuild packages
 
 [Service]
-ExecStart=/usr/bin/rebuilderd-worker -n %i connect
-
 Restart=always
 RestartSec=0
+ExecStart=/usr/bin/rebuilderd-worker -n %i connect
+CPUSchedulingPolicy=idle
+IOSchedulingClass=3
 
 [Install]
 WantedBy=multi-user.target
