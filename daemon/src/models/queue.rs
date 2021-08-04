@@ -14,6 +14,7 @@ pub struct Queued {
     pub id: i32,
     pub package_id: i32,
     pub version: String,
+    pub required_backend: String,
     pub priority: i32,
     pub queued_at: NaiveDateTime,
     pub worker_id: Option<i32>,
@@ -40,10 +41,18 @@ impl Queued {
         Ok(job)
     }
 
-    pub fn pop_next(my_worker_id: i32, connection: &SqliteConnection) -> Result<Option<QueueItem>> {
+    pub fn pop_next(my_worker_id: i32, supported_backends: &[String], connection: &SqliteConnection) -> Result<Option<QueueItem>> {
         use crate::schema::queue::dsl::*;
-        let item = queue
+        let mut query = queue
             .filter(worker_id.is_null())
+            .into_boxed();
+
+        if !supported_backends.is_empty() {
+            query = query
+                .filter(required_backend.eq_any(supported_backends));
+        }
+
+        let item = query
             .order_by((priority, queued_at, id))
             .first::<Queued>(connection)
             .optional()?;
@@ -101,9 +110,9 @@ impl Queued {
         Ok(())
     }
 
-    pub fn queue_batch(pkgs: &[(i32, String)], priority: i32, connection: &SqliteConnection) -> Result<()> {
+    pub fn queue_batch(pkgs: &[(i32, String)], required_backend: String, priority: i32, connection: &SqliteConnection) -> Result<()> {
         let pkgs = pkgs.iter()
-            .map(|(id, version)| NewQueued::new(*id, version.to_string(), priority))
+            .map(|(id, version)| NewQueued::new(*id, version.to_string(), required_backend.clone(), priority))
             .collect::<Vec<_>>();
 
         diesel::insert_into(queue::table)
@@ -169,16 +178,18 @@ impl Queued {
 pub struct NewQueued {
     pub package_id: i32,
     pub version: String,
+    pub required_backend: String,
     pub priority: i32,
     pub queued_at: NaiveDateTime,
 }
 
 impl NewQueued {
-    pub fn new(package_id: i32, version: String, priority: i32) -> NewQueued {
+    pub fn new(package_id: i32, version: String, required_backend: String, priority: i32) -> NewQueued {
         let now: DateTime<Utc> = Utc::now();
         NewQueued {
             package_id,
             version,
+            required_backend,
             priority,
             queued_at: now.naive_utc(),
         }

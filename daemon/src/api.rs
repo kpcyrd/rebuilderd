@@ -202,7 +202,7 @@ pub async fn push_queue(
         debug!("found pkg: {:?}", pkg);
         let version = query.version.as_ref().unwrap_or(&pkg.version);
 
-        let item = models::NewQueued::new(pkg.id, version.to_string(), query.priority);
+        let item = models::NewQueued::new(pkg.id, version.to_string(), query.distro.to_string(), query.priority);
         debug!("adding to queue: {:?}", item);
         item.insert(connection.as_ref())?;
     }
@@ -214,7 +214,7 @@ pub async fn push_queue(
 pub async fn pop_queue(
     req: HttpRequest,
     cfg: web::Data<Config>,
-    _query: web::Json<WorkQuery>,
+    query: web::Json<WorkQuery>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
@@ -226,7 +226,7 @@ pub async fn pop_queue(
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
 
     models::Queued::free_stale_jobs(connection.as_ref())?;
-    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, connection.as_ref())? {
+    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_ref())? {
 
 
         // TODO: claim item correctly
@@ -300,19 +300,19 @@ pub async fn requeue_pkg(
         }
 
         debug!("pkg is going to be requeued: {:?} {:?}", pkg.name, pkg.version);
-        pkgs.push((pkg.id, pkg.version));
+        pkgs.push(pkg);
     }
 
     // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
     // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
-    for (id, version) in &pkgs {
-        let q = models::NewQueued::new(*id, version.to_string(), query.priority);
+    for pkg in &pkgs {
+        let q = models::NewQueued::new(pkg.id, pkg.version.to_string(), pkg.distro.to_string(), query.priority);
         q.insert(connection.as_ref()).ok();
     }
 
     if query.reset {
         let reset = pkgs.into_iter()
-            .map(|x| x.0)
+            .map(|x| x.id)
             .collect::<Vec<_>>();
         models::Package::reset_status_for_requeued_list(&reset, connection.as_ref())?;
     }

@@ -1,6 +1,6 @@
 FROM archlinux
 WORKDIR /usr/src/rebuilderd
-RUN pacman -Suy --noconfirm gcc cargo openssl libsodium
+RUN pacman -Suy --noconfirm gcc pkgconf cargo openssl libsodium
 COPY . .
 RUN cd worker; cargo build --release
 
@@ -12,4 +12,4 @@ COPY --from=0 \
 COPY --from=0 \
     /usr/src/rebuilderd/target/release/rebuilderd-worker \
     /usr/local/bin/
-CMD ["rebuilderd-worker"]
+ENTRYPOINT ["rebuilderd-worker"]

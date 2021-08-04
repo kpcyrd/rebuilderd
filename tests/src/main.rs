@@ -137,7 +137,9 @@ async fn main() -> Result<()> {
     }).await?;
 
     test("Testing there is nothing to do", async {
-        let task = client.pop_queue(&WorkQuery {}).await?;
+        let task = client.pop_queue(&WorkQuery {
+            supported_backends: vec!["archlinux".to_string()],
+        }).await?;
 
         if task != JobAssignment::Nothing {
             bail!("Got a job assigned");
@@ -192,7 +194,9 @@ async fn main() -> Result<()> {
     }).await?;
 
     test("Fetching task and reporting BAD rebuild", async {
-        let task = client.pop_queue(&WorkQuery {}).await?;
+        let task = client.pop_queue(&WorkQuery {
+            supported_backends: vec!["archlinux".to_string()],
+        }).await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
@@ -269,7 +273,9 @@ async fn main() -> Result<()> {
     }).await?;
 
     test("Fetching task and reporting GOOD rebuild", async {
-        let task = client.pop_queue(&WorkQuery {}).await?;
+        let task = client.pop_queue(&WorkQuery {
+            supported_backends: vec!["archlinux".to_string()],
+        }).await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,

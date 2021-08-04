@@ -251,6 +251,7 @@ pub struct Worker {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorkQuery {
+    pub supported_backends: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
