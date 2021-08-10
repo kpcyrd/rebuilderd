@@ -109,7 +109,7 @@ pub async fn list_pkgs(
         let latest_built_at = SystemTime::from(latest_built_at);
         builder.set(http::header::LastModified(latest_built_at.into()));
     }
- 
+
     let mut pkgs = Vec::<PkgRelease>::new();
     for pkg in models::Package::list(connection.as_ref())? {
         if opt_filter(&pkg.name, query.name.as_deref()) {
@@ -374,6 +374,7 @@ pub async fn report_build(
     pkg.build_id = Some(build);
 
     pkg.has_diffoscope = report.rebuild.diffoscope.is_some();
+    pkg.has_attestation = report.rebuild.attestation.is_some();
 
     if report.rebuild.status == BuildStatus::Good {
         pkg.next_retry = None;
@@ -407,6 +408,30 @@ pub async fn get_build_log(
         .header("Content-Security-Policy", "default-src 'none'")
         .body(build.build_log);
     Ok(resp)
+}
+
+#[get("/api/v0/builds/{id}/attestation")]
+pub async fn get_attestation(
+    id: web::Path<i32>,
+    pool: web::Data<Pool>,
+) -> web::Result<impl Responder> {
+    let connection = pool.get().map_err(Error::from)?;
+
+    let build = match models::Build::get_id(*id, connection.as_ref()) {
+        Ok(build) => build,
+        Err(_) => return Ok(not_found()),
+    };
+
+    if let Some(attestation) = build.attestation {
+        let resp = HttpResponse::Ok()
+            .content_type("text/plain; charset=utf-8")
+            .header("X-Content-Type-Options", "nosniff")
+            .header("Content-Security-Policy", "default-src 'none'")
+            .body(attestation);
+        Ok(resp)
+    } else {
+        Ok(not_found())
+    }
 }
 
 #[get("/api/v0/builds/{id}/diffoscope")]

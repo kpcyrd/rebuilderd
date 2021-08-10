@@ -2,6 +2,7 @@ table! {
     builds (id) {
         id -> Integer,
         diffoscope -> Nullable<Text>,
+        attestation -> Nullable<Text>,
         build_log -> Binary,
     }
 }
@@ -20,7 +21,7 @@ table! {
         build_id -> Nullable<Integer>,
         built_at -> Nullable<Timestamp>,
         has_diffoscope -> Bool,
-        attestation -> Nullable<Text>,
+        has_attestation -> Bool,
         checksum -> Nullable<Text>,
         retries -> Integer,
         next_retry -> Nullable<Timestamp>,
