@@ -45,6 +45,7 @@ table! {
         id -> Integer,
         package_id -> Integer,
         version -> Text,
+        required_backend -> Text,
         priority -> Integer,
         queued_at -> Timestamp,
         worker_id -> Nullable<Integer>,

@@ -1,13 +1,16 @@
-FROM rust:alpine3.10
+# synax = docker/dockerfile:1.2
+FROM rust:alpine3.14
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /usr/src/rebuilderd
 RUN apk add --no-cache musl-dev openssl-dev pkgconfig libsodium-dev
 COPY . .
-RUN cd worker; cargo build --release
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/alpine/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/alpine/target/release/rebuilderd-worker /
 
-FROM alpine:3.10
+FROM alpine:3.14
 RUN apk add --no-cache libgcc openssl libsodium
-COPY --from=0 \
-    /usr/src/rebuilderd/target/release/rebuilderd-worker \
-    /usr/local/bin/
-CMD ["rebuilderd-worker"]
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENTRYPOINT ["rebuilderd-worker"]

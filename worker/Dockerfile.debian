@@ -1,15 +1,18 @@
-FROM rust:buster
+# synax = docker/dockerfile:1.2
+FROM rust:bullseye
 WORKDIR /usr/src/rebuilderd
 RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
 COPY . .
-RUN cd worker; cargo build --release
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/debian/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
 FROM debian:bullseye
 RUN apt-get update && apt-get install -y libssl-dev libsodium-dev devscripts sbuild mmdebstrap
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-debian.sh \
     /usr/local/libexec/rebuilderd/
-COPY --from=0 \
-    /usr/src/rebuilderd/target/release/rebuilderd-worker \
-    /usr/local/bin/
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
 ENTRYPOINT ["rebuilderd-worker"]

@@ -18,10 +18,10 @@ pub enum CompressedWith {
 }
 
 pub fn detect_compression(bytes: &[u8]) -> CompressedWith {
-    let mime = tree_magic::from_u8(bytes);
+    let mime = tree_magic_mini::from_u8(bytes);
     debug!("Detected mimetype for possibly compressed data: {:?}", mime);
 
-    match mime.as_str() {
+    match mime {
         "application/gzip" => CompressedWith::Gzip,
         "application/x-bzip" => CompressedWith::Bzip2,
         "application/x-xz" => CompressedWith::Xz,

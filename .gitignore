@@ -4,3 +4,4 @@ contrib/*.1
 /worker/rebuilder.key
 /worker/build/
 /worker/cache/
+/data/

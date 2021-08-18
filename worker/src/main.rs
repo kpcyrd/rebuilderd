@@ -96,7 +96,9 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
 
 async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
-    match client.pop_queue(&WorkQuery {}).await? {
+    match client.pop_queue(&WorkQuery {
+        supported_backends: config.supported_backends.clone(),
+    }).await? {
         JobAssignment::Nothing => {
             info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
@@ -161,7 +163,9 @@ async fn main() -> Result<()> {
         .context("Failed to load config file")?;
 
     let cookie = find_auth_cookie().ok();
-    debug!("attempt to load auth cookie resulted in: {:?}",cookie);
+    if cookie.is_some() {
+        debug!("Successfully loaded auth cookie");
+    }
 
     if let Some(name) = args.name {
         setup::run(&name)

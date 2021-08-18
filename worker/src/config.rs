@@ -9,6 +9,8 @@ pub struct ConfigFile {
     pub signup_secret: Option<String>,
     // this option is deprecated, use diffoscope.enabled instead
     #[serde(default)]
+    pub supported_backends: Vec<String>,
+    #[serde(default)]
     pub gen_diffoscope: bool,
     #[serde(default)]
     pub build: Build,

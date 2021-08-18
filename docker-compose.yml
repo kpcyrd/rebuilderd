@@ -5,23 +5,49 @@ services:
     build: .
     ports:
     - 127.0.0.1:8484:8484
+    init: true
+    command: ['rebuilderd', '-v']
+    environment:
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    - RUST_LOG=debug
+    volumes:
+       - ./data:/secret
   worker-alpine:
     build:
       context: .
       dockerfile: worker/Dockerfile.alpine
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
     environment:
-    - REBUILDER_ADDR=http://daemon:8484
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+       - ./data:/secret
   worker-archlinux:
     build:
       context: .
       dockerfile: worker/Dockerfile.archlinux
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
     environment:
-    - REBUILDER_ADDR=http://daemon:8484
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+       - ./data:/secret
   worker-debian:
     build:
       context: .
       dockerfile: worker/Dockerfile.debian
+    # TODO: drop this after the next mmdebstrap release (currently 0.7.5)
     cap_add:
     - SYS_ADMIN
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
     environment:
-    - REBUILDER_ADDR=http://daemon:8484
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+       - ./data:/secret
