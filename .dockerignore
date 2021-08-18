@@ -8,3 +8,4 @@ worker/build
 worker/cache
 daemon/rebuilderd.db*
 contrib
+/data

@@ -163,7 +163,9 @@ async fn main() -> Result<()> {
         .context("Failed to load config file")?;
 
     let cookie = find_auth_cookie().ok();
-    debug!("attempt to load auth cookie resulted in: {:?}",cookie);
+    if cookie.is_some() {
+        debug!("Successfully loaded auth cookie");
+    }
 
     if let Some(name) = args.name {
         setup::run(&name)

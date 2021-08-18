@@ -101,6 +101,50 @@ confirm successful rebuilds is very helpful.
 
 Please see the setup instructions in the [Arch Linux Wiki](https://wiki.archlinux.org/index.php/Rebuilderd).
 
+# Development with docker
+
+There is a docker-compose setup in the repo, to start a basic stack simply
+clone the repository and run:
+
+```sh
+DOCKER_BUILDKIT=1 docker-compose up
+```
+
+The initial build is going to take some time.
+
+To recompile your changes (you can optionally specify a specific image to build):
+
+```sh
+DOCKER_BUILDKIT=1 docker-compose build
+```
+
+To connect to your local instance, use this command to compile and run the `rebuildctl` binary.
+
+```sh
+REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- -v status
+```
+
+Sync a package index that should be rebuilt (takes a bit):
+
+```sh
+REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- pkgs sync archlinux community \
+     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
+    --architecture x86_64 --maintainer kpcyrd
+```
+
+Display the build queue to test it's working:
+
+```sh
+REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- queue ls --head
+```
+
+Monitor the logs of your workers with those two commands:
+
+```sh
+REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- status
+REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- pkgs ls
+```
+
 # Development
 
 A rebuilder consists of the `rebuilderd` daemon and >= 1 workers:
