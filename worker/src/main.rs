@@ -70,7 +70,7 @@ struct Diffoscope {
     pub b: PathBuf,
 }
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &'a PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &'_ PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
     let input = item.package.url.to_string();
 
     let ctx = Context {
@@ -108,7 +108,7 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
         JobAssignment::Rebuild(rb) => {
             info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
             let distro = rb.package.distro.parse::<Distro>()?;
-            let rebuild = match spawn_rebuilder_script_with_heartbeat(&client, &distro, &privkey, &rb, config).await {
+            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, &distro, privkey, &rb, config).await {
                 Ok(res) => {
                     if res.status == BuildStatus::Good {
                         info!("Package successfully verified");

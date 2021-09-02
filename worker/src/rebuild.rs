@@ -138,8 +138,8 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     let signed_link = in_toto_run(
         &format!("rebuild {}", filename.to_str().unwrap()),
         None,
-        &[input_path.to_str().unwrap()],
-        &[output_path.to_str().unwrap()],
+        &[input_path.to_str().unwrap_or_else(|| "")],
+        &[output_path.to_str().unwrap_or_else(|| "")],
         &[],
         Some(ctx.privkey),
         Some(&["sha512", "sha256"]),
