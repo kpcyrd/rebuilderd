@@ -40,6 +40,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let mut pkgs = match sync.distro {
         Distro::Archlinux => schedule::archlinux::sync(&sync).await?,
         Distro::Debian => schedule::debian::sync(&sync).await?,
+        Distro::Tails => schedule::tails::sync(&sync).await?,
     };
     pkgs.sort_by(|a, b| a.base.cmp(&b.base));
 

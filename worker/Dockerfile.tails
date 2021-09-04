@@ -1,0 +1,19 @@
+# synax = docker/dockerfile:1.2
+FROM rust:bullseye
+WORKDIR /usr/src/rebuilderd
+RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
+COPY . .
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/debian/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
+
+FROM debian:bullseye
+RUN apt-get update && apt-get install -y libssl1.1 libsodium23 dpkg-dev sudo \
+    psmisc git rake libvirt-daemon-system dnsmasq-base ebtables faketime pigz qemu-system-x86 qemu-utils vagrant vagrant-libvirt vmdb2
+COPY --from=0 \
+    /usr/src/rebuilderd/worker/rebuilder-tails.sh \
+    /usr/local/libexec/rebuilderd/
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENTRYPOINT ["rebuilderd-worker"]

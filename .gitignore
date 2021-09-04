@@ -5,3 +5,4 @@ contrib/*.1
 /worker/build/
 /worker/cache/
 /data/
+*.sw[op]

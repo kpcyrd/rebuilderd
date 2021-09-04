@@ -33,6 +33,7 @@ fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<Pa
     let bin = match distro {
         Distro::Archlinux => "rebuilder-archlinux.sh",
         Distro::Debian => "rebuilder-debian.sh",
+        Distro::Tails => "rebuilder-tails.sh",
     };
 
     for prefix in &[".", "/usr/libexec/rebuilderd", "/usr/local/libexec/rebuilderd"] {
