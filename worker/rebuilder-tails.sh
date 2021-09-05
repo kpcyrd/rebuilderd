@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eux
 IMG_PATH="$1"
-TAG=$(basename "$IMG_PATH" | sed -nr 's/tails-amd64-([0-9\.]+)\.[^\]+/\1/p')
+TAG=$(basename "$IMG_PATH" | sed -nr 's/tails-amd64-([0-9a-z~\.]+)\.[^\]+/\1/p' | sed 's/~/-/g')
 REPO_URL='https://gitlab.tails.boum.org/tails/tails.git'
 
 export TAILS_BUILD_OPTIONS="nomergebasebranch forcecleanup"

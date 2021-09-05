@@ -25,7 +25,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
 
     info!("Detecting tails versions");
 
-    let re = Regex::new(r"tails-amd64-([0-9\.]+)/").unwrap();
+    let re = Regex::new(r"tails-amd64-([0-9a-z~\.]+)/").unwrap();
     let cap = re.captures_iter(&directory_list).next()
         .ok_or_else(|| anyhow!("Regular expression didn't match any versions"))?;
     let version = &cap[1];
