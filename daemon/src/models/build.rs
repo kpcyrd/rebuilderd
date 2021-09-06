@@ -9,8 +9,8 @@ use rebuilderd_common::errors::*;
 pub struct Build {
     pub id: i32,
     pub diffoscope: Option<String>,
-    pub attestation: Option<String>,
     pub build_log: Vec<u8>,
+    pub attestation: Option<String>,
 }
 
 impl Build {
@@ -27,8 +27,8 @@ impl Build {
 #[table_name="builds"]
 pub struct NewBuild {
     pub diffoscope: Option<String>,
-    pub attestation: Option<String>,
     pub build_log: Vec<u8>,
+    pub attestation: Option<String>,
 }
 
 impl NewBuild {
