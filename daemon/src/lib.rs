@@ -79,6 +79,7 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::ping_build)
             .service(api::get_build_log)
             .service(api::get_diffoscope)
+            .service(api::get_attestation)
             .service(api::get_dashboard)
             .service(
                 web::resource("/api/v0/build/report").app_data(

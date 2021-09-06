@@ -2,10 +2,12 @@ use crate::config;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
 use crate::proc;
-use rebuilderd_common::Distro;
-use rebuilderd_common::api::{Rebuild, BuildStatus};
+use in_toto::crypto::PrivateKey;
+use in_toto::runlib::in_toto_run;
+use rebuilderd_common::api::{BuildStatus, Rebuild};
+use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::errors::{Context as _};
+use rebuilderd_common::Distro;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
@@ -20,6 +22,7 @@ pub struct Context<'a> {
     pub script_location: Option<&'a PathBuf>,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
+    pub privkey: &'a PrivateKey,
 }
 
 fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
@@ -128,12 +131,33 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
 
     // process result
     let output_path = out_dir.join(&filename);
+
+    info!("Generating signed link");
+
+
+    let signed_link = in_toto_run(
+        &format!("rebuild {}", filename.to_str().unwrap()),
+        None,
+        &[input_path.to_str().unwrap_or_else(|| "")],
+        &[output_path.to_str().unwrap_or_else(|| "")],
+        &[],
+        Some(ctx.privkey),
+        Some(&["sha512", "sha256"]),
+    )?;
+
+    info!("Signed link generated");
+
     if !output_path.exists() {
         info!("Build failed, no output artifact found at {:?}", output_path);
         Ok(Rebuild::new(BuildStatus::Bad, log))
     } else if compare_files(&input_path, &output_path).await? {
         info!("Files are identical, marking as GOOD");
-        Ok(Rebuild::new(BuildStatus::Good, log))
+        let mut res = Rebuild::new(BuildStatus::Good, log);
+
+        let attestation = serde_json::to_string(&signed_link).context("Failed to serialize attestation")?;
+        res.attestation = Some(attestation);
+
+        Ok(res)
     } else {
         info!("Build successful but artifacts differ");
         let mut res = Rebuild::new(BuildStatus::Bad, log);
@@ -155,7 +179,8 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<
         Cow::Borrowed(script)
     } else {
         let script = locate_script(ctx.distro, None)
-            .with_context(|| anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro))?;
+            .with_context(|| {anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro)
+        })?;
         Cow::Owned(script)
     };
 

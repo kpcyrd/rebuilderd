@@ -9,6 +9,7 @@ use rebuilderd_common::errors::*;
 pub struct Build {
     pub id: i32,
     pub diffoscope: Option<String>,
+    pub attestation: Option<String>,
     pub build_log: Vec<u8>,
 }
 
@@ -26,6 +27,7 @@ impl Build {
 #[table_name="builds"]
 pub struct NewBuild {
     pub diffoscope: Option<String>,
+    pub attestation: Option<String>,
     pub build_log: Vec<u8>,
 }
 
@@ -52,6 +54,7 @@ impl NewBuild {
     pub fn from_api(report: &BuildReport) -> NewBuild {
         NewBuild {
             diffoscope: report.rebuild.diffoscope.clone(),
+            attestation: report.rebuild.attestation.clone(),
             build_log: report.rebuild.log.as_bytes().to_vec(),
         }
     }

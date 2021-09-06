@@ -2,6 +2,7 @@
 
 use crate::rebuild::Context;
 use env_logger::Env;
+use in_toto::crypto::PrivateKey;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
 use rebuilderd_common::Distro;
@@ -69,7 +70,7 @@ struct Diffoscope {
     pub b: PathBuf,
 }
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &'_ PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
     let input = item.package.url.to_string();
 
     let ctx = Context {
@@ -77,6 +78,7 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
         script_location: None,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
+        privkey,
     };
 
     let mut rebuild = Box::pin(rebuild::rebuild(&ctx, &input));
@@ -94,7 +96,7 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
     }
 }
 
-async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
+async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
     match client.pop_queue(&WorkQuery {
         supported_backends: config.supported_backends.clone(),
@@ -106,7 +108,7 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
         JobAssignment::Rebuild(rb) => {
             info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
             let distro = rb.package.distro.parse::<Distro>()?;
-            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, &distro, &rb, config).await {
+            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, &distro, privkey, &rb, config).await {
                 Ok(res) => {
                     if res.status == BuildStatus::Good {
                         info!("Package successfully verified");
@@ -133,9 +135,9 @@ async fn rebuild(client: &Client, config: &config::ConfigFile) -> Result<()> {
     Ok(())
 }
 
-async fn run_worker_loop(client: &Client, config: &config::ConfigFile) -> Result<()> {
+async fn run_worker_loop(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     loop {
-        if let Err(err) = rebuild(client, config).await {
+        if let Err(err) = rebuild(client, privkey, config).await {
             error!("Unexpected error, sleeping for {}s: {:#}", API_ERROR_DELAY, err);
             time::sleep(Duration::from_secs(API_ERROR_DELAY)).await;
         }
@@ -171,6 +173,7 @@ async fn main() -> Result<()> {
         setup::run(&name)
             .context("Failed to setup worker")?;
     }
+    let profile = auth::load()?;
 
     match args.subcommand {
         SubCommand::Connect(connect) => {
@@ -183,9 +186,8 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| format_err!("No endpoint configured"))?
             };
 
-            let profile = auth::load()?;
             let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie);
-            run_worker_loop(&client, &config).await?;
+            run_worker_loop(&client, &profile.privkey, &config).await?;
         },
         SubCommand::Build(build) => {
             // this is only really for debugging
@@ -199,6 +201,7 @@ async fn main() -> Result<()> {
                 script_location: build.script_location.as_ref(),
                 build: config::Build::default(),
                 diffoscope,
+                privkey: &profile.privkey,
             }, &build.input).await?;
 
             debug!("rebuild result object is {:?}", res);

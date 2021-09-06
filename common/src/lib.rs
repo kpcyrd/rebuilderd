@@ -33,7 +33,7 @@ pub struct PkgRelease {
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
-    pub attestation: Option<String>,
+    pub has_attestation: bool,
     pub next_retry: Option<NaiveDateTime>,
 }
 
@@ -50,7 +50,7 @@ impl PkgRelease {
             build_id: None,
             built_at: None,
             has_diffoscope: false,
-            attestation: None,
+            has_attestation: false,
             next_retry: None,
         }
     }

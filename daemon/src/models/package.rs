@@ -21,7 +21,7 @@ pub struct Package {
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
-    pub attestation: Option<String>,
+    pub has_attestation: bool,
     pub checksum: Option<String>,
     pub retries: i32,
     pub next_retry: Option<NaiveDateTime>,
@@ -134,7 +134,7 @@ impl Package {
             _ => Status::Bad.to_string(),
         };
         self.built_at = Some(Utc::now().naive_utc());
-
+        self.has_attestation = rebuild.attestation.is_some();
         diesel::update(packages::table
                 .filter(id.eq(self.id))
                 .filter(version.eq(&self.version))
@@ -184,7 +184,7 @@ impl Package {
             build_id: self.build_id,
             built_at: self.built_at,
             has_diffoscope: self.has_diffoscope,
-            attestation: self.attestation,
+            has_attestation: self.has_attestation,
             next_retry: self.next_retry,
         })
     }
@@ -204,7 +204,7 @@ pub struct NewPackage {
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
-    pub attestation: Option<String>,
+    pub has_attestation: bool,
     pub checksum: Option<String>,
     pub retries: i32,
     pub next_retry: Option<NaiveDateTime>,
@@ -238,7 +238,7 @@ impl NewPackage {
             build_id: None,
             built_at: None,
             has_diffoscope: false,
-            attestation: None,
+            has_attestation: false,
             checksum: None,
             retries: 0,
             next_retry: None,

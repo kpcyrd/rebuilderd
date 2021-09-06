@@ -135,6 +135,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let client = reqwest::Client::new();
 
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
+
     for arch in &sync.architectures {
         let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
         let bytes = fetch_url_or_path(&client, &db)
