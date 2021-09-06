@@ -6,6 +6,7 @@ use std::fs;
 use std::path::Path;
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
+use std::io::ErrorKind;
 use std::io::prelude::*;
 
 pub struct Profile {
@@ -28,7 +29,13 @@ impl Profile {
 
 #[inline]
 pub fn load() -> Result<Profile> {
-    load_key("rebuilder.key")
+    match fs::remove_file("rebuilder.key") {
+        Ok(_) => info!("Deleted old v1 worker key"),
+        Err(err) if err.kind() == ErrorKind::NotFound => (),
+        Err(err) => warn!("Failed to delete old v1 worker key: {:#}", err),
+    }
+
+    load_key("rebuilder.v2.key")
 }
 
 fn load_key<P: AsRef<Path>>(path: P) -> Result<Profile> {
