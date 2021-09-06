@@ -53,6 +53,8 @@ pub enum Pkgs {
     Log(PkgsLog),
     /// Access the diffoscope of the last rebuild (if there is any)
     Diffoscope(PkgsDiffoscope),
+    /// Access the attestation of the last rebuild (if there is any)
+    Attestation(PkgsAttestation),
 }
 
 #[derive(Debug, StructOpt)]
@@ -136,6 +138,12 @@ pub struct PkgsLog {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsDiffoscope {
+    #[structopt(flatten)]
+    pub filter: PkgsFilter,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct PkgsAttestation {
     #[structopt(flatten)]
     pub filter: PkgsFilter,
 }

@@ -161,6 +161,16 @@ impl Client {
         Ok(log.to_vec())
     }
 
+    pub async fn fetch_attestation(&self, id: i32) -> Result<Vec<u8>> {
+        let attestation = self.get(Cow::Owned(format!("/api/v0/builds/{}/attestation", id)))
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        Ok(attestation.to_vec())
+    }
+
     pub async fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
         let pkgs = self.post(Cow::Borrowed("/api/v0/queue/list"))
             .json(list)
