@@ -70,7 +70,7 @@ struct Diffoscope {
     pub b: PathBuf,
 }
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &'_ PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
     let input = item.package.url.to_string();
 
     let ctx = Context {

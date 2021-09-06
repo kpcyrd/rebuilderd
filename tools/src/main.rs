@@ -63,6 +63,21 @@ pub async fn sync_import(client: &Client, sync: &SuiteImport) -> Result<()> {
     Ok(())
 }
 
+async fn fetch_build_id_by_filter(client: &Client, filter: PkgsFilter) -> Result<i32> {
+    let pkg = client.match_one_pkg(&ListPkgs {
+        name: filter.name,
+        status: filter.status,
+        distro: filter.distro,
+        suite: filter.suite,
+        architecture: filter.architecture,
+    }).await.context("Failed to fetch package")?;
+
+    let build_id = pkg.build_id
+        .context("Package has not been built yet")?;
+
+    Ok(build_id)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::from_args();
@@ -192,34 +207,20 @@ async fn main() -> Result<()> {
             }).await?;
         },
         SubCommand::Pkgs(Pkgs::Log(args)) => {
-            let pkg = client.match_one_pkg(&ListPkgs {
-                name: args.filter.name,
-                status: args.filter.status,
-                distro: args.filter.distro,
-                suite: args.filter.suite,
-                architecture: args.filter.architecture,
-            }).await.context("Failed to fetch package")?;
-
-            let build_id = pkg.build_id
-                .context("Package has not been built yet")?;
-
+            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
             let log = client.fetch_log(build_id).await.context("Failed to fetch build log")?;
             pager::write(&log)?;
         },
         SubCommand::Pkgs(Pkgs::Diffoscope(args)) => {
-            let pkg = client.match_one_pkg(&ListPkgs {
-                name: args.filter.name,
-                status: args.filter.status,
-                distro: args.filter.distro,
-                suite: args.filter.suite,
-                architecture: args.filter.architecture,
-            }).await.context("Failed to fetch package")?;
-
-            let build_id = pkg.build_id
-                .context("Package has not been built yet")?;
-
+            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
             let diffoscope = client.fetch_diffoscope(build_id).await.context("Failed to fetch diffoscope")?;
             pager::write(&diffoscope)?;
+        },
+        SubCommand::Pkgs(Pkgs::Attestation(args)) => {
+            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
+            let mut attestation = client.fetch_attestation(build_id).await.context("Failed to fetch attestation")?;
+            attestation.push(b'\n');
+            io::stdout().write_all(&attestation)?;
         },
         SubCommand::Queue(Queue::Ls(ls)) => {
             let limit = if ls.head {

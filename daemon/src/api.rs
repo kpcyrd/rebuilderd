@@ -424,7 +424,7 @@ pub async fn get_attestation(
 
     if let Some(attestation) = build.attestation {
         let resp = HttpResponse::Ok()
-            .content_type("text/plain; charset=utf-8")
+            .content_type("application/json; charset=utf-8")
             .header("X-Content-Type-Options", "nosniff")
             .header("Content-Security-Policy", "default-src 'none'")
             .body(attestation);

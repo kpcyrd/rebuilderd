@@ -2,8 +2,8 @@ table! {
     builds (id) {
         id -> Integer,
         diffoscope -> Nullable<Text>,
-        attestation -> Nullable<Text>,
         build_log -> Binary,
+        attestation -> Nullable<Text>,
     }
 }
 
