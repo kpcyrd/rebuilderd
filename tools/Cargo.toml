@@ -36,7 +36,7 @@ atty = "0.2.14"
 tree_magic_mini = "3"
 bzip2 = "0.4.3"
 xz = "0.1.0"
-zstd = "0.9.0"
+zstd = { version = "0.9.0", features = ["pkg-config"] }
 
 [dev-dependencies]
 base64 = "0.13.0"

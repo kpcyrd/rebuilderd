@@ -180,7 +180,7 @@ cd tools; cargo run -- queue ls
 
 ## Dependencies
 
-Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev
+Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev libzstd-dev
 
 # Funding
 
