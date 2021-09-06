@@ -15,7 +15,7 @@ jobs:
     - name: Install dependencies
       run: sudo apt-get install libsodium-dev libsqlite3-dev
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --locked
     - name: Run tests
       run: cargo test --verbose
     - name: Run integration tests
