@@ -132,27 +132,24 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
     // process result
     let output_path = out_dir.join(&filename);
 
-    info!("Generating signed link");
-
-
-    let signed_link = in_toto_run(
-        &format!("rebuild {}", filename.to_str().unwrap()),
-        None,
-        &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
-        &[output_path.to_str().ok_or_else(|| anyhow!("Output path contains invalid characters"))?],
-        &[],
-        Some(ctx.privkey),
-        Some(&["sha512", "sha256"]),
-    )?;
-
-    info!("Signed link generated");
-
     if !output_path.exists() {
         info!("Build failed, no output artifact found at {:?}", output_path);
         Ok(Rebuild::new(BuildStatus::Bad, log))
     } else if compare_files(&input_path, &output_path).await? {
         info!("Files are identical, marking as GOOD");
         let mut res = Rebuild::new(BuildStatus::Good, log);
+
+        info!("Generating signed link");
+        let signed_link = in_toto_run(
+            &format!("rebuild {}", filename.to_str().unwrap()),
+            None,
+            &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
+            &[output_path.to_str().ok_or_else(|| anyhow!("Output path contains invalid characters"))?],
+            &[],
+            Some(ctx.privkey),
+            Some(&["sha512", "sha256"]),
+        ).context("Failed to generate in-toto attestation")?;
+        info!("Signed link generated");
 
         let attestation = serde_json::to_string(&signed_link).context("Failed to serialize attestation")?;
         res.attestation = Some(attestation);
