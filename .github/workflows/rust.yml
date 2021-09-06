@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install dependencies
-      run: sudo apt-get install libsodium-dev libsqlite3-dev
+      run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
     - name: Build
       run: cargo build --verbose --locked
     - name: Run tests
@@ -33,7 +33,7 @@ jobs:
         override: true
         components: clippy
     - name: Install dependencies
-      run: sudo apt-get install libsodium-dev libsqlite3-dev
+      run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
     - uses: actions-rs/cargo@v1
       with:
         command: clippy
