@@ -30,27 +30,24 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
     let worker_key = worker_key
         .context("Failed to get worker key")?;
 
-    if !cfg.worker.authorized_workers.is_empty() || cfg.worker.signup_secret.is_some() {
+    if !cfg.worker.authorized_workers.is_empty() {
         // TODO: we do not challenge the worker keys yet
         // Vec<String>::contains() is inefficient with &str
-        if cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
-            debug!("worker authenticated by allow-listed key");
+        if !cfg.worker.authorized_workers.iter().any(|x| x == worker_key) {
+            bail!("Worker key is not on allow-list");
+        }
+    }
+
+    if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
+        let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
+            .context("Failed to get worker key")?;
+
+        if signup_secret == expected_signup_secret {
+            debug!("worker authenticated with signup secret");
             return Ok(());
+        } else {
+            bail!("Signup secret mismatched");
         }
-
-        if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
-            let signup_secret = api::header(req, SIGNUP_SECRET_HEADER)
-                .context("Failed to get worker key")?;
-
-            if signup_secret == expected_signup_secret {
-                debug!("worker authenticated with signup secret");
-                return Ok(());
-            } else {
-                debug!("Signup secret mismatched");
-            }
-        }
-
-        debug!("Expected to match either authorized worker or signup secret but both failed");
     } else {
         let auth_cookie = api::header(req, AUTH_COOKIE_HEADER)
             .context("Failed to get auth cookie")?;
@@ -58,11 +55,9 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
         if cfg.auth_cookie == auth_cookie {
             return Ok(());
         } else {
-            debug!("Falling back to auth cookie authentication, but didn't match");
+            bail!("Fell back to auth cookie authentication, but didn't match");
         }
     }
-
-    bail!("All authentication methods failed")
 }
 
 pub fn setup_auth_cookie() -> Result<String> {
