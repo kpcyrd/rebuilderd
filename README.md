@@ -171,19 +171,54 @@ REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- pkgs ls
 
 # Development
 
+If you want to build from source or you want to run rebuilderd built from a
+specific commit this section contains instructions for that.
+
 A rebuilder consists of the `rebuilderd` daemon and >= 1 workers:
 
-Run rebuilderd:
+First we switch into the `daemon/` folder and run our rebuilderd daemon:
 ```
 cd daemon; cargo run
 ```
 
-Run a rebuild worker:
+This takes a moment but the api should now be available at
+`https://127.0.0.1:8484/api/v0/dashboard`.
+
+This daemon needs to run in the background, so we're starting a new terminal to
+continue with the next steps.
+
+Next we're going to build the `rebuilctl binary` and confirm it's able to
+connect to the api. If we don't get an error message this means it's working.
+
+```
+cd tools; cargo run -- status
+```
+
+We didn't connect any workers yet so this output is empty.
+
+Next we want to connect a rebuilder. rebuilderd only does the scheduling for
+you, so you need to install additional software here (called a rebuilder
+backend):
+
+- **Arch Linux**: `pacman -S archlinux-repro` or `git clone
+  https://github.com/archlinux/archlinux-repro && archlinux-repro/ && make &&
+  sudo make install`. Note that on debian buster you need to install systemd
+  from buster-backports.
+
+With a rebuilder backend installed we're now going to run our first worker:
+
 ```
 cd worker; cargo run -- connect http://127.0.0.1:8484
 ```
 
-Afterwards import some packages:
+This rebuilder should now show up in our `rebuildctl status` output:
+
+```
+cd tools; cargo run -- status
+```
+
+Next we're going to import some packages:
+
 ```
 cd tools; cargo run -- pkgs sync archlinux community \
     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
@@ -193,11 +228,19 @@ cd tools; cargo run -- pkgs sync archlinux community \
 The `--maintainer` option is optional and allows you to rebuild packages by a specific maintainer only.
 
 To show the current status of our imported packages run:
+
 ```
 cd tools; cargo run -- pkgs ls
 ```
 
+To monitor your workers are picking up tasks:
+
+```
+cd tools; cargo build && CLICOLOR_FORCE=1 watch -c ../target/debug/rebuildctl status
+```
+
 To inspect the queue run:
+
 ```
 cd tools; cargo run -- queue ls
 ```
