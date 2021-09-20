@@ -44,7 +44,7 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
 
         if signup_secret == expected_signup_secret {
             debug!("worker authenticated with signup secret");
-            return Ok(());
+            Ok(())
         } else {
             bail!("Signup secret mismatched");
         }
@@ -53,7 +53,7 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
             .context("Failed to get auth cookie")?;
 
         if cfg.auth_cookie == auth_cookie {
-            return Ok(());
+            Ok(())
         } else {
             bail!("Fell back to auth cookie authentication, but didn't match");
         }
