@@ -7,12 +7,13 @@ use std::cmp::Ordering;
 
 pub fn cmp(distro: &Distro, old: &str, new: &str) -> Result<Ordering> {
     match distro {
-        Distro::Archlinux => cmp_archlinux(old, new),
+        Distro::Archlinux => cmp_basic(old, new),
         Distro::Debian => cmp_debian(old, new),
+        Distro::Tails => cmp_basic(old, new),
     }
 }
 
-pub fn cmp_archlinux(old: &str, new: &str) -> Result<Ordering> {
+pub fn cmp_basic(old: &str, new: &str) -> Result<Ordering> {
     if old != new {
         // assume versions never go backwards
         Ok(Ordering::Greater)

@@ -19,6 +19,7 @@ pub mod utils;
 pub enum Distro {
     Debian,
     Archlinux,
+    Tails,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

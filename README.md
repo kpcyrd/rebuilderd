@@ -15,7 +15,7 @@ Independent verification system of binary packages.
 - [Scripting access to a rebuilderd instance](#scripting-access-to-a-rebuilderd-instance)
 - [Running a rebuilderd instance yourself](#running-a-rebuilderd-instance-yourself)
     - [Rebuilding Arch Linux](#rebuilding-arch-linux) (Supported)
-    - Rebuilding Debian (Planned)
+    - [Rebuilding Tails](docs/setup-tails.md)
 - [Development](#development)
     - [Dependencies](#dependencies)
 - [Funding](#funding)
@@ -37,6 +37,30 @@ tampered with. People are encouraged to run their own rebuilders if they can
 afford to.
 
 [2]: https://diffoscope.org/
+
+## Status
+
+| | Status | Docker | Doesn't need --privileged | Doesn't need /dev/kvm | Backend |
+| --- | --- | --- | --- | --- | --- |
+| **Arch Linux** | ✔️ supported | ❌ | - | ✔️ | [archlinux-repro](https://github.com/archlinux/archlinux-repro) |
+| **Debian** | 🚀 planned | ✔️ | ❌ | ✔️ | [debrebuild.pl](https://salsa.debian.org/debian/devscripts/-/blob/master/scripts/debrebuild.pl) |
+| **Tails** | ⚠️ experimental | ❌ | - | ❌ | [docs](https://tails.boum.org/contribute/build/)
+| **Alpine** | 🚀 planned | - | - | - | - |
+
+**Docker**: There's a docker-compose example setup in this repository, but not
+all rebuilder backends support running inside of a docker container (for
+example because it's creating containers itself).
+
+**Doesn't need --privileged**: Some rebuilder backends create containers in a
+way that works inside of a docker container, if they're granted the required
+kernel capabilities to do so. This may have security implications for other
+containers running on that system or the code running inside the container may
+reconfigure the system outside of the docker container.
+
+**Doesn't need /dev/kvm**: Some build tools may need to start a virtual machine
+and depend on /dev/kvm to be available. This is a special requirement for the
+hosting environment, you either need a VPS with **Nested KVM** or
+dedicated non-virtualized hardware.
 
 # Accessing a rebuilderd instance in your browser
 
@@ -159,7 +183,7 @@ Run a rebuild worker:
 cd worker; cargo run -- connect http://127.0.0.1:8484
 ```
 
-Afterwards it's time to import some packages:
+Afterwards import some packages:
 ```
 cd tools; cargo run -- pkgs sync archlinux community \
     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
@@ -176,6 +200,11 @@ cd tools; cargo run -- pkgs ls
 To inspect the queue run:
 ```
 cd tools; cargo run -- queue ls
+```
+
+An easy way to test the package import is using a command like this:
+```
+cargo watch -- cargo run --bin rebuildctl -- pkgs sync-profile --print-json --sync-config contrib/confs/rebuilderd-sync.conf tails
 ```
 
 ## Dependencies

@@ -51,3 +51,19 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
        - ./data:/secret
+  worker-tails:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile.tails
+    privileged: true
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
+    environment:
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+    - /dev:/dev
+    - /proc:/proc
+    - /sys:/sys
+    - /var/run/libvirt:/var/run/libvirt
