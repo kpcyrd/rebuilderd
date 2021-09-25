@@ -131,32 +131,47 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, Stri
     let mut stderr = tokio::io::stderr();
     let passthrough = opts.passthrough;
 
+    let mut streams_open = 2;
     let mut cap = capture(opts);
     let (success, output) = loop {
         let remaining = cap.next_wakeup(&mut child).await?;
 
-        select! {
-            n = child_stdout.read(&mut buf_stdout).fuse() => {
-                let n = n?;
-                cap.push_bytes(&mut child, &buf_stdout[..n]).await?;
-                if passthrough {
-                    stdout.write_all(&buf_stdout[..n]).await?;
-                }
-            },
-            n = child_stderr.read(&mut buf_stderr).fuse() => {
-                let n = n?;
-                cap.push_bytes(&mut child, &buf_stderr[..n]).await?;
-                if passthrough {
-                    stderr.write_all(&buf_stderr[..n]).await?;
-                }
-            },
-            status = child.wait().fuse() => {
-                let status = status?;
-                let output = cap.into_output();
-                info!("{:?} exited with exit={}, captured {} bytes", bin, status, output.len());
-                break (status.success(), output);
+        if streams_open > 0 {
+            select! {
+                n = child_stdout.read(&mut buf_stdout).fuse() => {
+                    let n = n?;
+                    if n == 0 {
+                        streams_open -= 1;
+                    } else {
+                        cap.push_bytes(&mut child, &buf_stdout[..n]).await?;
+                        if passthrough {
+                            stdout.write_all(&buf_stdout[..n]).await?;
+                        }
+                    }
+                },
+                n = child_stderr.read(&mut buf_stderr).fuse() => {
+                    let n = n?;
+                    if n == 0 {
+                        streams_open -= 1;
+                    } else {
+                        cap.push_bytes(&mut child, &buf_stderr[..n]).await?;
+                        if passthrough {
+                            stderr.write_all(&buf_stderr[..n]).await?;
+                        }
+                    }
+                },
+                _ = time::sleep(remaining).fuse() => continue,
             }
-            _ = time::sleep(remaining).fuse() => continue,
+        } else {
+            select! {
+                status = child.wait().fuse() => {
+                    let status = status?;
+                    let output = cap.into_output();
+                    info!("{:?} exited with exit={}, captured {} bytes", bin, status, output.len());
+                    break (status.success(), output);
+                }
+                _ = time::sleep(remaining).fuse() => continue,
+            }
         }
     };
 
@@ -246,7 +261,7 @@ mod tests {
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
         assert!(duration > Duration::from_secs(1));
-        assert!(duration < Duration::from_secs(2));
+        assert!(duration < Duration::from_secs(3));
     }
 
     #[tokio::test]
