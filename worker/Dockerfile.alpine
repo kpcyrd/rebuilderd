@@ -2,7 +2,7 @@
 FROM rust:alpine3.14
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /usr/src/rebuilderd
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig libsodium-dev
+RUN apk add --no-cache musl-dev openssl-dev pkgconfig
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -11,6 +11,6 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/alpine/target/release/rebuilderd-worker /
 
 FROM alpine:3.14
-RUN apk add --no-cache libgcc openssl libsodium
+RUN apk add --no-cache libgcc openssl
 COPY --from=0 /rebuilderd-worker /usr/local/bin/
 ENTRYPOINT ["rebuilderd-worker"]

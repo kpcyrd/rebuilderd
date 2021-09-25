@@ -1,7 +1,7 @@
 # synax = docker/dockerfile:1.2
 FROM rust:bullseye
 WORKDIR /usr/src/rebuilderd
-RUN apt-get update && apt-get install -y libssl-dev libsodium-dev
+RUN apt-get update && apt-get install -y libssl-dev
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
 FROM debian:bullseye
-RUN apt-get update && apt-get install -y libssl-dev libsodium-dev devscripts sbuild mmdebstrap
+RUN apt-get update && apt-get install -y libssl-dev devscripts sbuild mmdebstrap
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-debian.sh \
     /usr/local/libexec/rebuilderd/

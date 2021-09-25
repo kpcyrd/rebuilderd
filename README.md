@@ -252,7 +252,7 @@ cargo watch -- cargo run --bin rebuildctl -- pkgs sync-profile --print-json --sy
 
 ## Dependencies
 
-Debian: pkg-config liblzma-dev libssl-dev libsodium-dev libsqlite3-dev libzstd-dev
+Debian: pkg-config liblzma-dev libssl-dev libsqlite3-dev libzstd-dev
 
 # Funding
 

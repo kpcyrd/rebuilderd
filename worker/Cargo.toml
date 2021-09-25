@@ -21,7 +21,6 @@ assets = [
 rebuilderd-common = { version= "=0.14.0", path="../common" }
 structopt = "0.3"
 env_logger = "0.9"
-sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 base64 = "0.13"
 toml = "0.5.6"
 serde = { version="1.0", features=["derive"] }
