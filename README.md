@@ -76,10 +76,13 @@ Loading the index of all packages may take a short time.
 
 # Scripting access to a rebuilderd instance
 
-It's also possible to query and manage a rebuilderd instance in a scriptable
-way. It's recommended to install the `rebuildctl` commandline util to do this:
+<a href="https://repology.org/project/rebuilderd/versions"><img align="right" src="https://repology.org/badge/vertical-allrepos/rebuilderd.svg" alt="Packaging status"></a>
 
-    pacman -S rebuilderd
+It's also possible to query and manage a rebuilderd instance in a scriptable
+way. It's recommended to install the `rebuildctl` commandline util to do this
+(instructions for your system may vary, see packaging status to the right):
+
+    pacman -S rebuilderd-tools
 
 You can then query a rebuilderd instance for the status of a specific package:
 
