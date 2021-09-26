@@ -2,6 +2,7 @@ use futures_util::FutureExt;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use rebuilderd_common::errors::*;
+use std::cmp;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt;
@@ -52,13 +53,17 @@ impl Capture {
         self.output
     }
 
-    pub async fn push_bytes(&mut self, child: &mut Child, slice: &[u8]) -> Result<()> {
+    pub async fn push_bytes(&mut self, child: &mut Child, mut slice: &[u8]) -> Result<()> {
         if !self.truncated {
             if let Some(size_limit) = &self.size_limit {
-                if self.output.len() + slice.len() > *size_limit {
+                let n = cmp::min(size_limit - self.output.len(), slice.len());
+                if n < 1 {
                     warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), size_limit);
                     self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT", self.kill_at_size_limit).await?;
                     return Ok(());
+                } else {
+                    // truncate to stay within the limit
+                    slice = &slice[..n];
                 }
             }
 
@@ -131,17 +136,18 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, Stri
     let mut stderr = tokio::io::stderr();
     let passthrough = opts.passthrough;
 
-    let mut streams_open = 2;
+    let mut stdout_open = true;
+    let mut stderr_open = true;
     let mut cap = capture(opts);
     let (success, output) = loop {
         let remaining = cap.next_wakeup(&mut child).await?;
 
-        if streams_open > 0 {
+        if stdout_open || stderr_open {
             select! {
                 n = child_stdout.read(&mut buf_stdout).fuse() => {
                     let n = n?;
                     if n == 0 {
-                        streams_open -= 1;
+                        stdout_open = false;
                     } else {
                         cap.push_bytes(&mut child, &buf_stdout[..n]).await?;
                         if passthrough {
@@ -152,7 +158,7 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, Stri
                 n = child_stderr.read(&mut buf_stderr).fuse() => {
                     let n = n?;
                     if n == 0 {
-                        streams_open -= 1;
+                        stderr_open = false;
                     } else {
                         cap.push_bytes(&mut child, &buf_stderr[..n]).await?;
                         if passthrough {
