@@ -30,13 +30,15 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &Pr
     let input = item.package.url.to_string();
 
     let ctx = Context {
+        artifact_url: &input,
+        input_url: None,
         backend,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
         privkey,
     };
 
-    let mut rebuild = Box::pin(rebuild::rebuild(&ctx, &input));
+    let mut rebuild = Box::pin(rebuild::rebuild(&ctx));
     loop {
         select! {
             res = &mut rebuild => {
@@ -172,11 +174,13 @@ async fn main() -> Result<()> {
             };
 
             let res = rebuild::rebuild(&Context {
+                artifact_url: &build.artifact,
+                input_url: None,
                 backend,
                 build: config::Build::default(),
                 diffoscope,
                 privkey: &profile.privkey,
-            }, &build.input).await?;
+            }).await?;
 
             debug!("rebuild result object is {:?}", res);
 

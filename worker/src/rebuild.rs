@@ -16,6 +16,8 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 pub struct Context<'a> {
+    pub artifact_url: &'a str,
+    pub input_url: Option<&'a str>,
     pub backend: config::Backend,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
@@ -83,7 +85,7 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
+pub async fn rebuild(ctx: &Context<'_>) -> Result<Rebuild> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -96,27 +98,36 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
         .context("Failed to create out/ temp dir")?;
 
     // download
-    let filename = download(url, &inputs_dir)
+    let artifact_filename = download(ctx.artifact_url, &inputs_dir)
         .await
-        .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
+        .with_context(|| anyhow!("Failed to download original package from {:?}", ctx.artifact_url))?;
+    let artifact_path = inputs_dir.join(&artifact_filename);
+
+    let input_filename = if let Some(input_url) = &ctx.input_url {
+        download(input_url, &inputs_dir)
+            .await
+            .with_context(|| anyhow!("Failed to download original package from {:?}", ctx.artifact_url))?
+    } else {
+        artifact_filename.to_owned()
+    };
+    let input_path = inputs_dir.join(&input_filename);
 
     // rebuild
-    let input_path = inputs_dir.join(&filename);
     let log = verify(ctx, &out_dir, &input_path).await?;
 
     // process result
-    let output_path = out_dir.join(&filename);
+    let output_path = out_dir.join(&artifact_filename);
 
     if !output_path.exists() {
         info!("Build failed, no output artifact found at {:?}", output_path);
         Ok(Rebuild::new(BuildStatus::Bad, log))
-    } else if compare_files(&input_path, &output_path).await? {
+    } else if compare_files(&artifact_path, &output_path).await? {
         info!("Files are identical, marking as GOOD");
         let mut res = Rebuild::new(BuildStatus::Good, log);
 
         info!("Generating signed link");
         let signed_link = in_toto_run(
-            &format!("rebuild {}", filename.to_str().unwrap()),
+            &format!("rebuild {}", artifact_filename.to_str().unwrap()),
             None,
             &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
             &[output_path.to_str().ok_or_else(|| anyhow!("Output path contains invalid characters"))?],

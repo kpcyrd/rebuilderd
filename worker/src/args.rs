@@ -29,8 +29,13 @@ pub enum SubCommand {
 
 #[derive(Debug, StructOpt)]
 pub struct Build {
+    /// Selects the right build profile from the configuration
     pub distro: String,
-    pub input: String,
+    /// The pre-built artifact that should be reproduced
+    pub artifact: String,
+    /// Pass a different input file to the rebuilder backend
+    #[structopt(long)]
+    pub input: Option<String>,
     /// Use a specific rebuilder script instead of the default
     #[structopt(long)]
     pub script_location: Option<PathBuf>,
