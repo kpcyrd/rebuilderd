@@ -32,6 +32,7 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
                 base.suite.clone(),
                 base.architecture.clone(),
                 artifact.url,
+                base.input.clone(),
             )));
         }
         let key = format!("{}-{}", base.base, base.version);

@@ -32,10 +32,10 @@ pub struct Build {
     /// Selects the right build profile from the configuration
     pub distro: String,
     /// The pre-built artifact that should be reproduced
-    pub artifact: String,
+    pub artifact_url: String,
     /// Pass a different input file to the rebuilder backend
     #[structopt(long)]
-    pub input: Option<String>,
+    pub input_url: Option<String>,
     /// Use a specific rebuilder script instead of the default
     #[structopt(long)]
     pub script_location: Option<PathBuf>,

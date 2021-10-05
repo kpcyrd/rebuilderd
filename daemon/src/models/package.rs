@@ -180,7 +180,8 @@ impl Package {
             version: self.version,
             status: self.status.parse()?,
             suite: self.suite,
-            url: self.url,
+            artifact_url: self.url,
+            input_url: None, // TODO
             build_id: self.build_id,
             built_at: self.built_at,
             has_diffoscope: self.has_diffoscope,
@@ -234,7 +235,7 @@ impl NewPackage {
             distro: distro.to_string(),
             suite: pkg.suite,
             architecture: pkg.architecture,
-            url: pkg.url,
+            url: pkg.artifact_url,
             build_id: None,
             built_at: None,
             has_diffoscope: false,

@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
                         status_str,
                         pkg_str,
                         info,
-                        pkg.url,
+                        pkg.artifact_url,
                     ).is_err() {
                         break;
                     }

@@ -16,8 +16,8 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 pub struct Context<'a> {
-    pub artifact_url: &'a str,
-    pub input_url: Option<&'a str>,
+    pub artifact_url: String,
+    pub input_url: Option<String>,
     pub backend: config::Backend,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
@@ -98,7 +98,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Rebuild> {
         .context("Failed to create out/ temp dir")?;
 
     // download
-    let artifact_filename = download(ctx.artifact_url, &inputs_dir)
+    let artifact_filename = download(&ctx.artifact_url, &inputs_dir)
         .await
         .with_context(|| anyhow!("Failed to download original package from {:?}", ctx.artifact_url))?;
     let artifact_path = inputs_dir.join(&artifact_filename);

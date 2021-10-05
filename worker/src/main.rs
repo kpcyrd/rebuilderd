@@ -27,11 +27,9 @@ pub mod rebuild;
 pub mod setup;
 
 async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
-    let input = item.package.url.to_string();
-
     let ctx = Context {
-        artifact_url: &input,
-        input_url: None,
+        artifact_url: item.package.artifact_url.clone(),
+        input_url: item.package.input_url.clone(),
         backend,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
@@ -174,15 +172,15 @@ async fn main() -> Result<()> {
             };
 
             let res = rebuild::rebuild(&Context {
-                artifact_url: &build.artifact,
-                input_url: None,
+                artifact_url: build.artifact_url,
+                input_url: build.input_url,
                 backend,
                 build: config::Build::default(),
                 diffoscope,
                 privkey: &profile.privkey,
             }).await?;
 
-            debug!("rebuild result object is {:?}", res);
+            trace!("rebuild result object is {:?}", res);
 
             if res.status == BuildStatus::Good {
                 info!("Package verified successfully");
