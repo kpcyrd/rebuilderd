@@ -1,11 +1,10 @@
 #![recursion_limit="256"]
 
+use crate::args::{Args, SubCommand};
 use crate::rebuild::Context;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
 use structopt::StructOpt;
-use structopt::clap::AppSettings;
-use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
@@ -13,11 +12,12 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::errors::{Context as _};
 use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tokio::select;
 use tokio::time;
 
+pub mod args;
 pub mod auth;
 pub mod config;
 pub mod diffoscope;
@@ -26,56 +26,11 @@ pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
-struct Args {
-    #[structopt(subcommand)]
-    pub subcommand: SubCommand,
-    #[structopt(short, long)]
-    pub name: Option<String>,
-    #[structopt(short, long)]
-    pub config: Option<PathBuf>,
-}
-
-#[derive(Debug, StructOpt)]
-enum SubCommand {
-    /// Rebuild an individual package
-    Build(Build),
-    /// Connect to a central rebuilderd daemon for work
-    Connect(Connect),
-    /// Invoke diffoscope similar to how a rebuilder would invoke it
-    Diffoscope(Diffoscope),
-}
-
-#[derive(Debug, StructOpt)]
-struct Build {
-    pub distro: Distro,
-    pub input: String,
-    /// Use a specific rebuilder script instead of the default
-    #[structopt(long)]
-    pub script_location: Option<PathBuf>,
-    /// Use diffoscope to generate a diff
-    #[structopt(long)]
-    pub gen_diffoscope: bool,
-}
-
-#[derive(Debug, StructOpt)]
-struct Connect {
-    pub endpoint: Option<String>,
-}
-
-#[derive(Debug, StructOpt)]
-struct Diffoscope {
-    pub a: PathBuf,
-    pub b: PathBuf,
-}
-
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Distro, privkey: &PrivateKey, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
     let input = item.package.url.to_string();
 
     let ctx = Context {
-        distro,
-        script_location: None,
+        backend,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
         privkey,
@@ -98,8 +53,9 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, distro: &Dis
 
 async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
+    let supported_backends = config.backends.keys().map(String::from).collect::<Vec<_>>();
     match client.pop_queue(&WorkQuery {
-        supported_backends: config.supported_backends.clone(),
+        supported_backends,
     }).await? {
         JobAssignment::Nothing => {
             info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
@@ -107,8 +63,12 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
         },
         JobAssignment::Rebuild(rb) => {
             info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
-            let distro = rb.package.distro.parse::<Distro>()?;
-            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, &distro, privkey, &rb, config).await {
+
+            let backend = config.backends.get(&rb.package.distro)
+                .cloned()
+                .ok_or_else(|| anyhow!("No backend configured in config file"))?;
+
+            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, privkey, backend, &rb, config).await {
                 Ok(res) => {
                     if res.status == BuildStatus::Good {
                         info!("Package successfully verified");
@@ -161,7 +121,7 @@ async fn main() -> Result<()> {
         .default_filter_or("info"));
 
     let args = Args::from_args();
-    let config = config::load(args.config.as_deref())
+    let config = config::load(&args)
         .context("Failed to load config file")?;
 
     let cookie = find_auth_cookie().ok();
@@ -189,16 +149,30 @@ async fn main() -> Result<()> {
             let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie);
             run_worker_loop(&client, &profile.privkey, &config).await?;
         },
+        // this is only really for debugging
         SubCommand::Build(build) => {
-            // this is only really for debugging
             let mut diffoscope = config::Diffoscope::default();
             if build.gen_diffoscope {
                 diffoscope.enabled = true;
             }
 
+            let backend = if let Some(script_location) = build.script_location {
+                config::Backend {
+                    path: script_location,
+                }
+            } else {
+                config.backends.get(&build.distro)
+                    .cloned()
+                    .ok_or_else(|| anyhow!("No backend configured in config file"))?
+            };
+
+            let diffoscope = config::Diffoscope {
+                enabled: build.gen_diffoscope,
+                ..Default::default()
+            };
+
             let res = rebuild::rebuild(&Context {
-                distro: &build.distro,
-                script_location: build.script_location.as_ref(),
+                backend,
                 build: config::Build::default(),
                 diffoscope,
                 privkey: &profile.privkey,
@@ -218,6 +192,10 @@ async fn main() -> Result<()> {
         SubCommand::Diffoscope(diffoscope) => {
             let output = diffoscope::diffoscope(&diffoscope.a, &diffoscope.b, &config.diffoscope).await?;
             print!("{}", output);
+        },
+        SubCommand::CheckConfig => {
+            let json = serde_json::to_string_pretty(&config)?;
+            println!("{}", json);
         },
     }
 

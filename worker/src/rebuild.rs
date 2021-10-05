@@ -7,45 +7,19 @@ use in_toto::runlib::in_toto_run;
 use rebuilderd_common::api::{BuildStatus, Rebuild};
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Distro;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 pub struct Context<'a> {
-    pub distro: &'a Distro,
-    pub script_location: Option<&'a PathBuf>,
+    pub backend: config::Backend,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
     pub privkey: &'a PrivateKey,
-}
-
-fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
-    if let Some(script_location) = script_location {
-        return Ok(script_location);
-    }
-
-    let bin = match distro {
-        Distro::Archlinux => "rebuilder-archlinux.sh",
-        Distro::Debian => "rebuilder-debian.sh",
-        Distro::Tails => "rebuilder-tails.sh",
-    };
-
-    for prefix in &[".", "/usr/libexec/rebuilderd", "/usr/local/libexec/rebuilderd"] {
-        let bin = format!("{}/{}", prefix, bin);
-        let bin = Path::new(&bin);
-
-        if bin.exists() {
-            return Ok(bin.to_path_buf());
-        }
-    }
-
-    bail!("Failed to find a rebuilder backend")
 }
 
 fn path_to_string(path: &Path) -> Result<String> {
@@ -173,15 +147,7 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
 }
 
 async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<String> {
-    let bin = if let Some(script) = ctx.script_location {
-        Cow::Borrowed(script)
-    } else {
-        let script = locate_script(ctx.distro, None)
-            .with_context(|| {anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro)
-        })?;
-        Cow::Owned(script)
-    };
-
+    let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
     let mut envs = HashMap::new();

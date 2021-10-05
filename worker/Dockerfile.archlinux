@@ -15,4 +15,5 @@ COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-archlinux.sh \
     /usr/local/libexec/rebuilderd/
 COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENV REBUILDERD_WORKER_BACKEND=archlinux=/usr/local/libexec/rebuilderd/rebuild-archlinux.sh
 ENTRYPOINT ["rebuilderd-worker"]
