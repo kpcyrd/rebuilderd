@@ -1,4 +1,3 @@
-use rebuilderd_common::Distro;
 use rebuilderd_common::errors::*;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -23,7 +22,7 @@ impl SyncConfigFile {
 
 #[derive(Debug, Deserialize)]
 pub struct SyncProfile {
-    pub distro: Distro,
+    pub distro: String,
     pub suite: String,
     #[serde(default)]
     pub releases: Vec<String>,

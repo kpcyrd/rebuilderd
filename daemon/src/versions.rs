@@ -1,15 +1,15 @@
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Distro;
+use rebuilderd_common::VersionCmp;
 use std::process::Command;
 use crate::models;
 use rebuilderd_common::PkgRelease;
 use std::cmp::Ordering;
 
-pub fn cmp(distro: &Distro, old: &str, new: &str) -> Result<Ordering> {
+// TOOD: this needs to be more configurable
+pub fn cmp(distro: &VersionCmp, old: &str, new: &str) -> Result<Ordering> {
     match distro {
-        Distro::Archlinux => cmp_basic(old, new),
-        Distro::Debian => cmp_debian(old, new),
-        Distro::Tails => cmp_basic(old, new),
+        VersionCmp::Basic => cmp_basic(old, new),
+        VersionCmp::Debian => cmp_debian(old, new),
     }
 }
 
@@ -44,7 +44,7 @@ pub fn cmp_debian(old: &str, new: &str) -> Result<Ordering> {
 }
 
 pub trait PkgVerCmp {
-    fn bump_package(&mut self, distro: &Distro, new: &PkgRelease) -> Result<Ordering> {
+    fn bump_package(&mut self, distro: &VersionCmp, new: &PkgRelease) -> Result<Ordering> {
         let ord = cmp(distro, self.version(), &new.version)?;
         if ord == Ordering::Greater {
             self.apply_fields(new);

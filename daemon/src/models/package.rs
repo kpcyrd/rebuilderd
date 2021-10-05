@@ -1,7 +1,7 @@
 use chrono::{Utc, NaiveDateTime, Duration};
 use crate::schema::*;
 use diesel::prelude::*;
-use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::{PkgRelease, Status};
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 
@@ -225,7 +225,7 @@ impl NewPackage {
         Ok(())
     }
 
-    pub fn from_api(distro: Distro, base_id: i32, pkg: PkgRelease) -> NewPackage {
+    pub fn from_api(distro: String, base_id: i32, pkg: PkgRelease) -> NewPackage {
         NewPackage {
             base_id: Some(base_id),
             name: pkg.name,

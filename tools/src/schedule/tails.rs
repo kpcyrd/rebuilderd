@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
 use url::Url;
-use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
+use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use regex::Regex;
 
@@ -35,7 +35,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let mut group = PkgGroup::new(
         "tails".to_string(),
         version.to_string(),
-        Distro::Tails,
+        "tails".to_string(),
         sync.suite.to_string(),
         "amd64".to_string(),
         None,

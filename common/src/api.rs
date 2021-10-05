@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::{Distro, PkgRelease, PkgGroup, Status};
+use crate::{PkgRelease, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
@@ -272,7 +272,7 @@ pub enum JobAssignment {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SuiteImport {
-    pub distro: Distro,
+    pub distro: String,
     pub suite: String,
     pub pkgs: Vec<PkgGroup>,
 }

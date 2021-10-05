@@ -1,4 +1,4 @@
-use rebuilderd_common::{Distro, Status};
+use rebuilderd_common::Status;
 use rebuilderd_common::errors::*;
 use glob::Pattern;
 use std::io::stdout;
@@ -68,13 +68,13 @@ pub struct PkgsSyncProfile {
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSyncStdin {
-    pub distro: Distro,
+    pub distro: String,
     pub suite: String,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct PkgsSync {
-    pub distro: Distro,
+    pub distro: String,
     pub suite: String,
     pub source: String,
     #[structopt(long="architecture")]

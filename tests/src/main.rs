@@ -2,7 +2,6 @@ use crate::args::Args;
 use colored::Colorize;
 use env_logger::Env;
 use rebuilderd::config::Config;
-use rebuilderd_common::Distro;
 use rebuilderd_common::{PkgGroup, PkgArtifact, PkgRelease};
 use rebuilderd_common::Status;
 use rebuilderd_common::api::*;
@@ -29,7 +28,7 @@ async fn list_pkgs(client: &Client) -> Result<Vec<PkgRelease>> {
 }
 
 async fn initial_import(client: &Client) -> Result<()> {
-    let distro = Distro::Archlinux;
+    let distro = "archlinux".to_string();
     let suite = "core".to_string();
     let architecture = "x86_64".to_string();
 
@@ -37,7 +36,7 @@ async fn initial_import(client: &Client) -> Result<()> {
     let mut group = PkgGroup::new(
         "pkgbase".to_string(),
         "1.4.5-1".to_string(),
-        Distro::Archlinux,
+        distro.clone(),
         suite.clone(),
         architecture.clone(),
         None,

@@ -1,7 +1,7 @@
 use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use lzma::LzmaReader;
-use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
+use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -166,7 +166,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let mut group = PkgGroup::new(
                     pkg.base.clone(),
                     pkg.version.clone(),
-                    Distro::Debian,
+                    "debian".to_string(),
                     sync.suite.to_string(),
                     arch.clone(),
                     Some(url),

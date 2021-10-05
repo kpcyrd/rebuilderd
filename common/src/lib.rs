@@ -16,10 +16,18 @@ pub mod utils;
 #[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]
 #[strum(serialize_all = "kebab-case")]
 #[serde(rename_all = "kebab-case")]
-pub enum Distro {
+pub enum VersionCmp {
+    Basic,
     Debian,
-    Archlinux,
-    Tails,
+}
+
+impl VersionCmp {
+    pub fn detect_from_distro(distro: &str) -> VersionCmp {
+        match distro {
+            "debian" => VersionCmp::Debian,
+            _ => VersionCmp::Basic,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -39,12 +47,12 @@ pub struct PkgRelease {
 }
 
 impl PkgRelease {
-    pub fn new(name: String, version: String, distro: Distro, suite: String, architecture: String, url: String) -> PkgRelease {
+    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, url: String) -> PkgRelease {
         PkgRelease {
             name,
             version,
             status: Status::Unknown,
-            distro: distro.to_string(),
+            distro,
             suite,
             architecture,
             url,
@@ -77,11 +85,11 @@ pub struct PkgArtifact {
 }
 
 impl PkgGroup {
-    pub fn new(base: String, version: String, distro: Distro, suite: String, architecture: String, input: Option<String>) -> PkgGroup {
+    pub fn new(base: String, version: String, distro: String, suite: String, architecture: String, input: Option<String>) -> PkgGroup {
         PkgGroup {
             base,
             version,
-            distro: distro.to_string(),
+            distro,
             suite,
             architecture,
             input,

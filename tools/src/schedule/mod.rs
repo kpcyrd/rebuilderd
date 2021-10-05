@@ -51,7 +51,6 @@ pub mod tails;
 #[cfg(test)]
 mod tests {
     use crate::schedule::archlinux::ArchPkg;
-    use rebuilderd_common::Distro;
     use super::*;
 
     struct Filter {
@@ -68,7 +67,7 @@ mod tests {
 
     fn gen_filter(f: Filter) -> PkgsSync {
         PkgsSync {
-            distro: Distro::Archlinux,
+            distro: "archlinux".to_string(),
             suite: "community".to_string(),
             architectures: vec!["x86_64".to_string()],
             source: "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch".to_string(),
