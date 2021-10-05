@@ -66,7 +66,7 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
 
             let backend = config.backends.get(&rb.package.distro)
                 .cloned()
-                .ok_or_else(|| anyhow!("No backend configured in config file"))?;
+                .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.package.distro))?;
 
             let rebuild = match spawn_rebuilder_script_with_heartbeat(client, privkey, backend, &rb, config).await {
                 Ok(res) => {

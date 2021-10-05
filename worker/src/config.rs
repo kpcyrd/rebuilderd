@@ -42,22 +42,29 @@ pub struct Backend {
 
 pub fn load(args: &Args) -> Result<ConfigFile> {
     let path = if let Some(path) = args.config.as_ref() {
-        path.to_owned()
+        Some(path.to_owned())
     } else {
         let path = PathBuf::from("/etc/rebuilderd-worker.conf");
         if path.exists() {
             warn!("Using the implicit `-c /etc/rebuilderd-worker.conf` is going to be removed in the future");
-            path
+            Some(path)
         } else {
-            return Ok(ConfigFile::default());
+            None
         }
     };
 
-    let buf = fs::read(&path)
-        .with_context(|| anyhow!("Failed to open {:?}", path))?;
-    let mut conf = toml::from_slice::<ConfigFile>(&buf)?;
+    let mut conf = if let Some(path) = path {
+        info!("Loading configuration from {:?}", path);
+        let buf = fs::read(&path)
+            .with_context(|| anyhow!("Failed to open {:?}", path))?;
+        toml::from_slice::<ConfigFile>(&buf)?
+    } else {
+        info!("Using default configuration");
+        ConfigFile::default()
+    };
 
     for backend in &args.backends {
+        debug!("Adding to list of supported backends: {:?}", backend);
         let (key, path) = backend.split_once('=')
             .ok_or_else(|| anyhow!("Invalid argument, expected format is --backend distro=/path/to/script"))?;
 
