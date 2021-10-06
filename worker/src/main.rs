@@ -151,11 +151,6 @@ async fn main() -> Result<()> {
         },
         // this is only really for debugging
         SubCommand::Build(build) => {
-            let mut diffoscope = config::Diffoscope::default();
-            if build.gen_diffoscope {
-                diffoscope.enabled = true;
-            }
-
             let backend = if let Some(script_location) = build.script_location {
                 config::Backend {
                     path: script_location,
