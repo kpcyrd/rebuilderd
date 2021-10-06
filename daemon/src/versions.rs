@@ -65,7 +65,8 @@ impl PkgVerCmp for models::Package {
     fn apply_fields(&mut self, new: &PkgRelease) {
         self.version = new.version.clone();
         self.architecture = new.architecture.clone();
-        self.url = new.artifact_url.clone();
+        self.artifact_url = new.artifact_url.clone();
+        self.input_url = new.input_url.clone();
     }
 }
 
@@ -77,5 +78,6 @@ impl PkgVerCmp for PkgRelease {
     fn apply_fields(&mut self, new: &PkgRelease) {
         self.version = new.version.clone();
         self.artifact_url = new.artifact_url.clone();
+        self.input_url = new.input_url.clone();
     }
 }
