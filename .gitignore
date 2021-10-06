@@ -6,4 +6,5 @@ rebuilder.v2.key
 /worker/build/
 /worker/cache/
 /data/
+/secret/
 *.sw[op]
