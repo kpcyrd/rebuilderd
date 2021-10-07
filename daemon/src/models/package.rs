@@ -234,7 +234,7 @@ impl NewPackage {
             name: pkg.name,
             version: pkg.version,
             status: pkg.status.to_string(),
-            distro: distro.to_string(),
+            distro,
             suite: pkg.suite,
             architecture: pkg.architecture,
             artifact_url: pkg.artifact_url,

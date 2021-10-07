@@ -1,3 +1,5 @@
+#![allow(clippy::large_enum_variant)]
+
 use rebuilderd_common::Status;
 use rebuilderd_common::errors::*;
 use glob::Pattern;
