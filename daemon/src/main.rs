@@ -11,6 +11,9 @@ struct Args {
     /// Verbose logging
     #[structopt(short)]
     verbose: bool,
+    /// Load and print a config
+    #[structopt(long)]
+    check_config: bool,
     /// Configuration file path
     #[structopt(short, long)]
     config: Option<PathBuf>,

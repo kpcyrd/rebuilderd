@@ -17,4 +17,6 @@ RUN apk add --no-cache libgcc openssl dpkg sqlite-libs xz zstd-libs
 COPY --from=0 \
     /rebuilderd /rebuildctl \
     /usr/local/bin/
+VOLUME ["/data", "/secret"]
+WORKDIR /data
 CMD ["rebuilderd"]

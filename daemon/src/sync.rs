@@ -1,7 +1,7 @@
 use crate::models;
 use crate::versions::PkgVerCmp;
 use diesel::SqliteConnection;
-use rebuilderd_common::PkgRelease;
+use rebuilderd_common::{PkgRelease, VersionCmp};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::cmp::Ordering;
@@ -28,10 +28,11 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
             import_pkgs.push((base.base.clone(), PkgRelease::new(
                 artifact.name,
                 base.version.clone(),
-                import.distro,
+                import.distro.clone(),
                 base.suite.clone(),
                 base.architecture.clone(),
                 artifact.url,
+                base.input.clone(),
             )));
         }
         let key = format!("{}-{}", base.base, base.version);
@@ -109,15 +110,18 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     let mut updated_pkgs = HashMap::<_, (String, models::Package)>::new();
     let mut deleted_pkgs = pkgs.clone();
 
+    // TODO: instead of bumping versions we should just drop the old ones so we don't need version_cmp
+    let version_cmp = VersionCmp::detect_from_distro(&import.distro);
+
     for (base, pkg) in import_pkgs.drain(..) {
         deleted_pkgs.remove_entry(&pkg.name);
 
         if let Some((_, cur)) = new_pkgs.get_mut(&pkg.name) {
-            cur.bump_package(&import.distro, &pkg)?;
+            cur.bump_package(&version_cmp, &pkg)?;
         } else if let Some((_, cur)) = updated_pkgs.get_mut(&pkg.name) {
-            cur.bump_package(&import.distro, &pkg)?;
+            cur.bump_package(&version_cmp, &pkg)?;
         } else if let Some(old) = pkgs.get_mut(&pkg.name) {
-            if old.bump_package(&import.distro, &pkg)? == Ordering::Greater {
+            if old.bump_package(&version_cmp, &pkg)? == Ordering::Greater {
                 updated_pkgs.insert(pkg.name, (base, old.clone()));
             }
         } else {
@@ -143,7 +147,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
         }
         let pkgbase = &pkgbases[0];
 
-        insert_pkgs.push(models::NewPackage::from_api(import.distro, pkgbase.id, v));
+        insert_pkgs.push(models::NewPackage::from_api(import.distro.clone(), pkgbase.id, v));
     }
 
     for insert_pkgs in insert_pkgs.chunks(1_000) {

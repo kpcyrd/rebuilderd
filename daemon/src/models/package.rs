@@ -1,7 +1,7 @@
 use chrono::{Utc, NaiveDateTime, Duration};
 use crate::schema::*;
 use diesel::prelude::*;
-use rebuilderd_common::{PkgRelease, Distro, Status};
+use rebuilderd_common::{PkgRelease, Status};
 use rebuilderd_common::api::{Rebuild, BuildStatus};
 use rebuilderd_common::errors::*;
 
@@ -17,7 +17,8 @@ pub struct Package {
     pub distro: String,
     pub suite: String,
     pub architecture: String,
-    pub url: String,
+    pub artifact_url: String,
+    pub input_url: Option<String>,
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
@@ -180,7 +181,8 @@ impl Package {
             version: self.version,
             status: self.status.parse()?,
             suite: self.suite,
-            url: self.url,
+            artifact_url: self.artifact_url,
+            input_url: self.input_url,
             build_id: self.build_id,
             built_at: self.built_at,
             has_diffoscope: self.has_diffoscope,
@@ -200,7 +202,8 @@ pub struct NewPackage {
     pub distro: String,
     pub suite: String,
     pub architecture: String,
-    pub url: String,
+    pub artifact_url: String,
+    pub input_url: Option<String>,
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
@@ -225,16 +228,17 @@ impl NewPackage {
         Ok(())
     }
 
-    pub fn from_api(distro: Distro, base_id: i32, pkg: PkgRelease) -> NewPackage {
+    pub fn from_api(distro: String, base_id: i32, pkg: PkgRelease) -> NewPackage {
         NewPackage {
             base_id: Some(base_id),
             name: pkg.name,
             version: pkg.version,
             status: pkg.status.to_string(),
-            distro: distro.to_string(),
+            distro,
             suite: pkg.suite,
             architecture: pkg.architecture,
-            url: pkg.url,
+            artifact_url: pkg.artifact_url,
+            input_url: pkg.input_url,
             build_id: None,
             built_at: None,
             has_diffoscope: false,

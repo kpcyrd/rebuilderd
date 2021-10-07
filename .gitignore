@@ -1,8 +1,10 @@
 /target
 **/*.rs.bk
 contrib/*.1
-/worker/rebuilder.key
+rebuilder.key
+rebuilder.v2.key
 /worker/build/
 /worker/cache/
 /data/
+/secret/
 *.sw[op]

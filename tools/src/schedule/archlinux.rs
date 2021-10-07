@@ -2,7 +2,7 @@ use crate::args::PkgsSync;
 use crate::decompress;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use nom::bytes::complete::take_till;
-use rebuilderd_common::{PkgGroup, PkgArtifact, Distro};
+use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -160,7 +160,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let mut group = PkgGroup::new(
                     pkg.base.clone(),
                     pkg.version,
-                    Distro::Archlinux,
+                    "archlinux".to_string(),
                     sync.suite.to_string(),
                     pkg.architecture,
                     None,

@@ -3,7 +3,6 @@ use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
 use glob::Pattern;
-use rebuilderd_common::Distro;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
@@ -37,10 +36,11 @@ fn print_json<S: Serialize>(x: &S) -> Result<()> {
 }
 
 pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
-    let mut pkgs = match sync.distro {
-        Distro::Archlinux => schedule::archlinux::sync(&sync).await?,
-        Distro::Debian => schedule::debian::sync(&sync).await?,
-        Distro::Tails => schedule::tails::sync(&sync).await?,
+    let mut pkgs = match sync.distro.as_str() {
+        "archlinux" => schedule::archlinux::sync(&sync).await?,
+        "debian" => schedule::debian::sync(&sync).await?,
+        "tails" => schedule::tails::sync(&sync).await?,
+        unknown => bail!("No integrated sync for {:?}, use sync-stdin instead", unknown),
     };
     pkgs.sort_by(|a, b| a.base.cmp(&b.base));
 
@@ -189,7 +189,7 @@ async fn main() -> Result<()> {
                         status_str,
                         pkg_str,
                         info,
-                        pkg.url,
+                        pkg.artifact_url,
                     ).is_err() {
                         break;
                     }

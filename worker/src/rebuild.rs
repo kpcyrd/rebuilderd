@@ -7,45 +7,21 @@ use in_toto::runlib::in_toto_run;
 use rebuilderd_common::api::{BuildStatus, Rebuild};
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Distro;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
 pub struct Context<'a> {
-    pub distro: &'a Distro,
-    pub script_location: Option<&'a PathBuf>,
+    pub artifact_url: String,
+    pub input_url: Option<String>,
+    pub backend: config::Backend,
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
     pub privkey: &'a PrivateKey,
-}
-
-fn locate_script(distro: &Distro, script_location: Option<PathBuf>) -> Result<PathBuf> {
-    if let Some(script_location) = script_location {
-        return Ok(script_location);
-    }
-
-    let bin = match distro {
-        Distro::Archlinux => "rebuilder-archlinux.sh",
-        Distro::Debian => "rebuilder-debian.sh",
-        Distro::Tails => "rebuilder-tails.sh",
-    };
-
-    for prefix in &[".", "/usr/libexec/rebuilderd", "/usr/local/libexec/rebuilderd"] {
-        let bin = format!("{}/{}", prefix, bin);
-        let bin = Path::new(&bin);
-
-        if bin.exists() {
-            return Ok(bin.to_path_buf());
-        }
-    }
-
-    bail!("Failed to find a rebuilder backend")
 }
 
 fn path_to_string(path: &Path) -> Result<String> {
@@ -109,7 +85,7 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
+pub async fn rebuild(ctx: &Context<'_>) -> Result<Rebuild> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -122,27 +98,36 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
         .context("Failed to create out/ temp dir")?;
 
     // download
-    let filename = download(url, &inputs_dir)
+    let artifact_filename = download(&ctx.artifact_url, &inputs_dir)
         .await
-        .with_context(|| anyhow!("Failed to download original package from {:?}", url))?;
+        .with_context(|| anyhow!("Failed to download original package from {:?}", ctx.artifact_url))?;
+    let artifact_path = inputs_dir.join(&artifact_filename);
+
+    let input_filename = if let Some(input_url) = &ctx.input_url {
+        download(input_url, &inputs_dir)
+            .await
+            .with_context(|| anyhow!("Failed to download original package from {:?}", ctx.artifact_url))?
+    } else {
+        artifact_filename.to_owned()
+    };
+    let input_path = inputs_dir.join(&input_filename);
 
     // rebuild
-    let input_path = inputs_dir.join(&filename);
     let log = verify(ctx, &out_dir, &input_path).await?;
 
     // process result
-    let output_path = out_dir.join(&filename);
+    let output_path = out_dir.join(&artifact_filename);
 
     if !output_path.exists() {
         info!("Build failed, no output artifact found at {:?}", output_path);
         Ok(Rebuild::new(BuildStatus::Bad, log))
-    } else if compare_files(&input_path, &output_path).await? {
+    } else if compare_files(&artifact_path, &output_path).await? {
         info!("Files are identical, marking as GOOD");
         let mut res = Rebuild::new(BuildStatus::Good, log);
 
         info!("Generating signed link");
         let signed_link = in_toto_run(
-            &format!("rebuild {}", filename.to_str().unwrap()),
+            &format!("rebuild {}", artifact_filename.to_str().unwrap()),
             None,
             &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
             &[output_path.to_str().ok_or_else(|| anyhow!("Output path contains invalid characters"))?],
@@ -173,15 +158,7 @@ pub async fn rebuild(ctx: &Context<'_>, url: &str) -> Result<Rebuild> {
 }
 
 async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<String> {
-    let bin = if let Some(script) = ctx.script_location {
-        Cow::Borrowed(script)
-    } else {
-        let script = locate_script(ctx.distro, None)
-            .with_context(|| {anyhow!("Failed to locate rebuild backend for distro={}", ctx.distro)
-        })?;
-        Cow::Owned(script)
-    };
-
+    let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
     let mut envs = HashMap::new();

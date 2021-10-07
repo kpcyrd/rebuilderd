@@ -11,7 +11,8 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     - RUST_LOG=debug
     volumes:
-       - ./data:/secret
+    - ./secret:/secret
+    - ./data:/data
   worker-alpine:
     build:
       context: .
@@ -23,7 +24,7 @@ services:
     environment:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
-       - ./data:/secret
+    - ./secret:/secret
   worker-archlinux:
     build:
       context: .
@@ -35,12 +36,11 @@ services:
     environment:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
-       - ./data:/secret
+    - ./secret:/secret
   worker-debian:
     build:
       context: .
       dockerfile: worker/Dockerfile.debian
-    # TODO: drop this after the next mmdebstrap release (currently 0.7.5)
     cap_add:
     - SYS_ADMIN
     # number of concurrent workers
@@ -50,7 +50,7 @@ services:
     environment:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
-       - ./data:/secret
+    - ./secret:/secret
   worker-tails:
     build:
       context: .
@@ -63,6 +63,7 @@ services:
     environment:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
+    - ./secret:/secret
     - /dev:/dev
     - /proc:/proc
     - /sys:/sys

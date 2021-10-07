@@ -145,32 +145,37 @@ To recompile your changes (you can optionally specify a specific image to build)
 DOCKER_BUILDKIT=1 docker-compose build
 ```
 
-To connect to your local instance, use this command to compile and run the `rebuildctl` binary.
+The auth cookie has strict permissions, for development simply change them with:
 
 ```sh
-REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- -v status
+sudo chmod 0644 secret/auth
 ```
 
-Sync a package index that should be rebuilt (takes a bit):
+Check you can successfully run administrative tasks, use this command to compile and run the `rebuildctl` binary:
 
 ```sh
-REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- pkgs sync archlinux community \
-     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
-    --architecture x86_64 --maintainer kpcyrd
+REBUILDERD_COOKIE_PATH=secret/auth cargo run -p rebuildctl -- -v status
 ```
 
-Display the build queue to test it's working:
+There are no packages in the database yet, there's an example profile that we can load. It only contains one lightweight package and should successfully rebuild out-of-the-box in our docker-compose setup.
 
 ```sh
-REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- queue ls --head
+REBUILDERD_COOKIE_PATH=secret/auth cargo run -p rebuildctl -- pkgs sync-profile --sync-config contrib/confs/rebuilderd-sync.conf debian-anarchism
 ```
 
-Monitor the logs of your workers with those two commands:
+Check the package was successfully added to the database with status `UNKWN`:
 
 ```sh
-REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- status
-REBUILDERD_COOKIE_PATH=data/auth cargo run -p rebuildctl -- pkgs ls
+REBUILDERD_COOKIE_PATH=secret/auth cargo run -p rebuildctl -- pkgs ls
 ```
+
+You can display the build queue with this command, it's also going to display a timer for jobs that are currently in progress:
+
+```sh
+REBUILDERD_COOKIE_PATH=secret/auth cargo run -p rebuildctl -- queue ls --head
+```
+
+You can use a combination of the commands mentioned to monitor your rebuilder. The packages should eventually show up as `GOOD` in `rebuildctl pkgs ls`.
 
 # Development
 
@@ -180,7 +185,7 @@ specific commit this section contains instructions for that.
 A rebuilder consists of the `rebuilderd` daemon and >= 1 workers:
 
 First we switch into the `daemon/` folder and run our rebuilderd daemon:
-```
+```sh
 cd daemon; cargo run
 ```
 
@@ -193,7 +198,7 @@ continue with the next steps.
 Next we're going to build the `rebuilctl binary` and confirm it's able to
 connect to the api. If we don't get an error message this means it's working.
 
-```
+```sh
 cd tools; cargo run -- status
 ```
 
@@ -210,19 +215,19 @@ backend):
 
 With a rebuilder backend installed we're now going to run our first worker:
 
-```
+```sh
 cd worker; cargo run -- connect http://127.0.0.1:8484
 ```
 
 This rebuilder should now show up in our `rebuildctl status` output:
 
-```
+```sh
 cd tools; cargo run -- status
 ```
 
 Next we're going to import some packages:
 
-```
+```sh
 cd tools; cargo run -- pkgs sync archlinux community \
     'https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch' \
     --architecture x86_64 --maintainer kpcyrd
@@ -232,25 +237,33 @@ The `--maintainer` option is optional and allows you to rebuild packages by a sp
 
 To show the current status of our imported packages run:
 
-```
+```sh
 cd tools; cargo run -- pkgs ls
 ```
 
 To monitor your workers are picking up tasks:
 
-```
+```sh
 cd tools; cargo build && CLICOLOR_FORCE=1 watch -c ../target/debug/rebuildctl status
 ```
 
 To inspect the queue run:
 
-```
+```sh
 cd tools; cargo run -- queue ls
 ```
 
 An easy way to test the package import is using a command like this:
-```
+```sh
 cargo watch -- cargo run --bin rebuildctl -- pkgs sync-profile --print-json --sync-config contrib/confs/rebuilderd-sync.conf tails
+```
+
+Build a package directly:
+```sh
+cargo run --bin rebuilderd-worker -- \
+	build debian 'http://deb.debian.org/debian/pool/main/a/anarchism/anarchism_15.3-3_all.deb' \
+	--input-url 'https://buildinfos.debian.net/buildinfo-pool/a/anarchism/anarchism_15.3-3_all.buildinfo' \
+	--backend 'debian=./rebuilder-debian.sh'
 ```
 
 ## Dependencies
