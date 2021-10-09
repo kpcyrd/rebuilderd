@@ -27,7 +27,8 @@ async fn main() -> Result<()> {
         0 => "actix_web=debug,info",
         1 => "actix_web=debug,rebuilderd=debug,rebuilderd_common=debug,info",
         2 => "debug",
-        _ => "debug,rebuilderd=trace,rebuilderd_common=trace",
+        3 => "rebuilderd=trace,rebuilderd_common=trace,debug",
+        _ => "trace",
     };
 
     env_logger::init_from_env(Env::default()
