@@ -5,6 +5,9 @@ use std::path::PathBuf;
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
+    /// Verbose logging
+    #[structopt(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u8,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
     #[structopt(short, long)]
