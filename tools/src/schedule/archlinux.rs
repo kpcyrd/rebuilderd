@@ -150,6 +150,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
             let url = mirror_to_url(source, &sync.suite, arch, &pkg.filename)?;
             let artifact = PkgArtifact {
                 name: pkg.name,
+                version: pkg.version.clone(),
                 url,
             };
 
