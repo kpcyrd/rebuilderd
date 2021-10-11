@@ -137,7 +137,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("New packages: {:?}", new_pkgs.len());
     let mut insert_pkgs = Vec::new();
     for (_, (base, v)) in new_pkgs {
-        debug!("Searching for pkgbases for {:?} {:?} {:?} {:?}", base, v.distro, v.suite, v.architecture);
+        debug!("Searching for pkgbases for {:?} {:?} {:?} {:?} {:?}", base, v.version, v.distro, v.suite, v.architecture);
         let pkgbases = models::PkgBase::get_by(&base, &v.distro, &v.suite, Some(&v.architecture), connection)?
             .into_iter()
             .filter(|b| b.version == v.version)
@@ -153,7 +153,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     for insert_pkgs in insert_pkgs.chunks(1_000) {
-        debug!("new: {:?}", insert_pkgs.len());
+        debug!("Inserting new pkgs chunk: {:?}", insert_pkgs.len());
         models::NewPackage::insert_batch(insert_pkgs, connection)?;
 
         // this is needed because diesel doesn't return ids when inserting into sqlite
@@ -201,7 +201,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("queueing new jobs");
     // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
     for pkgs in queue.chunks(1_000) {
-        debug!("queue: {:?}", pkgs.len());
+        debug!("Inserting queue chunk: {:?}", pkgs.len());
         models::Queued::queue_batch(pkgs, import.distro.to_string(), 1, connection)?;
     }
     info!("successfully updated state");

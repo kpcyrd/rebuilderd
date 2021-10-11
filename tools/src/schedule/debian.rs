@@ -251,21 +251,21 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn ensure_group_exists(&mut self, src: &DebianSourcePkg, suite: String, arch: String) {
+    fn ensure_group_exists(&mut self, src: &DebianSourcePkg, suite: String, arch: &str) {
         // TODO: creating a new group isn't always needed
-        let buildinfo_url = src.buildinfo_url(&arch);
+        let buildinfo_url = src.buildinfo_url(arch);
         let new_group = PkgGroup::new(
             src.base.clone(),
             src.version.clone(),
             "debian".to_string(),
             suite,
-            arch,
+            arch.to_string(),
             Some(buildinfo_url),
         );
 
         if let Some(list) = self.groups.get_mut(&src.base) {
             for group in list.iter() {
-                if group.version == src.version {
+                if group.version == src.version && group.architecture == arch {
                     return;
                 }
             }
@@ -276,14 +276,14 @@ impl SyncState {
         }
     }
 
-    fn get_mut_group(&mut self, src: &DebianSourcePkg, suite: String, arch: String) -> &mut PkgGroup {
+    fn get_mut_group(&mut self, src: &DebianSourcePkg, suite: String, arch: &str) -> &mut PkgGroup {
         self.ensure_group_exists(src, suite, arch);
 
         // ensure_group_exists ensures the group exists
         let list = self.groups.get_mut(&src.base).unwrap();
 
         for group in list {
-            if group.version == src.version {
+            if group.version == src.version && group.architecture == arch {
                 return group;
             }
         }
@@ -293,7 +293,7 @@ impl SyncState {
     }
 
     pub fn push(&mut self, src: &DebianSourcePkg, bin: DebianBinPkg, source: &str, suite: String) {
-        let group = self.get_mut_group(src, suite, bin.architecture.clone());
+        let group = self.get_mut_group(src, suite, &bin.architecture);
         let url = format!("{}/{}/{}_{}_{}.deb",
             source,
             src.directory,
