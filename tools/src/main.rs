@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
 
     let config = rebuilderd_common::config::load(args.config)
         .context("Failed to load config file")?;
-    let mut client = Client::new(config, args.endpoint);
+    let mut client = Client::new(config, args.endpoint)?;
 
     match args.subcommand {
         SubCommand::Status => {

@@ -15,15 +15,15 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn new_client(&self, config: ConfigFile, endpoint: String, signup_secret: Option<String>, auth_cookie: Option<String>) -> Client {
-        let mut client = Client::new(config, Some(endpoint));
+    pub fn new_client(&self, config: ConfigFile, endpoint: String, signup_secret: Option<String>, auth_cookie: Option<String>) -> Result<Client> {
+        let mut client = Client::new(config, Some(endpoint))?;
         client.worker_key(self.pubkey.clone());
         if let Some(signup_secret) = signup_secret {
             client.signup_secret(signup_secret);
         } else if let Some(auth_cookie) = auth_cookie {
             client.auth_cookie(auth_cookie);
         }
-        client
+        Ok(client)
     }
 }
 
