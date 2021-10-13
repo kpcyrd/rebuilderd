@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
     }
 
     info!("Setting up client for {:?}", args.endpoint);
-    let mut client = Client::new(config.clone(), Some(args.endpoint));
+    let mut client = Client::new(config.clone(), Some(args.endpoint))?;
     client.worker_key("worker1"); // TODO: this is not a proper key
 
     test("Testing database to be empty", async {

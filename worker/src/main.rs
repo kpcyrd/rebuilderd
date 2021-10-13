@@ -146,7 +146,7 @@ async fn main() -> Result<()> {
                     .ok_or_else(|| format_err!("No endpoint configured"))?
             };
 
-            let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie);
+            let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie)?;
             run_worker_loop(&client, &profile.privkey, &config).await?;
         },
         // this is only really for debugging
