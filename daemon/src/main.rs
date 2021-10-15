@@ -9,8 +9,8 @@ use rebuilderd_common::errors::*;
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 struct Args {
     /// Verbose logging
-    #[structopt(short)]
-    verbose: bool,
+    #[structopt(short, long, parse(from_occurrences))]
+    verbose: u8,
     /// Load and print a config
     #[structopt(long)]
     check_config: bool,
@@ -23,10 +23,12 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let logging = if args.verbose {
-        "actix_web=debug,rebuilderd=debug,info"
-    } else {
-        "actix_web=debug,info"
+    let logging = match args.verbose {
+        0 => "actix_web=debug,info",
+        1 => "actix_web=debug,rebuilderd=debug,rebuilderd_common=debug,info",
+        2 => "debug",
+        3 => "rebuilderd=trace,rebuilderd_common=trace,debug",
+        _ => "trace",
     };
 
     env_logger::init_from_env(Env::default()

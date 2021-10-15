@@ -43,6 +43,7 @@ async fn initial_import(client: &Client) -> Result<()> {
     );
     group.add_artifact(PkgArtifact {
         name: "zstd".to_string(),
+        version: "1.4.5-1".to_string(),
         url,
     });
     let pkgs = vec![group];

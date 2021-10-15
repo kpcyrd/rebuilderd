@@ -83,10 +83,10 @@ async fn fetch_build_id_by_filter(client: &Client, filter: PkgsFilter) -> Result
 async fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let logging = if args.verbose {
-        "debug"
-    } else {
-        "info"
+    let logging = match args.verbose {
+        0 => "info",
+        1 => "debug",
+        _ => "trace",
     };
 
     env_logger::init_from_env(Env::default()

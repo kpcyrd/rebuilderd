@@ -43,9 +43,9 @@ afford to.
 | | Status | Docker | Doesn't need --privileged | Doesn't need /dev/kvm | Backend |
 | --- | --- | --- | --- | --- | --- |
 | **Arch Linux** | ✔️ supported | ❌ | - | ✔️ | [archlinux-repro](https://github.com/archlinux/archlinux-repro) |
-| **Debian** | 🚀 planned | ✔️ | ❌ | ✔️ | [debrebuild.pl](https://salsa.debian.org/debian/devscripts/-/blob/master/scripts/debrebuild.pl) |
-| **Tails** | ⚠️ experimental | ❌ | - | ❌ | [docs](https://tails.boum.org/contribute/build/)
-| **Alpine** | 🚀 planned | - | - | - | - |
+| **Debian** | 🚀 experimental | ✔️ | ❌ | ✔️ | [debrebuild.pl](https://salsa.debian.org/debian/devscripts/-/blob/master/scripts/debrebuild.pl) |
+| **Tails** | 🚀 experimental | ❌ | - | ❌ | [docs](https://tails.boum.org/contribute/build/) ([script](worker/rebuilder-tails.sh)) |
+| **Alpine** | ✨ planned | - | - | - | - |
 
 **Docker**: There's a docker-compose example setup in this repository, but not
 all rebuilder backends support running inside of a docker container (for

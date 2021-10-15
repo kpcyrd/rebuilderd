@@ -27,6 +27,7 @@ pub fn cmp_debian(old: &str, new: &str) -> Result<Ordering> {
         return Ok(Ordering::Equal)
     }
 
+    trace!("Running dpkg to compare {:?} with {:?}", old, new);
     let status = Command::new("dpkg")
         .args(&[
             "--compare-versions",

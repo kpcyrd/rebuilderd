@@ -117,10 +117,17 @@ async fn run_worker_loop(client: &Client, privkey: &PrivateKey, config: &config:
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init_from_env(Env::default()
-        .default_filter_or("info"));
-
     let args = Args::from_args();
+
+    let logging = match args.verbose {
+        0 => "info",
+        1 => "debug",
+        _ => "trace",
+    };
+
+    env_logger::init_from_env(Env::default()
+        .default_filter_or(logging));
+
     let config = config::load(&args)
         .context("Failed to load config file")?;
 

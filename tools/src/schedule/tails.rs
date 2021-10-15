@@ -58,6 +58,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
 
         let artifact = PkgArtifact {
             name: filename,
+            version: version.to_string(),
             url,
         };
         group.add_artifact(artifact);

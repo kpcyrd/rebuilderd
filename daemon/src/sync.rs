@@ -51,9 +51,9 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
         }
     }
 
-    info!("inserting pkgbases ({})", insert_pkgbases.len());
+    info!("Inserting pkgbases (total: {})", insert_pkgbases.len());
     for bases in insert_pkgbases.chunks(1_000) {
-        debug!("pkgbase: {:?}", bases.len());
+        debug!("Inserting batch of pkgbases: {:?}", bases.len());
         models::NewPkgBase::insert_batch(bases, connection)?;
     }
 
@@ -104,7 +104,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     let mut pkgs = pkgs.into_iter()
         .map(|pkg| (pkg.name.clone(), pkg))
         .collect::<HashMap<_, _>>();
-    info!("existing packages {:?}", pkgs.len());
+    info!("Existing packages {:?}", pkgs.len());
 
     let mut new_pkgs = HashMap::<_, (String, PkgRelease)>::new();
     let mut updated_pkgs = HashMap::<_, (String, models::Package)>::new();
@@ -134,13 +134,15 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
 
     // TODO: if the package is queued, don't queue it again. Right now we can't rebuild the non-latest version anyway
 
-    info!("new packages: {:?}", new_pkgs.len());
+    info!("New packages: {:?}", new_pkgs.len());
     let mut insert_pkgs = Vec::new();
     for (_, (base, v)) in new_pkgs {
+        debug!("Searching for pkgbases for {:?} {:?} {:?} {:?} {:?}", base, v.version, v.distro, v.suite, v.architecture);
         let pkgbases = models::PkgBase::get_by(&base, &v.distro, &v.suite, Some(&v.architecture), connection)?
             .into_iter()
             .filter(|b| b.version == v.version)
             .collect::<Vec<_>>();
+        trace!("Found pkgbases: {:?}", pkgbases);
 
         if pkgbases.len() != 1 {
             bail!("Failed to locate pkgbase: {:?}/{:?}/{:?} ({:?}, {:?})", base, v.distro, v.suite, v.version, v.architecture);
@@ -151,7 +153,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     }
 
     for insert_pkgs in insert_pkgs.chunks(1_000) {
-        debug!("new: {:?}", insert_pkgs.len());
+        debug!("Inserting new pkgs chunk: {:?}", insert_pkgs.len());
         models::NewPackage::insert_batch(insert_pkgs, connection)?;
 
         // this is needed because diesel doesn't return ids when inserting into sqlite
@@ -199,7 +201,7 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("queueing new jobs");
     // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
     for pkgs in queue.chunks(1_000) {
-        debug!("queue: {:?}", pkgs.len());
+        debug!("Inserting queue chunk: {:?}", pkgs.len());
         models::Queued::queue_batch(pkgs, import.distro.to_string(), 1, connection)?;
     }
     info!("successfully updated state");

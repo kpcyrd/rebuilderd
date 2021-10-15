@@ -83,6 +83,7 @@ pub struct PkgGroup {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PkgArtifact {
     pub name: String,
+    pub version: String,
     pub url: String,
 }
 

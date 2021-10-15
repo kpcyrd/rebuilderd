@@ -11,6 +11,9 @@ use structopt::clap::{AppSettings, Shell};
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
+    /// Verbose logging
+    #[structopt(short, long, global = true, parse(from_occurrences))]
+    pub verbose: u8,
     /// rebuilderd endpoint to talk to
     #[structopt(short="H", long)]
     pub endpoint: Option<String>,
@@ -20,9 +23,6 @@ pub struct Args {
     /// Bypass tty detection and always use colors
     #[structopt(short="C", long, global=true)]
     pub color: bool,
-    /// Verbose logging
-    #[structopt(short)]
-    pub verbose: bool,
     #[structopt(subcommand)]
     pub subcommand: SubCommand,
 }
