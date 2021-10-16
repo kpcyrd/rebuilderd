@@ -34,6 +34,7 @@ rust and compile rebuilderd from source:
     cargo build --release -p rebuilderd
     sudo install -Dm 755 target/release/rebuilderd-worker -t /usr/local/bin/
     sudo install -Dm 755 target/release/rebuildctl -t /usr/local/bin/
+    sudo install -Dm 755 target/release/rebuilderd -t /usr/local/bin/
     sudo install -Dm 755 worker/rebuilder-tails.sh -t /usr/local/libexec/
 
 Import current tails version into rebuilderd:
