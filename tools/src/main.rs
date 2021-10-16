@@ -149,7 +149,7 @@ async fn main() -> Result<()> {
             let pkgs = serde_json::from_slice(&buf)
                 .context("Failed to deserialize pkg import from stdin")?;
 
-            sync_import(&client, &SuiteImport {
+            sync_import(client.with_auth_cookie()?, &SuiteImport {
                 distro: sync.distro,
                 suite: sync.suite,
                 pkgs,

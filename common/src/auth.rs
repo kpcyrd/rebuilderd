@@ -34,7 +34,7 @@ fn read_cookie_from_config<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
     }
 }
 
-fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
+pub fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
     debug!("Attempting reading cookie from file: {:?}", path.as_ref());
     let cookie = fs::read_to_string(path.as_ref())?;
     debug!("Found cookie in file {:?}", path.as_ref());
