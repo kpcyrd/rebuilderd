@@ -7,6 +7,7 @@ use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::env;
 use url::Url;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
@@ -54,7 +55,12 @@ impl Client {
     }
 
     pub fn with_auth_cookie(&mut self) -> Result<&mut Self> {
-        if self.is_default_endpoint {
+        if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
+            debug!("Found cookie path in environment: {:?}", cookie_path);
+            let auth_cookie = auth::read_cookie_from_file(cookie_path)
+                .context("Failed to load auth cookie")?;
+            Ok(self.auth_cookie(auth_cookie))
+        } else if self.is_default_endpoint {
             let auth_cookie = auth::find_auth_cookie()
                 .context("Failed to load auth cookie")?;
             Ok(self.auth_cookie(auth_cookie))
