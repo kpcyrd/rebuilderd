@@ -8,6 +8,20 @@ jobs:
   push_to_registry:
     name: Push Docker image to GitHub Registry
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+        - name: rebuilderd
+          file: Dockerfile
+        - name: rebuilderd/worker-alpine
+          file: worker/Dockerfile.alpine
+        - name: rebuilderd/worker-archlinux
+          file: worker/Dockerfile.archlinux
+        - name: rebuilderd/worker-debian
+          file: worker/Dockerfile.debian
+        - name: rebuilderd/worker-tails
+          file: worker/Dockerfile.tails
     steps:
       -
         name: Checkout
@@ -18,7 +32,7 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            ghcr.io/kpcyrd/rebuilderd
+            ghcr.io/kpcyrd/${{ matrix.build.name }}
           tags: |
             type=semver,pattern={{raw}}
       -
@@ -45,6 +59,7 @@ jobs:
         with:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          file: ${{ matrix.build.file }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
       -
