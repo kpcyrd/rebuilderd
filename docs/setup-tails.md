@@ -26,7 +26,7 @@ rust and compile rebuilderd from source:
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     source $HOME/.cargo/env
-    apt install liblzma-dev pkg-config libzstd-dev
+    apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev
     git clone https://github.com/kpcyrd/rebuilderd
     cd rebuilderd
     cargo build --release -p rebuilderd-worker
