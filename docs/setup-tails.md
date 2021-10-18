@@ -26,10 +26,15 @@ rust and compile rebuilderd from source:
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     source $HOME/.cargo/env
+    apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev
     git clone https://github.com/kpcyrd/rebuilderd
     cd rebuilderd
     cargo build --release -p rebuilderd-worker
-    sudo install -Dm 755 target/release/rebuilderd-worker -t /usr/local/bin/
+    cargo build --release -p rebuildctl
+    cargo build --release -p rebuilderd
+    sudo install -Dm 755 target/release/rebuilderd-worker -t /usr/bin/
+    sudo install -Dm 755 target/release/rebuildctl -t /usr/bin/
+    sudo install -Dm 755 target/release/rebuilderd -t /usr/bin/
     sudo install -Dm 755 worker/rebuilder-tails.sh -t /usr/local/libexec/
 
 Import current tails version into rebuilderd:
