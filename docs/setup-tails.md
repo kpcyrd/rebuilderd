@@ -3,6 +3,10 @@
 Most of this is taken from the [Building a Tails
 image](https://tails.boum.org/contribute/build/) instructions.
 
+If you're running this in a VM you need to make sure you have [nested
+virtualization](https://pve.proxmox.com/wiki/Nested_Virtualization) setup
+because the tails build itself is also creating VMs.
+
 Install required packages for tails:
 
     sudo apt install \
@@ -29,13 +33,17 @@ rust and compile rebuilderd from source:
     sudo apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev gcc libssl-dev
     git clone https://github.com/kpcyrd/rebuilderd
     cd rebuilderd
-    cargo build --release -p rebuilderd-worker
-    cargo build --release -p rebuildctl
-    cargo build --release -p rebuilderd
-    sudo install -Dm 755 target/release/rebuilderd-worker -t /usr/bin/
-    sudo install -Dm 755 target/release/rebuildctl -t /usr/bin/
-    sudo install -Dm 755 target/release/rebuilderd -t /usr/bin/
-    sudo install -Dm 755 worker/rebuilder-tails.sh -t /usr/local/libexec/
+    cargo build --release
+    sudo install -Dm 755 -t /usr/bin/ \
+        target/release/rebuilderd \
+        target/release/rebuildctl \
+        target/release/rebuilderd-worker
+    sudo install -Dm 755 worker/rebuilder-tails.sh -t /usr/libexec/rebuilderd/
+    sudo install -Dm 644 contrib/confs/rebuilderd.conf -t /etc
+
+Open a new terminal to run the rebuilderd daemon in the background:
+
+    /usr/bin/rebuilderd -c /etc/rebuilderd.conf -v
 
 Import current tails version into rebuilderd:
 
