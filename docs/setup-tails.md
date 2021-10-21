@@ -15,6 +15,8 @@ Install required packages for tails:
 ```sh
 sudo apt install \
     curl \
+    sudo \
+    dpkg-dev \
     psmisc \
     git \
     gpg \
