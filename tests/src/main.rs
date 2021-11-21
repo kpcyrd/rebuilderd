@@ -94,10 +94,11 @@ fn wait_for_server() -> Result<()> {
 async fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let logging = if args.verbose {
-        "rebuilderd_tests=debug"
-    } else {
-        "rebuilderd_tests=info"
+    let logging = match args.verbose {
+        0 => "warn,rebuilderd_tests=info",
+        1 => "info,rebuilderd_tests=debug",
+        2 => "debug",
+        _ => "trace",
     };
 
     env_logger::init_from_env(Env::default()
@@ -314,6 +315,40 @@ async fn main() -> Result<()> {
         if pkg.next_retry.is_some() {
             bail!("Unexpected some: next_retry");
         }
+
+        Ok(())
+    }).await?;
+
+    test("Sending import for build group of two artifacts", async {
+        let distro = "rebuilderd".to_string();
+        let suite = "main".to_string();
+        let architecture = "x86_64".to_string();
+
+        let mut group = PkgGroup::new(
+            "hello-world".to_string(),
+            "1.2.3-4".to_string(),
+            distro.clone(),
+            suite.clone(),
+            architecture.clone(),
+            Some("https://example.com/hello-world-1.2.3-4.buildinfo.txt".to_string()),
+        );
+        group.add_artifact(PkgArtifact {
+            name: "foo".to_string(),
+            version: "0.1.2".to_string(),
+            url: "https://example.com/foo-0.1.2.tar.zst".to_string(),
+        });
+        group.add_artifact(PkgArtifact {
+            name: "bar".to_string(),
+            version: "0.3.4".to_string(),
+            url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
+        });
+        let pkgs = vec![group];
+
+        client.sync_suite(&SuiteImport {
+            distro,
+            suite,
+            pkgs,
+        }).await?;
 
         Ok(())
     }).await?;

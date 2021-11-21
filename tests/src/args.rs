@@ -7,8 +7,8 @@ pub struct Args {
     #[structopt(long)]
     pub cookie: String,
     /// Verbose logging
-    #[structopt(short)]
-    pub verbose: bool,
+    #[structopt(short, long, parse(from_occurrences))]
+    pub verbose: u8,
     /// Do not start a test daemon
     #[structopt(long)]
     pub no_daemon: bool,
