@@ -75,7 +75,7 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::push_queue)
             .service(api::pop_queue)
             .service(api::drop_from_queue)
-            .service(api::requeue_pkg)
+            .service(api::requeue_pkgbase)
             .service(api::ping_build)
             .service(api::get_build_log)
             .service(api::get_diffoscope)

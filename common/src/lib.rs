@@ -69,18 +69,18 @@ impl PkgRelease {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PkgGroup {
-    pub base: String,
+    pub name: String,
     pub version: String,
 
     pub distro: String,
     pub suite: String,
     pub architecture: String,
 
-    pub input: Option<String>,
+    pub input_url: Option<String>,
     pub artifacts: Vec<PkgArtifact>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PkgArtifact {
     pub name: String,
     pub version: String,
@@ -88,14 +88,14 @@ pub struct PkgArtifact {
 }
 
 impl PkgGroup {
-    pub fn new(base: String, version: String, distro: String, suite: String, architecture: String, input: Option<String>) -> PkgGroup {
+    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, input_url: Option<String>) -> PkgGroup {
         PkgGroup {
-            base,
+            name,
             version,
             distro,
             suite,
             architecture,
-            input,
+            input_url,
             artifacts: Vec::new(),
         }
     }
@@ -104,9 +104,9 @@ impl PkgGroup {
         self.artifacts.push(artifact);
     }
 
-    pub fn input(&self) -> Result<&str> {
-        if let Some(input) = &self.input {
-            Ok(input.as_str())
+    pub fn input_url(&self) -> Result<&str> {
+        if let Some(input_url) = &self.input_url {
+            Ok(input_url.as_str())
         } else if !self.artifacts.is_empty() {
             let mut artifacts = Vec::from_iter(self.artifacts.iter().collect::<Vec<_>>());
             artifacts.sort_by_key(|a| &a.name);

@@ -232,7 +232,7 @@ pub async fn pop_queue(
         // TODO: claim item correctly
 
 
-        let status = format!("working hard on {} {}", item.package.name, item.package.version);
+        let status = format!("working hard on {} {}", item.pkgbase.name, item.pkgbase.version);
         (JobAssignment::Rebuild(Box::new(item)), Some(status))
     } else {
         (JobAssignment::Nothing, None)
@@ -258,18 +258,18 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let connection = pool.get().map_err(Error::from)?;
 
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
-    let pkgs = pkgs.iter()
+    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgbases = pkgbases.iter()
         .map(|p| p.id)
         .collect::<Vec<_>>();
 
-    models::Queued::drop_for_pkgs(&pkgs, connection.as_ref())?;
+    models::Queued::drop_for_pkgbases(&pkgbases, connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
 
 #[post("/api/v0/pkg/requeue")]
-pub async fn requeue_pkg(
+pub async fn requeue_pkgbase(
     req: HttpRequest,
     cfg: web::Data<Config>,
     query: web::Json<RequeueQuery>,
@@ -367,25 +367,28 @@ pub async fn report_build(
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
-    let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
+    let mut pkg = models::Package::get_id(item.pkgbase_id, connection.as_ref())?;
 
-    let build = models::NewBuild::from_api(&report);
-    let build = build.insert(connection.as_ref())?;
-    pkg.build_id = Some(build);
+    for rebuild in &report.rebuilds {
+        let build = models::NewBuild::from_api(rebuild);
+        let build_id = build.insert(connection.as_ref())?;
+        pkg.build_id = Some(build_id);
 
-    pkg.has_diffoscope = report.rebuild.diffoscope.is_some();
-    pkg.has_attestation = report.rebuild.attestation.is_some();
+        pkg.has_diffoscope = rebuild.diffoscope.is_some();
+        pkg.has_attestation = rebuild.attestation.is_some();
 
-    if report.rebuild.status == BuildStatus::Good {
-        pkg.next_retry = None;
-    } else {
-        pkg.schedule_retry(cfg.schedule.retry_delay_base());
+        if rebuild.status == BuildStatus::Good {
+            pkg.next_retry = None;
+        } else {
+            // TODO: this needs to happen on the pkgbase
+            pkg.schedule_retry(cfg.schedule.retry_delay_base());
+        }
+        pkg.update_status_safely(rebuild, connection.as_ref())?;
+        item.delete(connection.as_ref())?;
+
+        worker.status = None;
+        worker.update(connection.as_ref())?;
     }
-    pkg.update_status_safely(&report.rebuild, connection.as_ref())?;
-    item.delete(connection.as_ref())?;
-
-    worker.status = None;
-    worker.update(connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
 }

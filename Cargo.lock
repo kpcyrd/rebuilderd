@@ -1883,6 +1883,7 @@ dependencies = [
  "rand 0.8.4",
  "rebuilderd-common",
  "serde",
+ "serde_json",
  "structopt",
  "toml",
 ]

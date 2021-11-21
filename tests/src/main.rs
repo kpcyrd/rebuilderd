@@ -210,7 +210,7 @@ async fn main() -> Result<()> {
         };
         let report = BuildReport {
             queue,
-            rebuild,
+            rebuilds: vec![rebuild],
         };
         client.report_build(&report).await?;
 
@@ -290,7 +290,7 @@ async fn main() -> Result<()> {
         };
         let report = BuildReport {
             queue,
-            rebuild,
+            rebuilds: vec![rebuild],
         };
         client.report_build(&report).await?;
 

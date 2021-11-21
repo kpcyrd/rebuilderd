@@ -1,7 +1,7 @@
 use crate::schema::*;
 use diesel::sql_types;
 use diesel::prelude::*;
-use rebuilderd_common::api::BuildReport;
+use rebuilderd_common::api::Rebuild;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
@@ -51,11 +51,11 @@ impl NewBuild {
         Ok(id)
     }
 
-    pub fn from_api(report: &BuildReport) -> NewBuild {
+    pub fn from_api(rebuild: &Rebuild) -> NewBuild {
         NewBuild {
-            diffoscope: report.rebuild.diffoscope.clone(),
-            attestation: report.rebuild.attestation.clone(),
-            build_log: report.rebuild.log.as_bytes().to_vec(),
+            diffoscope: rebuild.diffoscope.clone(),
+            attestation: rebuild.attestation.clone(),
+            build_log: rebuild.log.as_bytes().to_vec(),
         }
     }
 }

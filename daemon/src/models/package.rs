@@ -80,6 +80,7 @@ impl Package {
         Ok(pkgs)
     }
 
+    /*
     pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
         use crate::schema::packages::dsl::*;
         use crate::schema::queue;
@@ -88,11 +89,12 @@ impl Package {
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
             .filter(next_retry.le(Utc::now().naive_utc()))
-            .left_outer_join(queue::table.on(id.eq(queue::package_id)))
+            .left_outer_join(queue::table.on(id.eq(queue::base_id)))
             .filter(queue::id.is_null())
             .load(connection)?;
         Ok(pkgs)
     }
+    */
 
     // when updating the verify status, use a custom query that enforces a version match
     pub fn update(&self, connection: &SqliteConnection) -> Result<()> {

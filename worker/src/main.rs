@@ -5,6 +5,7 @@ use crate::rebuild::Context;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
 use structopt::StructOpt;
+use rebuilderd_common::PkgArtifact;
 use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
@@ -26,10 +27,10 @@ pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Rebuild> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Vec<Rebuild>> {
     let ctx = Context {
-        artifact_url: item.package.artifact_url.clone(),
-        input_url: item.package.input_url.clone(),
+        artifacts: item.pkgbase.artifacts.clone(),
+        input_url: item.pkgbase.input_url.clone(),
         backend,
         build: config.build.clone(),
         diffoscope: config.diffoscope.clone(),
@@ -62,29 +63,25 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
         },
         JobAssignment::Rebuild(rb) => {
-            info!("Starting rebuild of {:?} {:?}",  rb.package.name, rb.package.version);
+            info!("Starting rebuild of {:?} {:?}",  rb.pkgbase.name, rb.pkgbase.version);
 
-            let backend = config.backends.get(&rb.package.distro)
+            let backend = config.backends.get(&rb.pkgbase.distro)
                 .cloned()
-                .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.package.distro))?;
+                .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.pkgbase.distro))?;
 
-            let rebuild = match spawn_rebuilder_script_with_heartbeat(client, privkey, backend, &rb, config).await {
-                Ok(res) => {
-                    if res.status == BuildStatus::Good {
-                        info!("Package successfully verified");
-                    } else {
-                        warn!("Failed to verify package");
-                    };
-                    res
-                },
+            let rebuilds = match spawn_rebuilder_script_with_heartbeat(client, privkey, backend, &rb, config).await {
+                Ok(res) => res,
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
-                    Rebuild::new(BuildStatus::Fail, String::new())
+                    vec![Rebuild::new(
+                        BuildStatus::Fail,
+                        "rebuilderd: unexpected error while rebuilding package\n".to_string()
+                    )]
                 },
             };
             let report = BuildReport {
                 queue: *rb,
-                rebuild,
+                rebuilds,
             };
             info!("Sending build report to rebuilderd...");
             client.report_build(&report)
@@ -174,7 +171,11 @@ async fn main() -> Result<()> {
             };
 
             let res = rebuild::rebuild(&Context {
-                artifact_url: build.artifact_url,
+                artifacts: vec![PkgArtifact {
+                    name: "anonymous".to_string(),
+                    version: "0.0.0".to_string(),
+                    url: build.artifact_url,
+                }],
                 input_url: build.input_url,
                 backend,
                 build: config::Build::default(),
@@ -182,14 +183,16 @@ async fn main() -> Result<()> {
                 privkey: &profile.privkey,
             }).await?;
 
-            trace!("rebuild result object is {:?}", res);
+            for res in res {
+                trace!("rebuild result object is {:?}", res);
 
-            if res.status == BuildStatus::Good {
-                info!("Package verified successfully");
-            } else {
-                error!("Package failed to verify");
-                if let Some(diffoscope) = res.diffoscope {
-                    io::stdout().write_all(diffoscope.as_bytes()).ok();
+                if res.status == BuildStatus::Good {
+                    info!("Package verified successfully");
+                } else {
+                    error!("Package failed to verify");
+                    if let Some(diffoscope) = res.diffoscope {
+                        io::stdout().write_all(diffoscope.as_bytes()).ok();
+                    }
                 }
             }
         },

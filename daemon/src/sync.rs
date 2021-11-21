@@ -23,28 +23,33 @@ fn insert_pkgbases(import: &mut SuiteImport, connection: &SqliteConnection) -> R
 
     let mut import_pkgs = Vec::new();
     let mut insert_pkgbases = Vec::new();
-    for mut base in import.pkgs.drain(..) {
-        for artifact in base.artifacts.drain(..) {
-            import_pkgs.push((base.base.clone(), PkgRelease::new(
+    for mut pkgbase in import.pkgs.drain(..) {
+        let artifacts = serde_json::to_string(&pkgbase.artifacts)?;
+
+        for artifact in pkgbase.artifacts.drain(..) {
+            import_pkgs.push((pkgbase.name.clone(), PkgRelease::new(
                 artifact.name,
-                base.version.clone(),
+                pkgbase.version.clone(),
                 import.distro.clone(),
-                base.suite.clone(),
-                base.architecture.clone(),
+                pkgbase.suite.clone(),
+                pkgbase.architecture.clone(),
                 artifact.url,
-                base.input.clone(),
+                pkgbase.input_url.clone(),
             )));
         }
-        let key = format!("{}-{}", base.base, base.version);
+
+        let key = format!("{}-{}", pkgbase.name, pkgbase.version);
         removed_pkgbases.remove(&key);
         if !known_pkgbases.contains_key(&key) {
-            debug!("adding pkgbase to insert queue: {:?}", base);
+            debug!("adding pkgbase to insert queue: {:?}", pkgbase);
             insert_pkgbases.push(models::NewPkgBase {
-                name: base.base,
-                version: base.version,
-                distro: base.distro,
-                suite: base.suite,
-                architecture: base.architecture,
+                name: pkgbase.name,
+                version: pkgbase.version,
+                distro: pkgbase.distro,
+                suite: pkgbase.suite,
+                architecture: pkgbase.architecture,
+                input_url: pkgbase.input_url.clone(),
+                artifacts,
                 retries: 0,
                 next_retry: None,
             });
@@ -211,12 +216,12 @@ fn sync(import: &mut SuiteImport, connection: &SqliteConnection) -> Result<()> {
 
 fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
     info!("selecting packages with due retries");
-    let queue = models::Package::list_distro_suite_due_retries(import.distro.as_ref(), &import.suite, connection)?;
+    let queue = models::PkgBase::list_distro_suite_due_retries(import.distro.as_ref(), &import.suite, connection)?;
 
     info!("queueing new jobs");
-    for pkgs in queue.chunks(1_000) {
-        debug!("queue: {:?}", pkgs.len());
-        models::Queued::queue_batch(pkgs, import.distro.to_string(), 2, connection)?;
+    for bases in queue.chunks(1_000) {
+        debug!("queue: {:?}", bases.len());
+        models::Queued::queue_batch(bases, import.distro.to_string(), 2, connection)?;
     }
     info!("successfully triggered {} retries", queue.len());
 

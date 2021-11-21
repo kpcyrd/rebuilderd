@@ -1,6 +1,7 @@
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, Utc};
 use crate::schema::*;
 use diesel::prelude::*;
+use rebuilderd_common::PkgGroup;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
@@ -12,6 +13,8 @@ pub struct PkgBase {
     pub distro: String,
     pub suite: String,
     pub architecture: String,
+    pub input_url: Option<String>,
+    pub artifacts: String,
     pub retries: i32,
     pub next_retry: Option<NaiveDateTime>,
 }
@@ -35,6 +38,14 @@ impl PkgBase {
         Ok(pkgs)
     }
 
+    pub fn get_id(my_id: i32, connection: &SqliteConnection) -> Result<PkgBase> {
+        use crate::schema::pkgbases::dsl::*;
+        let pkgbase = pkgbases
+            .filter(id.eq(my_id))
+            .first::<PkgBase>(connection)?;
+        Ok(pkgbase)
+    }
+
     pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let mut query = pkgbases
@@ -49,8 +60,7 @@ impl PkgBase {
         Ok(pkg)
     }
 
-    /*
-    pub fn list_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
+    pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
         use crate::schema::pkgbases::dsl::*;
         use crate::schema::queue;
         let pkgs = pkgbases
@@ -58,12 +68,27 @@ impl PkgBase {
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
             .filter(next_retry.le(Utc::now().naive_utc()))
-            .left_outer_join(queue::table.on(id.eq(queue::package_id)))
+            .left_outer_join(queue::table.on(id.eq(queue::pkgbase_id)))
             .filter(queue::id.is_null())
             .load(connection)?;
         Ok(pkgs)
     }
-    */
+
+    pub fn into_api_item(self) -> Result<PkgGroup> {
+        let artifacts = serde_json::from_str(&self.artifacts).expect("Failed to deserialize artifact");
+
+        Ok(PkgGroup {
+            name: self.name,
+            version: self.version,
+
+            distro: self.distro,
+            suite: self.suite,
+            architecture: self.architecture,
+
+            input_url: self.input_url,
+            artifacts,
+        })
+    }
 
     pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::pkgbases::dsl::*;
@@ -81,6 +106,8 @@ pub struct NewPkgBase {
     pub distro: String,
     pub suite: String,
     pub architecture: String,
+    pub input_url: Option<String>,
+    pub artifacts: String,
     pub retries: i32,
     pub next_retry: Option<NaiveDateTime>,
 }
