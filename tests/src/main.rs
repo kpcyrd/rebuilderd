@@ -51,7 +51,7 @@ async fn initial_import(client: &Client) -> Result<()> {
     client.sync_suite(&SuiteImport {
         distro,
         suite,
-        pkgs,
+        groups: pkgs,
     }).await?;
 
     Ok(())
@@ -80,9 +80,9 @@ async fn spawn_server(config: Config) {
     }
 }
 
-fn wait_for_server() -> Result<()> {
+fn wait_for_server(addr: &str) -> Result<()> {
     for _ in 0..100 {
-        if TcpStream::connect("127.0.0.1:8484").is_ok() {
+        if TcpStream::connect(addr).is_ok() {
             return Ok(())
         }
         thread::sleep(Duration::from_millis(100));
@@ -94,19 +94,25 @@ fn wait_for_server() -> Result<()> {
 async fn main() -> Result<()> {
     let args = Args::from_args();
 
-    let logging = if args.verbose {
-        "rebuilderd_tests=debug"
-    } else {
-        "rebuilderd_tests=info"
+    let logging = match args.verbose {
+        0 => "warn,rebuilderd_tests=info",
+        1 => "info,rebuilderd_tests=debug",
+        2 => "info,rebuilderd=debug,rebuilderd_tests=debug",
+        3 => "debug",
+        _ => "trace",
     };
 
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
+    let addr = args.bind_addr;
+    let endpoint = args.endpoint.unwrap_or_else(|| format!("http://{}", addr));
+
     let mut config = ConfigFile::default();
 
     config.auth.cookie = Some(args.cookie.clone());
-    config.endpoints.insert(args.endpoint.clone(), EndpointConfig {
+    config.http.bind_addr = Some(addr.clone());
+    config.endpoints.insert(endpoint.clone(), EndpointConfig {
         cookie: args.cookie.clone(),
     });
 
@@ -121,11 +127,11 @@ async fn main() -> Result<()> {
         thread::spawn(|| {
             spawn_server(config);
         });
-        wait_for_server()?;
+        wait_for_server(&addr)?;
     }
 
-    info!("Setting up client for {:?}", args.endpoint);
-    let mut client = Client::new(config.clone(), Some(args.endpoint))?;
+    info!("Setting up client for {:?}", endpoint);
+    let mut client = Client::new(config.clone(), Some(endpoint))?;
     client.worker_key("worker1"); // TODO: this is not a proper key
 
     test("Testing database to be empty", async {
@@ -178,10 +184,6 @@ async fn main() -> Result<()> {
             bail!("Status not UNKWN");
         }
 
-        if pkg.next_retry.is_some() {
-            bail!("Not None: next_retry");
-        }
-
         if pkg.built_at.is_some() {
             bail!("Not None: built_at");
         }
@@ -202,15 +204,20 @@ async fn main() -> Result<()> {
             JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
-        let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
-            status: BuildStatus::Bad,
-            attestation: None,
-        };
+
+        let mut rebuilds = Vec::new();
+        for artifact in queue.pkgbase.artifacts.clone() {
+            rebuilds.push((artifact, Rebuild {
+                diffoscope: None,
+                log: String::new(),
+                status: BuildStatus::Bad,
+                attestation: None,
+            }));
+        }
+
         let report = BuildReport {
             queue,
-            rebuild,
+            rebuilds,
         };
         client.report_build(&report).await?;
 
@@ -229,10 +236,6 @@ async fn main() -> Result<()> {
 
         if pkg.built_at.is_none() {
             bail!("Unexpected none: built_at");
-        }
-
-        if pkg.next_retry.is_none() {
-            bail!("Unexpected none: next_retry");
         }
 
         Ok(())
@@ -266,10 +269,6 @@ async fn main() -> Result<()> {
             bail!("Unexpected none: built_at");
         }
 
-        if pkg.next_retry.is_none() {
-            bail!("Unexpected none: next_retry");
-        }
-
         Ok(())
     }).await?;
 
@@ -282,15 +281,20 @@ async fn main() -> Result<()> {
             JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
-        let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
-            status: BuildStatus::Good,
-            attestation: None,
-        };
+
+        let mut rebuilds = Vec::new();
+        for artifact in queue.pkgbase.artifacts.clone() {
+            rebuilds.push((artifact, Rebuild {
+                diffoscope: None,
+                log: String::new(),
+                status: BuildStatus::Good,
+                attestation: None,
+            }));
+        }
+
         let report = BuildReport {
             queue,
-            rebuild,
+            rebuilds,
         };
         client.report_build(&report).await?;
 
@@ -311,10 +315,47 @@ async fn main() -> Result<()> {
             bail!("Unexpected none: built_at");
         }
 
-        if pkg.next_retry.is_some() {
-            bail!("Unexpected some: next_retry");
-        }
+        Ok(())
+    }).await?;
 
+    test("Sending import for build group of two artifacts", async {
+        let distro = "rebuilderd".to_string();
+        let suite = "main".to_string();
+        let architecture = "x86_64".to_string();
+
+        let mut group = PkgGroup::new(
+            "hello-world".to_string(),
+            "1.2.3-4".to_string(),
+            distro.clone(),
+            suite.clone(),
+            architecture.clone(),
+            Some("https://example.com/hello-world-1.2.3-4.buildinfo.txt".to_string()),
+        );
+        group.add_artifact(PkgArtifact {
+            name: "foo".to_string(),
+            version: "0.1.2".to_string(),
+            url: "https://example.com/foo-0.1.2.tar.zst".to_string(),
+        });
+        group.add_artifact(PkgArtifact {
+            name: "bar".to_string(),
+            version: "0.3.4".to_string(),
+            url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
+        });
+
+        client.sync_suite(&SuiteImport {
+            distro,
+            suite,
+            groups: vec![group],
+        }).await?;
+
+        Ok(())
+    }).await?;
+
+    test("Testing database to contain 3 pkgs", async {
+        let pkgs = list_pkgs(&client).await?;
+        if pkgs.len() != 3 {
+            bail!("Not 3");
+        }
         Ok(())
     }).await?;
 

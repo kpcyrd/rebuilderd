@@ -1,7 +1,6 @@
 use crate::errors::*;
 use colored::*;
 use chrono::NaiveDateTime;
-use strum_macros::{EnumString, AsRefStr, Display};
 use serde::{Serialize, Deserialize};
 use std::iter::FromIterator;
 use std::ops::Deref;
@@ -13,23 +12,6 @@ pub mod config;
 pub mod errors;
 pub mod utils;
 
-#[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]
-#[strum(serialize_all = "kebab-case")]
-#[serde(rename_all = "kebab-case")]
-pub enum VersionCmp {
-    Basic,
-    Debian,
-}
-
-impl VersionCmp {
-    pub fn detect_from_distro(distro: &str) -> VersionCmp {
-        match distro {
-            "debian" => VersionCmp::Debian,
-            _ => VersionCmp::Basic,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PkgRelease {
     pub name: String,
@@ -39,16 +21,14 @@ pub struct PkgRelease {
     pub suite: String,
     pub architecture: String,
     pub artifact_url: String,
-    pub input_url: Option<String>,
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
     pub has_attestation: bool,
-    pub next_retry: Option<NaiveDateTime>,
 }
 
 impl PkgRelease {
-    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, artifact_url: String, input_url: Option<String>) -> PkgRelease {
+    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, artifact_url: String) -> PkgRelease {
         PkgRelease {
             name,
             version,
@@ -57,30 +37,28 @@ impl PkgRelease {
             suite,
             architecture,
             artifact_url,
-            input_url,
             build_id: None,
             built_at: None,
             has_diffoscope: false,
             has_attestation: false,
-            next_retry: None,
         }
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PkgGroup {
-    pub base: String,
+    pub name: String,
     pub version: String,
 
     pub distro: String,
     pub suite: String,
     pub architecture: String,
 
-    pub input: Option<String>,
+    pub input_url: Option<String>,
     pub artifacts: Vec<PkgArtifact>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PkgArtifact {
     pub name: String,
     pub version: String,
@@ -88,14 +66,14 @@ pub struct PkgArtifact {
 }
 
 impl PkgGroup {
-    pub fn new(base: String, version: String, distro: String, suite: String, architecture: String, input: Option<String>) -> PkgGroup {
+    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, input_url: Option<String>) -> PkgGroup {
         PkgGroup {
-            base,
+            name,
             version,
             distro,
             suite,
             architecture,
-            input,
+            input_url,
             artifacts: Vec::new(),
         }
     }
@@ -104,9 +82,9 @@ impl PkgGroup {
         self.artifacts.push(artifact);
     }
 
-    pub fn input(&self) -> Result<&str> {
-        if let Some(input) = &self.input {
-            Ok(input.as_str())
+    pub fn input_url(&self) -> Result<&str> {
+        if let Some(input_url) = &self.input_url {
+            Ok(input_url.as_str())
         } else if !self.artifacts.is_empty() {
             let mut artifacts = Vec::from_iter(self.artifacts.iter().collect::<Vec<_>>());
             artifacts.sort_by_key(|a| &a.name);

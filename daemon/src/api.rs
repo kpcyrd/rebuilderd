@@ -8,9 +8,10 @@ use crate::models;
 use crate::sync;
 use crate::web;
 use diesel::SqliteConnection;
-use rebuilderd_common::PkgRelease;
+use rebuilderd_common::{PkgRelease, Status};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
@@ -232,7 +233,7 @@ pub async fn pop_queue(
         // TODO: claim item correctly
 
 
-        let status = format!("working hard on {} {}", item.package.name, item.package.version);
+        let status = format!("working hard on {} {}", item.pkgbase.name, item.pkgbase.version);
         (JobAssignment::Rebuild(Box::new(item)), Some(status))
     } else {
         (JobAssignment::Nothing, None)
@@ -258,18 +259,18 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let connection = pool.get().map_err(Error::from)?;
 
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
-    let pkgs = pkgs.iter()
+    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, None, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgbases = pkgbases.iter()
         .map(|p| p.id)
         .collect::<Vec<_>>();
 
-    models::Queued::drop_for_pkgs(&pkgs, connection.as_ref())?;
+    models::Queued::drop_for_pkgbases(&pkgbases, connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
 
 #[post("/api/v0/pkg/requeue")]
-pub async fn requeue_pkg(
+pub async fn requeue_pkgbase(
     req: HttpRequest,
     cfg: web::Data<Config>,
     query: web::Json<RequeueQuery>,
@@ -281,8 +282,10 @@ pub async fn requeue_pkg(
 
     let connection = pool.get().map_err(Error::from)?;
 
-    let mut pkgs = Vec::new();
+    let mut pkg_ids = Vec::new();
+    let mut pkgbase_ids = HashSet::new();
     for pkg in models::Package::list(connection.as_ref())? {
+        // TODO: this should be filtered in the database
         if opt_filter(&pkg.name, query.name.as_deref()) {
             continue;
         }
@@ -299,22 +302,27 @@ pub async fn requeue_pkg(
             continue;
         }
 
-        debug!("pkg is going to be requeued: {:?} {:?}", pkg.name, pkg.version);
-        pkgs.push(pkg);
+        debug!("Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}", pkg.name, pkg.version, pkg.pkgbase_id);
+        pkg_ids.push(pkg.id);
+        pkgbase_ids.insert(pkg.pkgbase_id);
     }
 
-    // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
-    // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
-    for pkg in &pkgs {
-        let q = models::NewQueued::new(pkg.id, pkg.version.to_string(), pkg.distro.to_string(), query.priority);
-        q.insert(connection.as_ref()).ok();
-    }
+    let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
+    let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_ref())?;
+
+    let to_be_queued = pkgbases.into_iter()
+        .map(|pkgbase| {
+            models::NewQueued::new(pkgbase.id,
+                                   pkgbase.version.to_string(),
+                                   pkgbase.distro,
+                                   query.priority)
+        })
+        .collect::<Vec<_>>();
+
+    models::Queued::insert_batch(&to_be_queued, connection.as_ref())?;
 
     if query.reset {
-        let reset = pkgs.into_iter()
-            .map(|x| x.id)
-            .collect::<Vec<_>>();
-        models::Package::reset_status_for_requeued_list(&reset, connection.as_ref())?;
+        models::Package::reset_status_for_requeued_list(&pkg_ids, connection.as_ref())?;
     }
 
     Ok(HttpResponse::Ok().json(()))
@@ -366,24 +374,56 @@ pub async fn report_build(
     let connection = pool.get().map_err(Error::from)?;
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
-    let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
-    let mut pkg = models::Package::get_id(item.package_id, connection.as_ref())?;
+    let queue_item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
+    let mut pkgbase = models::PkgBase::get_id(queue_item.pkgbase_id, connection.as_ref())?;
 
-    let build = models::NewBuild::from_api(&report);
-    let build = build.insert(connection.as_ref())?;
-    pkg.build_id = Some(build);
+    let mut needs_retry = false;
+    for (artifact, rebuild) in &report.rebuilds {
+        let mut packages = models::Package::get_by(&artifact.name,
+                                               &pkgbase.distro,
+                                               &pkgbase.suite,
+                                               None,
+                                               connection.as_ref())?;
 
-    pkg.has_diffoscope = report.rebuild.diffoscope.is_some();
-    pkg.has_attestation = report.rebuild.attestation.is_some();
+        packages.retain(|x| x.pkgbase_id == pkgbase.id);
+        if packages.len() != 1 {
+            error!("rebuilt artifact didn't match a unique package in database. matches={:?} instead of 1", packages.len());
+            continue;
+        }
+        let mut pkg = packages.remove(0);
 
-    if report.rebuild.status == BuildStatus::Good {
-        pkg.next_retry = None;
-    } else {
-        pkg.schedule_retry(cfg.schedule.retry_delay_base());
+        // adding build to package
+        let build = models::NewBuild::from_api(rebuild);
+        let build_id = build.insert(connection.as_ref())?;
+        pkg.build_id = Some(build_id);
+
+        pkg.status = match rebuild.status {
+            BuildStatus::Good => Status::Good.to_string(),
+            _ => Status::Bad.to_string(),
+        };
+        pkg.built_at = Some(Utc::now().naive_utc());
+
+        pkg.has_diffoscope = rebuild.diffoscope.is_some();
+        pkg.has_attestation = rebuild.attestation.is_some();
+
+        if rebuild.status != BuildStatus::Good {
+            needs_retry = true;
+        }
+
+        pkg.update(connection.as_ref())?;
     }
-    pkg.update_status_safely(&report.rebuild, connection.as_ref())?;
-    item.delete(connection.as_ref())?;
 
+    // update pkgbase
+    if needs_retry {
+        pkgbase.retries += 1;
+        pkgbase.schedule_retry(cfg.schedule.retry_delay_base());
+    } else {
+        pkgbase.next_retry = None;
+    }
+    pkgbase.update(connection.as_ref())?;
+
+    // cleanup queue item and worker status
+    queue_item.delete(connection.as_ref())?;
     worker.status = None;
     worker.update(connection.as_ref())?;
 

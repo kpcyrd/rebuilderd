@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::{PkgRelease, PkgGroup, Status};
+use crate::{PkgRelease, PkgArtifact, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
@@ -300,7 +300,7 @@ pub enum JobAssignment {
 pub struct SuiteImport {
     pub distro: String,
     pub suite: String,
-    pub pkgs: Vec<PkgGroup>,
+    pub groups: Vec<PkgGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -321,7 +321,7 @@ pub struct QueueList {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueueItem {
     pub id: i32,
-    pub package: PkgRelease,
+    pub pkgbase: PkgGroup,
     pub version: String,
     pub queued_at: NaiveDateTime,
     pub worker_id: Option<i32>,
@@ -393,7 +393,7 @@ impl Rebuild {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
     pub queue: QueueItem,
-    pub rebuild: Rebuild,
+    pub rebuilds: Vec<(PkgArtifact, Rebuild)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

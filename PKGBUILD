@@ -54,7 +54,6 @@ package_rebuilderd() {
   install -Dm 644 contrib/systemd/rebuilderd.tmpfiles "${pkgdir}/usr/lib/tmpfiles.d/rebuilderd.conf"
 
   # install docs
-  install -Dm 644 README.md -t "${pkgdir}/usr/share/doc/${pkgname}"
   install -Dm 644 -t "${pkgdir}/usr/share/man/man1" \
     contrib/docs/rebuilderd.1 \
     contrib/docs/rebuilderd-worker.1

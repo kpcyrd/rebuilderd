@@ -6,13 +6,13 @@ use chrono::prelude::*;
 use chrono::Duration;
 use serde::{Serialize, Deserialize};
 use rebuilderd_common::api::QueueItem;
-use crate::models::Package;
+use crate::models::PkgBase;
 
 #[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Debug)]
 #[table_name="queue"]
 pub struct Queued {
     pub id: i32,
-    pub package_id: i32,
+    pub pkgbase_id: i32,
     pub version: String,
     pub required_backend: String,
     pub priority: i32,
@@ -34,7 +34,7 @@ impl Queued {
     pub fn get(pkg: i32, my_version: &str, connection: &SqliteConnection) -> Result<Option<Queued>> {
         use crate::schema::queue::dsl::*;
         let job = queue
-            .filter(package_id.eq(pkg))
+            .filter(pkgbase_id.eq(pkg))
             .filter(version.eq(my_version))
             .first::<Queued>(connection)
             .optional()?;
@@ -110,13 +110,14 @@ impl Queued {
         Ok(())
     }
 
-    pub fn queue_batch(pkgs: &[(i32, String)], required_backend: String, priority: i32, connection: &SqliteConnection) -> Result<()> {
-        let pkgs = pkgs.iter()
+    // TODO: is this still needed
+    pub fn queue_batch(pkgbases: &[(i32, String)], required_backend: String, priority: i32, connection: &SqliteConnection) -> Result<()> {
+        let pkgbases = pkgbases.iter()
             .map(|(id, version)| NewQueued::new(*id, version.to_string(), required_backend.clone(), priority))
             .collect::<Vec<_>>();
 
         diesel::insert_into(queue::table)
-            .values(pkgs)
+            .values(pkgbases)
             // TODO: not supported by diesel yet
             // .on_conflict_do_nothing()
             .execute(connection)?;
@@ -124,8 +125,15 @@ impl Queued {
         Ok(())
     }
 
-    pub fn drop_for_pkgs(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
-        diesel::delete(queue::table.filter(queue::package_id.eq_any(pkgs)))
+    pub fn insert_batch(queued: &[NewQueued], connection: &SqliteConnection) -> Result<()> {
+        diesel::insert_into(queue::table)
+            .values(queued)
+            .execute(connection)?;
+        Ok(())
+    }
+
+    pub fn drop_for_pkgbases(pkgbases: &[i32], connection: &SqliteConnection) -> Result<()> {
+        diesel::delete(queue::table.filter(queue::pkgbase_id.eq_any(pkgbases)))
             .execute(connection)?;
         Ok(())
     }
@@ -159,11 +167,11 @@ impl Queued {
     }
 
     pub fn into_api_item(self, connection: &SqliteConnection) -> Result<QueueItem> {
-        let pkg = Package::get_id(self.package_id, connection)?;
+        let pkgbase = PkgBase::get_id(self.pkgbase_id, connection)?;
 
         Ok(QueueItem {
             id: self.id,
-            package: pkg.into_api_item()?,
+            pkgbase: pkgbase.into_api_item()?,
             version: self.version,
             queued_at: self.queued_at,
             worker_id: self.worker_id,
@@ -176,7 +184,7 @@ impl Queued {
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[table_name="queue"]
 pub struct NewQueued {
-    pub package_id: i32,
+    pub pkgbase_id: i32,
     pub version: String,
     pub required_backend: String,
     pub priority: i32,
@@ -184,10 +192,10 @@ pub struct NewQueued {
 }
 
 impl NewQueued {
-    pub fn new(package_id: i32, version: String, required_backend: String, priority: i32) -> NewQueued {
+    pub fn new(pkgbase_id: i32, version: String, required_backend: String, priority: i32) -> NewQueued {
         let now: DateTime<Utc> = Utc::now();
         NewQueued {
-            package_id,
+            pkgbase_id,
             version,
             required_backend,
             priority,
@@ -197,7 +205,7 @@ impl NewQueued {
 
     pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
         // TODO: on conflict do nothing after it landed in diesel sqlite
-        if Queued::get(self.package_id, &self.version, connection)?.is_none() {
+        if Queued::get(self.pkgbase_id, &self.version, connection)?.is_none() {
             diesel::insert_into(queue::table)
                 .values(self)
                 .execute(connection)?;

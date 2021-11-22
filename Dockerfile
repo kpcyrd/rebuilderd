@@ -12,11 +12,12 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
         /var/cache/buildkit/target/release/rebuildctl /
 
 FROM alpine:3.14
-ENV HTTP_ADDR=0.0.0.0:8484
 RUN apk add --no-cache libgcc openssl dpkg sqlite-libs xz zstd-libs
 COPY --from=0 \
     /rebuilderd /rebuildctl \
     /usr/local/bin/
+ENV HTTP_ADDR=0.0.0.0:8484
+ENV REBUILDERD_COOKIE_PATH=/secret/auth
 VOLUME ["/data", "/secret"]
 WORKDIR /data
 CMD ["rebuilderd"]

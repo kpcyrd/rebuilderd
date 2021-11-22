@@ -42,7 +42,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         "tails" => schedule::tails::sync(&sync).await?,
         unknown => bail!("No integrated sync for {:?}, use sync-stdin instead", unknown),
     };
-    pkgs.sort_by(|a, b| a.base.cmp(&b.base));
+    pkgs.sort_by(|a, b| a.name.cmp(&b.name));
 
     if sync.print_json {
         print_json(&pkgs)?;
@@ -50,7 +50,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         sync_import(client, &SuiteImport {
             distro: sync.distro,
             suite: sync.suite,
-            pkgs,
+            groups: pkgs,
         }).await?;
     }
 
@@ -152,7 +152,7 @@ async fn main() -> Result<()> {
             sync_import(client.with_auth_cookie()?, &SuiteImport {
                 distro: sync.distro,
                 suite: sync.suite,
-                pkgs,
+                groups: pkgs,
             }).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
@@ -238,7 +238,7 @@ async fn main() -> Result<()> {
             } else {
                 let mut stdout = io::stdout();
                 for q in pkgs.queue {
-                    let pkg = q.package;
+                    let pkg = q.pkgbase;
 
                     let started_at = if let Some(started_at) = q.started_at {
                         started_at.format("%Y-%m-%d %H:%M:%S").to_string()

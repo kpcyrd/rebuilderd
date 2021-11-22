@@ -312,7 +312,7 @@ impl SyncState {
         let mut out = self.groups.into_values()
             .flatten()
             .collect::<Vec<_>>();
-        out.sort_by(|a, b| a.base.cmp(&b.base)
+        out.sort_by(|a, b| a.name.cmp(&b.name)
             .then_with(|| a.version.cmp(&b.version)));
         out
     }
