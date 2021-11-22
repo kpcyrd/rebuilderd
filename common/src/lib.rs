@@ -21,16 +21,14 @@ pub struct PkgRelease {
     pub suite: String,
     pub architecture: String,
     pub artifact_url: String,
-    pub input_url: Option<String>,
     pub build_id: Option<i32>,
     pub built_at: Option<NaiveDateTime>,
     pub has_diffoscope: bool,
     pub has_attestation: bool,
-    pub next_retry: Option<NaiveDateTime>,
 }
 
 impl PkgRelease {
-    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, artifact_url: String, input_url: Option<String>) -> PkgRelease {
+    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, artifact_url: String) -> PkgRelease {
         PkgRelease {
             name,
             version,
@@ -39,12 +37,10 @@ impl PkgRelease {
             suite,
             architecture,
             artifact_url,
-            input_url,
             build_id: None,
             built_at: None,
             has_diffoscope: false,
             has_attestation: false,
-            next_retry: None,
         }
     }
 }

@@ -33,7 +33,7 @@ impl PkgBase {
         use crate::schema::packages::dsl::*;
         let pkgs = packages
             .select(id)
-            .filter(base_id.eq(self.id))
+            .filter(pkgbase_id.eq(self.id))
             .load(connection)?;
         Ok(pkgs)
     }

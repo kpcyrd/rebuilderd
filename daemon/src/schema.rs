@@ -10,7 +10,7 @@ table! {
 table! {
     packages (id) {
         id -> Integer,
-        base_id -> Nullable<Integer>,
+        pkgbase_id -> Integer,
         name -> Text,
         version -> Text,
         status -> Text,
@@ -18,14 +18,11 @@ table! {
         suite -> Text,
         architecture -> Text,
         artifact_url -> Text,
-        input_url -> Nullable<Text>,
         build_id -> Nullable<Integer>,
         built_at -> Nullable<Timestamp>,
         has_diffoscope -> Bool,
         has_attestation -> Bool,
         checksum -> Nullable<Text>,
-        retries -> Integer,
-        next_retry -> Nullable<Timestamp>,
     }
 }
 
@@ -70,7 +67,7 @@ table! {
 }
 
 joinable!(packages -> builds (build_id));
-joinable!(packages -> pkgbases (base_id));
+joinable!(packages -> pkgbases (pkgbase_id));
 joinable!(queue -> pkgbases (pkgbase_id));
 joinable!(queue -> workers (worker_id));
 

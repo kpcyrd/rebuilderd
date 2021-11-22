@@ -302,11 +302,9 @@ pub async fn requeue_pkgbase(
             continue;
         }
 
-        debug!("Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}", pkg.name, pkg.version, pkg.base_id);
+        debug!("Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}", pkg.name, pkg.version, pkg.pkgbase_id);
         pkg_ids.push(pkg.id);
-        if let Some(base_id) = pkg.base_id {
-            pkgbase_ids.insert(base_id);
-        }
+        pkgbase_ids.insert(pkg.pkgbase_id);
     }
 
     let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
@@ -387,7 +385,7 @@ pub async fn report_build(
                                                None,
                                                connection.as_ref())?;
 
-        packages.retain(|x| x.base_id == Some(pkgbase.id));
+        packages.retain(|x| x.pkgbase_id == pkgbase.id);
         if packages.len() != 1 {
             error!("rebuilt artifact didn't match a unique package in database. matches={:?} instead of 1", packages.len());
             continue;

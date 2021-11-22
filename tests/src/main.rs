@@ -184,10 +184,6 @@ async fn main() -> Result<()> {
             bail!("Status not UNKWN");
         }
 
-        if pkg.next_retry.is_some() {
-            bail!("Not None: next_retry");
-        }
-
         if pkg.built_at.is_some() {
             bail!("Not None: built_at");
         }
@@ -242,13 +238,6 @@ async fn main() -> Result<()> {
             bail!("Unexpected none: built_at");
         }
 
-        /*
-        // TODO: this value is now tracked on the pkgbase instead
-        if pkg.next_retry.is_none() {
-            bail!("Unexpected none: next_retry");
-        }
-        */
-
         Ok(())
     }).await?;
 
@@ -279,13 +268,6 @@ async fn main() -> Result<()> {
         if pkg.built_at.is_none() {
             bail!("Unexpected none: built_at");
         }
-
-        /*
-        // TODO: this value is now tracked on the pkgbase instead
-        if pkg.next_retry.is_none() {
-            bail!("Unexpected none: next_retry");
-        }
-        */
 
         Ok(())
     }).await?;
@@ -331,10 +313,6 @@ async fn main() -> Result<()> {
 
         if pkg.built_at.is_none() {
             bail!("Unexpected none: built_at");
-        }
-
-        if pkg.next_retry.is_some() {
-            bail!("Unexpected some: next_retry");
         }
 
         Ok(())

@@ -156,7 +156,7 @@ fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
 
             for artifact in &group.artifacts {
                 backlog_insert_pkgs.push(models::NewPackage {
-                    base_id: Some(pkgbase_id),
+                    pkgbase_id,
                     name: artifact.name.clone(),
                     version: artifact.version.clone(),
                     status: Status::Unknown.to_string(),
@@ -164,14 +164,11 @@ fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
                     suite: suite.clone(),
                     architecture: group.architecture.clone(),
                     artifact_url: artifact.url.clone(),
-                    input_url: group.input_url.clone(), // TODO: this is deprecated
                     build_id: None,
                     built_at: None,
                     has_diffoscope: false,
                     has_attestation: false,
                     checksum: None,
-                    retries: 0,
-                    next_retry: None,
                 });
             }
 
