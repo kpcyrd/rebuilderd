@@ -1,3 +1,4 @@
 #!/bin/sh
 set -xe
-debrebuild --buildresult="${REBUILDERD_OUTDIR}" --builder=mmdebstrap -- "${1}"
+# debrebuild.py needs to be run from the repo
+/debrebuild/debrebuild.py --output="${REBUILDERD_OUTDIR}" --builder=mmdebstrap -- "${1}"

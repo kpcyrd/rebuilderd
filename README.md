@@ -43,7 +43,7 @@ afford to.
 | | Status | Docker | Doesn't need --privileged | Doesn't need /dev/kvm | Backend |
 | --- | --- | --- | --- | --- | --- |
 | **Arch Linux** | ✔️ supported | ❌ | - | ✔️ | [archlinux-repro](https://github.com/archlinux/archlinux-repro) |
-| **Debian** | 🚀 experimental | ✔️ | ❌ | ✔️ | [debrebuild.pl](https://salsa.debian.org/debian/devscripts/-/blob/master/scripts/debrebuild.pl) |
+| **Debian** | 🚀 experimental | ✔️ | ❌ | ✔️ | [debrebuild.py](https://github.com/fepitre/debrebuild) |
 | **Tails** | 🚀 experimental | ❌ | - | ❌ | [docs](https://tails.boum.org/contribute/build/) ([script](worker/rebuilder-tails.sh)) |
 | **Alpine** | ✨ planned | - | - | - | - |
 
