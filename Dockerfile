@@ -17,7 +17,6 @@ COPY --from=0 \
     /rebuilderd /rebuildctl \
     /usr/local/bin/
 ENV HTTP_ADDR=0.0.0.0:8484
-ENV REBUILDERD_COOKIE_PATH=/secret/auth
 VOLUME ["/data", "/secret"]
 WORKDIR /data
 CMD ["rebuilderd"]
