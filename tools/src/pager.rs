@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
 pub fn write(buf: &[u8]) -> Result<()> {
-    if atty::is(atty::Stream::Stdout) || env::var_os("NOPAGER").is_some() {
+    if atty::is(atty::Stream::Stdout) && env::var_os("NOPAGER").is_none() {
         let mut cmd = Command::new("less")
             .args(&["-R"])
             .stdin(Stdio::piped())
