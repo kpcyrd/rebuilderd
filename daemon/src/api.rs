@@ -316,7 +316,7 @@ pub async fn requeue_pkgbase(
         .map(|pkgbase| {
             models::NewQueued::new(pkgbase.id,
                                    pkgbase.version.to_string(),
-                                   pkgbase.distro.to_string(),
+                                   pkgbase.distro,
                                    query.priority)
         })
         .collect::<Vec<_>>();

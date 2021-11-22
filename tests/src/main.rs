@@ -80,9 +80,9 @@ async fn spawn_server(config: Config) {
     }
 }
 
-fn wait_for_server() -> Result<()> {
+fn wait_for_server(addr: &str) -> Result<()> {
     for _ in 0..100 {
-        if TcpStream::connect("127.0.0.1:8484").is_ok() {
+        if TcpStream::connect(addr).is_ok() {
             return Ok(())
         }
         thread::sleep(Duration::from_millis(100));
@@ -105,10 +105,14 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
+    let addr = args.bind_addr;
+    let endpoint = args.endpoint.unwrap_or_else(|| format!("http://{}", addr));
+
     let mut config = ConfigFile::default();
 
     config.auth.cookie = Some(args.cookie.clone());
-    config.endpoints.insert(args.endpoint.clone(), EndpointConfig {
+    config.http.bind_addr = Some(addr.clone());
+    config.endpoints.insert(endpoint.clone(), EndpointConfig {
         cookie: args.cookie.clone(),
     });
 
@@ -123,11 +127,11 @@ async fn main() -> Result<()> {
         thread::spawn(|| {
             spawn_server(config);
         });
-        wait_for_server()?;
+        wait_for_server(&addr)?;
     }
 
-    info!("Setting up client for {:?}", args.endpoint);
-    let mut client = Client::new(config.clone(), Some(args.endpoint))?;
+    info!("Setting up client for {:?}", endpoint);
+    let mut client = Client::new(config.clone(), Some(endpoint))?;
     client.worker_key("worker1"); // TODO: this is not a proper key
 
     test("Testing database to be empty", async {
@@ -204,15 +208,20 @@ async fn main() -> Result<()> {
             JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
-        let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
-            status: BuildStatus::Bad,
-            attestation: None,
-        };
+
+        let mut rebuilds = Vec::new();
+        for artifact in queue.pkgbase.artifacts.clone() {
+            rebuilds.push((artifact, Rebuild {
+                diffoscope: None,
+                log: String::new(),
+                status: BuildStatus::Bad,
+                attestation: None,
+            }));
+        }
+
         let report = BuildReport {
             queue,
-            rebuilds: vec![rebuild],
+            rebuilds,
         };
         client.report_build(&report).await?;
 
@@ -233,9 +242,12 @@ async fn main() -> Result<()> {
             bail!("Unexpected none: built_at");
         }
 
+        /*
+        // TODO: this value is now tracked on the pkgbase instead
         if pkg.next_retry.is_none() {
             bail!("Unexpected none: next_retry");
         }
+        */
 
         Ok(())
     }).await?;
@@ -268,9 +280,12 @@ async fn main() -> Result<()> {
             bail!("Unexpected none: built_at");
         }
 
+        /*
+        // TODO: this value is now tracked on the pkgbase instead
         if pkg.next_retry.is_none() {
             bail!("Unexpected none: next_retry");
         }
+        */
 
         Ok(())
     }).await?;
@@ -284,15 +299,20 @@ async fn main() -> Result<()> {
             JobAssignment::Rebuild(item) => *item,
             _ => bail!("Expected a job assignment"),
         };
-        let rebuild = Rebuild {
-            diffoscope: None,
-            log: String::new(),
-            status: BuildStatus::Good,
-            attestation: None,
-        };
+
+        let mut rebuilds = Vec::new();
+        for artifact in queue.pkgbase.artifacts.clone() {
+            rebuilds.push((artifact, Rebuild {
+                diffoscope: None,
+                log: String::new(),
+                status: BuildStatus::Good,
+                attestation: None,
+            }));
+        }
+
         let report = BuildReport {
             queue,
-            rebuilds: vec![rebuild],
+            rebuilds,
         };
         client.report_build(&report).await?;
 
