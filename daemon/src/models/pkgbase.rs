@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::{Duration, NaiveDateTime, Utc};
 use crate::schema::*;
 use diesel::prelude::*;
 use rebuilderd_common::PkgGroup;
@@ -84,6 +84,13 @@ impl PkgBase {
         Ok(pkgs)
     }
 
+    pub fn schedule_retry(&mut self, retry_delay_base: i64) {
+        let hours = (self.retries as i64 + 1) * retry_delay_base;
+        debug!("scheduling retry in {} hours", hours);
+        let delay = Duration::hours(hours);
+        self.next_retry = Some((Utc::now() + delay).naive_utc());
+    }
+
     pub fn into_api_item(self) -> Result<PkgGroup> {
         let artifacts = serde_json::from_str(&self.artifacts).expect("Failed to deserialize artifact");
 
@@ -98,6 +105,14 @@ impl PkgBase {
             input_url: self.input_url,
             artifacts,
         })
+    }
+
+    pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::pkgbases::columns::*;
+        diesel::update(pkgbases::table.filter(id.eq(self.id)))
+            .set(self)
+            .execute(connection)?;
+        Ok(())
     }
 
     pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {

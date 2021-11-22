@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::{PkgRelease, PkgGroup, Status};
+use crate::{PkgRelease, PkgArtifact, PkgGroup, Status};
 use crate::auth;
 use reqwest::{Client as HttpClient, RequestBuilder};
 use serde::{Serialize, Deserialize};
@@ -393,7 +393,7 @@ impl Rebuild {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
     pub queue: QueueItem,
-    pub rebuilds: Vec<Rebuild>,
+    pub rebuilds: Vec<(PkgArtifact, Rebuild)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

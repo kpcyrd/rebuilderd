@@ -1,8 +1,7 @@
-use chrono::{Utc, NaiveDateTime, Duration};
+use chrono::NaiveDateTime;
 use crate::schema::*;
 use diesel::prelude::*;
-use rebuilderd_common::{PkgRelease, Status};
-use rebuilderd_common::api::{Rebuild, BuildStatus};
+use rebuilderd_common::PkgRelease;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
@@ -80,53 +79,10 @@ impl Package {
         Ok(pkgs)
     }
 
-    // when updating the verify status, use a custom query that enforces a version match
     pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
         diesel::update(packages::table.filter(id.eq(self.id)))
             .set(self)
-            .execute(connection)?;
-        Ok(())
-    }
-
-    pub fn bump_version(&mut self, connection: &SqliteConnection) -> Result<()> {
-        self.status = Status::Unknown.to_string();
-        self.built_at = None;
-        self.retries = 0;
-        self.next_retry = None;
-
-        diesel::update(&*self)
-            .set(&*self)
-            .execute(connection)?;
-
-        Ok(())
-    }
-
-    pub fn schedule_retry(&mut self, retry_delay_base: i64) {
-        let hours = (self.retries as i64 + 1) * retry_delay_base;
-        debug!("scheduling retry in {} hours", hours);
-        let delay = Duration::hours(hours);
-        self.next_retry = Some((Utc::now() + delay).naive_utc());
-    }
-
-    pub fn update_status_safely(&mut self, rebuild: &Rebuild, connection: &SqliteConnection) -> Result<()> {
-        use crate::schema::packages::columns::*;
-
-        if self.status == *Status::Bad {
-            self.retries += 1;
-        }
-
-        self.status = match rebuild.status {
-            BuildStatus::Good => Status::Good.to_string(),
-            _ => Status::Bad.to_string(),
-        };
-        self.built_at = Some(Utc::now().naive_utc());
-        self.has_attestation = rebuild.attestation.is_some();
-        diesel::update(packages::table
-                .filter(id.eq(self.id))
-                .filter(version.eq(&self.version))
-            )
-            .set(&*self)
             .execute(connection)?;
         Ok(())
     }

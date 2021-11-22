@@ -27,7 +27,7 @@ pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Vec<Rebuild>> {
+async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     let ctx = Context {
         artifacts: item.pkgbase.artifacts.clone(),
         input_url: item.pkgbase.input_url.clone(),
@@ -73,10 +73,17 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                 Ok(res) => res,
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
-                    vec![Rebuild::new(
-                        BuildStatus::Fail,
-                        "rebuilderd: unexpected error while rebuilding package\n".to_string()
-                    )]
+                    let mut res = vec![];
+                    for artifact in &rb.pkgbase.artifacts {
+                        res.push((
+                            artifact.clone(),
+                            Rebuild::new(
+                                BuildStatus::Fail,
+                                "rebuilderd: unexpected error while rebuilding package\n".to_string()
+                            ),
+                        ));
+                    }
+                    res
                 },
             };
             let report = BuildReport {
@@ -183,8 +190,8 @@ async fn main() -> Result<()> {
                 privkey: &profile.privkey,
             }).await?;
 
-            for res in res {
-                trace!("rebuild result object is {:?}", res);
+            for (artifact, res) in res {
+                trace!("rebuild result object for {:?} is {:?}", artifact, res);
 
                 if res.status == BuildStatus::Good {
                     info!("Package verified successfully");

@@ -86,7 +86,7 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<Rebuild>> {
+pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -105,7 +105,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<Rebuild>> {
             .await
             .with_context(|| anyhow!("Failed to download original package from {:?}", artifact.url))?;
         let artifact_path = inputs_dir.join(&artifact_filename);
-        artifacts.push((artifact_filename, artifact_path));
+        artifacts.push((artifact.clone(), artifact_filename, artifact_path));
     }
 
     let input_filename = if let Some(input_url) = &ctx.input_url {
@@ -115,7 +115,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<Rebuild>> {
     } else {
         artifacts.get(0)
             .context("Failed to use first artifact as build input")?
-            .0.to_owned()
+            .1.to_owned()
     };
     let input_path = inputs_dir.join(&input_filename);
 
@@ -124,7 +124,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<Rebuild>> {
 
     // process results
     let mut results = Vec::new();
-    for (artifact_filename, artifact_path) in artifacts {
+    for (artifact, artifact_filename, artifact_path) in artifacts {
         let log = log.clone(); // TODO: our POST response should only include the log once
         let output_path = out_dir.join(&artifact_filename);
 
@@ -166,7 +166,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<Rebuild>> {
             res
         };
 
-        results.push(result);
+        results.push((artifact, result));
     }
 
     Ok(results)

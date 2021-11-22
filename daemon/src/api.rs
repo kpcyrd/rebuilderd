@@ -8,7 +8,7 @@ use crate::models;
 use crate::sync;
 use crate::web;
 use diesel::SqliteConnection;
-use rebuilderd_common::PkgRelease;
+use rebuilderd_common::{PkgRelease, Status};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::collections::HashSet;
@@ -376,29 +376,58 @@ pub async fn report_build(
     let connection = pool.get().map_err(Error::from)?;
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
-    let item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
-    let mut pkg = models::Package::get_id(item.pkgbase_id, connection.as_ref())?;
+    let queue_item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
+    let mut pkgbase = models::PkgBase::get_id(queue_item.pkgbase_id, connection.as_ref())?;
 
-    for rebuild in &report.rebuilds {
+    let mut needs_retry = false;
+    for (artifact, rebuild) in &report.rebuilds {
+        let mut packages = models::Package::get_by(&artifact.name,
+                                               &pkgbase.distro,
+                                               &pkgbase.suite,
+                                               None,
+                                               connection.as_ref())?;
+
+        packages.retain(|x| x.base_id == Some(pkgbase.id));
+        if packages.len() != 1 {
+            error!("rebuilt artifact didn't match a unique package in database. matches={:?} instead of 1", packages.len());
+            continue;
+        }
+        let mut pkg = packages.remove(0);
+
+        // adding build to package
         let build = models::NewBuild::from_api(rebuild);
         let build_id = build.insert(connection.as_ref())?;
         pkg.build_id = Some(build_id);
 
+        pkg.status = match rebuild.status {
+            BuildStatus::Good => Status::Good.to_string(),
+            _ => Status::Bad.to_string(),
+        };
+        pkg.built_at = Some(Utc::now().naive_utc());
+
         pkg.has_diffoscope = rebuild.diffoscope.is_some();
         pkg.has_attestation = rebuild.attestation.is_some();
 
-        if rebuild.status == BuildStatus::Good {
-            pkg.next_retry = None;
-        } else {
-            // TODO: this needs to happen on the pkgbase
-            pkg.schedule_retry(cfg.schedule.retry_delay_base());
+        if rebuild.status != BuildStatus::Good {
+            needs_retry = true;
         }
-        pkg.update_status_safely(rebuild, connection.as_ref())?;
-        item.delete(connection.as_ref())?;
 
-        worker.status = None;
-        worker.update(connection.as_ref())?;
+        pkg.update(connection.as_ref())?;
     }
+
+    // update pkgbase
+    if needs_retry {
+        pkgbase.retries += 1;
+        pkgbase.schedule_retry(cfg.schedule.retry_delay_base());
+    } else {
+        pkgbase.next_retry = None;
+    }
+    pkgbase.update(connection.as_ref())?;
+
+    // cleanup queue item and worker status
+    queue_item.delete(connection.as_ref())?;
+    worker.status = None;
+    worker.update(connection.as_ref())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
