@@ -29,3 +29,6 @@ DROP TABLE packages;
 ALTER TABLE _packages_new RENAME TO packages;
 
 PRAGMA foreign_keys=on;
+
+-- drop all packages that we still need to build so they get properly re-initialized next sync
+delete from pkgbases where id in (select pkgbase_id from packages where status != 'GOOD') and artifacts='[]';
