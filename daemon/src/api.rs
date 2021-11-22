@@ -11,6 +11,7 @@ use diesel::SqliteConnection;
 use rebuilderd_common::PkgRelease;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
@@ -281,8 +282,10 @@ pub async fn requeue_pkgbase(
 
     let connection = pool.get().map_err(Error::from)?;
 
-    let mut pkgs = Vec::new();
+    let mut pkg_ids = Vec::new();
+    let mut pkgbase_ids = HashSet::new();
     for pkg in models::Package::list(connection.as_ref())? {
+        // TODO: this should be filtered in the database
         if opt_filter(&pkg.name, query.name.as_deref()) {
             continue;
         }
@@ -299,22 +302,29 @@ pub async fn requeue_pkgbase(
             continue;
         }
 
-        debug!("pkg is going to be requeued: {:?} {:?}", pkg.name, pkg.version);
-        pkgs.push(pkg);
+        debug!("Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}", pkg.name, pkg.version, pkg.base_id);
+        pkg_ids.push(pkg.id);
+        if let Some(base_id) = pkg.base_id {
+            pkgbase_ids.insert(base_id);
+        }
     }
 
-    // TODO: use queue_batch after https://github.com/diesel-rs/diesel/pull/1884 is released
-    // models::Queued::queue_batch(&pkgs, connection.as_ref())?;
-    for pkg in &pkgs {
-        let q = models::NewQueued::new(pkg.id, pkg.version.to_string(), pkg.distro.to_string(), query.priority);
-        q.insert(connection.as_ref()).ok();
-    }
+    let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
+    let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_ref())?;
+
+    let to_be_queued = pkgbases.into_iter()
+        .map(|pkgbase| {
+            models::NewQueued::new(pkgbase.id,
+                                   pkgbase.version.to_string(),
+                                   pkgbase.distro.to_string(),
+                                   query.priority)
+        })
+        .collect::<Vec<_>>();
+
+    models::Queued::insert_batch(&to_be_queued, connection.as_ref())?;
 
     if query.reset {
-        let reset = pkgs.into_iter()
-            .map(|x| x.id)
-            .collect::<Vec<_>>();
-        models::Package::reset_status_for_requeued_list(&reset, connection.as_ref())?;
+        models::Package::reset_status_for_requeued_list(&pkg_ids, connection.as_ref())?;
     }
 
     Ok(HttpResponse::Ok().json(()))

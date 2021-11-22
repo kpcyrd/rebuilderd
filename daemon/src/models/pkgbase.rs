@@ -46,6 +46,14 @@ impl PkgBase {
         Ok(pkgbase)
     }
 
+    pub fn get_id_list(my_ids: &[i32], connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+        use crate::schema::pkgbases::dsl::*;
+        let pkgbase = pkgbases
+            .filter(id.eq_any(my_ids))
+            .load::<PkgBase>(connection)?;
+        Ok(pkgbase)
+    }
+
     pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_version: Option<&str>, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let mut query = pkgbases
