@@ -50,7 +50,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         sync_import(client, &SuiteImport {
             distro: sync.distro,
             suite: sync.suite,
-            pkgs,
+            groups: pkgs,
         }).await?;
     }
 
@@ -152,7 +152,7 @@ async fn main() -> Result<()> {
             sync_import(client.with_auth_cookie()?, &SuiteImport {
                 distro: sync.distro,
                 suite: sync.suite,
-                pkgs,
+                groups: pkgs,
             }).await?;
         },
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {

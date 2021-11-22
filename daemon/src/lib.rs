@@ -23,7 +23,6 @@ pub mod db;
 pub mod schema;
 pub mod sync;
 pub mod models;
-pub mod versions;
 pub mod web;
 
 #[derive(Debug, StructOpt)]

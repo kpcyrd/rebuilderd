@@ -300,7 +300,7 @@ pub enum JobAssignment {
 pub struct SuiteImport {
     pub distro: String,
     pub suite: String,
-    pub pkgs: Vec<PkgGroup>,
+    pub groups: Vec<PkgGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

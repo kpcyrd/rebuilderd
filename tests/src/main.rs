@@ -51,7 +51,7 @@ async fn initial_import(client: &Client) -> Result<()> {
     client.sync_suite(&SuiteImport {
         distro,
         suite,
-        pkgs,
+        groups: pkgs,
     }).await?;
 
     Ok(())
@@ -97,7 +97,8 @@ async fn main() -> Result<()> {
     let logging = match args.verbose {
         0 => "warn,rebuilderd_tests=info",
         1 => "info,rebuilderd_tests=debug",
-        2 => "debug",
+        2 => "info,rebuilderd=debug,rebuilderd_tests=debug",
+        3 => "debug",
         _ => "trace",
     };
 
@@ -342,14 +343,21 @@ async fn main() -> Result<()> {
             version: "0.3.4".to_string(),
             url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
         });
-        let pkgs = vec![group];
 
         client.sync_suite(&SuiteImport {
             distro,
             suite,
-            pkgs,
+            groups: vec![group],
         }).await?;
 
+        Ok(())
+    }).await?;
+
+    test("Testing database to contain 3 pkgs", async {
+        let pkgs = list_pkgs(&client).await?;
+        if pkgs.len() != 3 {
+            bail!("Not 3");
+        }
         Ok(())
     }).await?;
 

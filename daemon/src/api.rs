@@ -258,7 +258,7 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let connection = pool.get().map_err(Error::from)?;
 
-    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, None, query.architecture.as_deref(), connection.as_ref())?;
     let pkgbases = pkgbases.iter()
         .map(|p| p.id)
         .collect::<Vec<_>>();

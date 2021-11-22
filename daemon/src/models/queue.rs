@@ -110,6 +110,7 @@ impl Queued {
         Ok(())
     }
 
+    // TODO: is this still needed
     pub fn queue_batch(pkgbases: &[(i32, String)], required_backend: String, priority: i32, connection: &SqliteConnection) -> Result<()> {
         let pkgbases = pkgbases.iter()
             .map(|(id, version)| NewQueued::new(*id, version.to_string(), required_backend.clone(), priority))
@@ -121,6 +122,13 @@ impl Queued {
             // .on_conflict_do_nothing()
             .execute(connection)?;
 
+        Ok(())
+    }
+
+    pub fn insert_batch(queued: &[NewQueued], connection: &SqliteConnection) -> Result<()> {
+        diesel::insert_into(queue::table)
+            .values(queued)
+            .execute(connection)?;
         Ok(())
     }
 

@@ -46,18 +46,20 @@ impl PkgBase {
         Ok(pkgbase)
     }
 
-    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_version: Option<&str>, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let mut query = pkgbases
             .filter(name.eq(my_name))
             .filter(distro.eq(my_distro))
             .filter(suite.eq(my_suite))
             .into_boxed();
+        if let Some(my_version) = my_version {
+            query = query.filter(version.eq(my_version));
+        }
         if let Some(my_architecture) = my_architecture {
             query = query.filter(architecture.eq(my_architecture));
         }
-        let pkg = query.load::<PkgBase>(connection)?;
-        Ok(pkg)
+        Ok(query.load::<PkgBase>(connection)?)
     }
 
     pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {

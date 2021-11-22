@@ -1,7 +1,6 @@
 use crate::errors::*;
 use colored::*;
 use chrono::NaiveDateTime;
-use strum_macros::{EnumString, AsRefStr, Display};
 use serde::{Serialize, Deserialize};
 use std::iter::FromIterator;
 use std::ops::Deref;
@@ -12,23 +11,6 @@ pub mod auth;
 pub mod config;
 pub mod errors;
 pub mod utils;
-
-#[derive(Debug, Clone, Copy, PartialEq, Display, EnumString, AsRefStr, Serialize, Deserialize)]
-#[strum(serialize_all = "kebab-case")]
-#[serde(rename_all = "kebab-case")]
-pub enum VersionCmp {
-    Basic,
-    Debian,
-}
-
-impl VersionCmp {
-    pub fn detect_from_distro(distro: &str) -> VersionCmp {
-        match distro {
-            "debian" => VersionCmp::Debian,
-            _ => VersionCmp::Basic,
-        }
-    }
-}
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PkgRelease {
@@ -67,7 +49,7 @@ impl PkgRelease {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PkgGroup {
     pub name: String,
     pub version: String,
