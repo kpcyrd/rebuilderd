@@ -136,7 +136,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
             let mut res = Rebuild::new(BuildStatus::Good, log);
 
             info!("Generating signed link");
-            let signed_link = in_toto_run(
+            match in_toto_run(
                 &format!("rebuild {}", artifact_filename.to_str().unwrap()),
                 None,
                 &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
@@ -144,11 +144,15 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
                 &[],
                 Some(ctx.privkey),
                 Some(&["sha512", "sha256"]),
-            ).context("Failed to generate in-toto attestation")?;
-            info!("Signed link generated");
+            ) {
+                Ok(signed_link) => {
+                    info!("Signed link generated");
 
-            let attestation = serde_json::to_string(&signed_link).context("Failed to serialize attestation")?;
-            res.attestation = Some(attestation);
+                    let attestation = serde_json::to_string(&signed_link).context("Failed to serialize attestation")?;
+                    res.attestation = Some(attestation);
+                }
+                Err(err) => warn!("Failed to generate in-toto attestation: {:#?}", err),
+            }
 
             res
         } else {
