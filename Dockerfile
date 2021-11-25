@@ -2,7 +2,7 @@
 FROM rust:alpine3.14
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /usr/src/rebuilderd
-RUN apk add --no-cache musl-dev openssl-dev sqlite-dev xz-dev zstd-dev
+RUN apk add --no-cache musl-dev openssl-dev shared-mime-info sqlite-dev xz-dev zstd-dev
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
         /var/cache/buildkit/target/release/rebuildctl /
 
 FROM alpine:3.14
-RUN apk add --no-cache libgcc openssl dpkg sqlite-libs xz zstd-libs
+RUN apk add --no-cache libgcc openssl shared-mime-info sqlite-libs xz zstd-libs
 COPY --from=0 \
     /rebuilderd /rebuildctl \
     /usr/local/bin/
