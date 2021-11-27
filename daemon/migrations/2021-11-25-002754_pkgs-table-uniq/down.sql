@@ -1,3 +1,6 @@
+DROP INDEX packages_pkgbase_idx;
+DROP INDEX queue_pkgbase_idx;
+
 PRAGMA foreign_keys=off;
 
 CREATE TABLE _packages_new (

@@ -121,6 +121,13 @@ impl PkgBase {
             .execute(connection)?;
         Ok(())
     }
+
+    pub fn delete_batch(batch: &[i32], connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::pkgbases::dsl::*;
+        diesel::delete(pkgbases.filter(id.eq_any(batch)))
+            .execute(connection)?;
+        Ok(())
+    }
 }
 
 #[derive(Insertable, PartialEq, Debug, Clone)]

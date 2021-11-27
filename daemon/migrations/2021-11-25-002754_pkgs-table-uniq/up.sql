@@ -28,3 +28,6 @@ DROP TABLE packages;
 ALTER TABLE _packages_new RENAME TO packages;
 
 PRAGMA foreign_keys=on;
+
+CREATE INDEX packages_pkgbase_idx ON packages(pkgbase_id);
+CREATE INDEX queue_pkgbase_idx ON queue(pkgbase_id);

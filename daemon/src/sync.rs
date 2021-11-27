@@ -117,10 +117,22 @@ fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
         info!("found groups that need to be added to database: len={}", new_namespace.groups.len());
         info!("found groups no longer present: len={}", current_namespace.pkgbases.len());
 
-        for (key, pkgbase_to_remove) in current_namespace.pkgbases {
-            debug!("deleting old group with key={:?}", key);
-            models::PkgBase::delete(pkgbase_to_remove.id, connection)
-                .with_context(|| anyhow!("Failed to delete pkgbase with key={:?}", key))?;
+        let pkgbase_delete_queue = current_namespace.pkgbases.values().map(|x| x.id).collect::<Vec<_>>();
+
+        // deleting groups no longer present
+        let mut progress_group_delete = 0;
+        for delete_batch in pkgbase_delete_queue.chunks(1_000) {
+            progress_group_delete += delete_batch.len();
+            info!("deleting groups in batch: {}/{}", progress_group_delete, pkgbase_delete_queue.len());
+
+            if log::log_enabled!(log::Level::Trace) {
+                for pkgbase in delete_batch {
+                    trace!("pkgbase in this batch: {:?}", pkgbase);
+                }
+            }
+
+            models::PkgBase::delete_batch(delete_batch, connection)
+                .with_context(|| anyhow!("Failed to delete pkgbases"))?;
         }
 
         // inserting new groups
