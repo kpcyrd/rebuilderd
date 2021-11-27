@@ -29,12 +29,18 @@ impl CurrentArtifactNamespace {
         })
     }
 
-    fn gen_key_for_pkgbase(pkgbase: &models::PkgBase) -> String {
-        format!("{:?}-{:?}", pkgbase.name, pkgbase.version)
+    fn gen_key(name: &str, version: &str, architecture: &str) -> String {
+        format!("{:?}-{:?}-{:?}", name, version, architecture)
     }
 
+    #[inline]
+    fn gen_key_for_pkgbase(pkgbase: &models::PkgBase) -> String {
+        Self::gen_key(&pkgbase.name, &pkgbase.version, &pkgbase.architecture)
+    }
+
+    #[inline]
     fn gen_key_for_pkggroup(pkggroup: &PkgGroup) -> String {
-        format!("{:?}-{:?}", pkggroup.name, pkggroup.version)
+        Self::gen_key(&pkggroup.name, &pkggroup.version, &pkggroup.architecture)
     }
 
     // returns Some(()) if the group was already known and remove
