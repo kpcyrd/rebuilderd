@@ -1,10 +1,9 @@
 use crate::models;
-// use crate::versions::PkgVerCmp;
+use diesel::Connection;
 use diesel::SqliteConnection;
 use rebuilderd_common::{PkgGroup, Status};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
-// use std::cmp::Ordering;
 use std::collections::HashMap;
 
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;
@@ -30,12 +29,18 @@ impl CurrentArtifactNamespace {
         })
     }
 
-    fn gen_key_for_pkgbase(pkgbase: &models::PkgBase) -> String {
-        format!("{:?}-{:?}", pkgbase.name, pkgbase.version)
+    fn gen_key(name: &str, version: &str, architecture: &str) -> String {
+        format!("{:?}-{:?}-{:?}", name, version, architecture)
     }
 
+    #[inline]
+    fn gen_key_for_pkgbase(pkgbase: &models::PkgBase) -> String {
+        Self::gen_key(&pkgbase.name, &pkgbase.version, &pkgbase.architecture)
+    }
+
+    #[inline]
     fn gen_key_for_pkggroup(pkggroup: &PkgGroup) -> String {
-        format!("{:?}-{:?}", pkggroup.name, pkggroup.version)
+        Self::gen_key(&pkggroup.name, &pkggroup.version, &pkggroup.architecture)
     }
 
     // returns Some(()) if the group was already known and remove
@@ -87,124 +92,140 @@ fn pkggroup_to_newpkgbase(group: &PkgGroup) -> Result<models::NewPkgBase> {
 }
 
 fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
-    let distro = &import.distro;
-    let suite = &import.suite;
+    connection.transaction::<(), _, _>(|| {
+        let distro = &import.distro;
+        let suite = &import.suite;
 
-    info!("received submitted artifact groups {:?}", import.groups.len());
-    let mut new_namespace = NewArtifactNamespace::new();
+        info!("received submitted artifact groups {:?}", import.groups.len());
+        let mut new_namespace = NewArtifactNamespace::new();
 
-    info!("loading existing artifact groups from database...");
-    let mut current_namespace = CurrentArtifactNamespace::load_current_namespace_from_database(distro, suite, connection)?;
-    info!("found existing artifact groups: len={}", current_namespace.pkgbases.len());
+        info!("loading existing artifact groups from database...");
+        let mut current_namespace = CurrentArtifactNamespace::load_current_namespace_from_database(distro, suite, connection)?;
+        info!("found existing artifact groups: len={}", current_namespace.pkgbases.len());
 
-    info!("checking groups already in the database...");
-    let mut num_already_in_database = 0;
-    for group in &import.groups {
-        trace!("received group during import: {:?}", group);
-        if current_namespace.mark_pkggroup_still_present(group).is_some() {
-            num_already_in_database += 1;
-        } else {
-            new_namespace.add(group.clone());
-        }
-    }
-    info!("found groups already in database: len={}", num_already_in_database);
-    info!("found groups that need to be added to database: len={}", new_namespace.groups.len());
-    info!("found groups no longer present: len={}", current_namespace.pkgbases.len());
-
-    for (key, pkgbase_to_remove) in current_namespace.pkgbases {
-        debug!("deleting old group with key={:?}", key);
-        models::PkgBase::delete(pkgbase_to_remove.id, connection)
-            .with_context(|| anyhow!("Failed to delete pkgbase with key={:?}", key))?;
-    }
-
-    // inserting new groups
-    let mut progress_group_insert = 0;
-    for group_batch in new_namespace.groups.chunks(1_000) {
-        progress_group_insert += group_batch.len();
-        info!("inserting new groups in batch: {}/{}", progress_group_insert, new_namespace.groups.len());
-        let group_batch = group_batch.iter()
-            .map(pkggroup_to_newpkgbase)
-            .collect::<Result<Vec<_>>>()?;
-        if log::log_enabled!(log::Level::Trace) {
-            for group in &group_batch {
-                trace!("group in this batch: {:?}", group);
+        info!("checking groups already in the database...");
+        let mut num_already_in_database = 0;
+        for group in &import.groups {
+            trace!("received group during import: {:?}", group);
+            if current_namespace.mark_pkggroup_still_present(group).is_some() {
+                num_already_in_database += 1;
+            } else {
+                new_namespace.add(group.clone());
             }
         }
-        models::NewPkgBase::insert_batch(&group_batch, connection)?;
-    }
+        info!("found groups already in database: len={}", num_already_in_database);
+        info!("found groups that need to be added to database: len={}", new_namespace.groups.len());
+        info!("found groups no longer present: len={}", current_namespace.pkgbases.len());
 
-    // detecting pkgbase ids for new artifacts
-    let mut progress_pkgbase_detect = 0;
-    let mut backlog_insert_pkgs = Vec::new();
-    let mut backlog_insert_queue = Vec::new();
-    for group_batch in new_namespace.groups.chunks(1_000) {
-        progress_pkgbase_detect += group_batch.len();
-        info!("detecting pkgbase ids for new artifacts: {}/{}", progress_pkgbase_detect, new_namespace.groups.len());
-        for group in group_batch {
-            debug!("searching for pkgbases {:?} {:?} {:?} {:?} {:?}", group.name, group.version, distro, suite, group.architecture);
-            let pkgbases = models::PkgBase::get_by(&group.name,
-                                                  distro,
-                                                  suite,
-                                                  Some(&group.version),
-                                                  Some(&group.architecture),
-                                                  connection)?;
+        let pkgbase_delete_queue = current_namespace.pkgbases.values().map(|x| x.id).collect::<Vec<_>>();
 
-            if pkgbases.len() != 1 {
-                bail!("Failed to determine pkgbase in database for grouop (expected=1, found={}): {:?}", pkgbases.len(), group);
-            }
-            let pkgbase_id = pkgbases[0].id;
+        // deleting groups no longer present
+        let mut progress_group_delete = 0;
+        for delete_batch in pkgbase_delete_queue.chunks(1_000) {
+            progress_group_delete += delete_batch.len();
+            info!("deleting groups in batch: {}/{}", progress_group_delete, pkgbase_delete_queue.len());
 
-            for artifact in &group.artifacts {
-                backlog_insert_pkgs.push(models::NewPackage {
-                    pkgbase_id,
-                    name: artifact.name.clone(),
-                    version: artifact.version.clone(),
-                    status: Status::Unknown.to_string(),
-                    distro: distro.clone(),
-                    suite: suite.clone(),
-                    architecture: group.architecture.clone(),
-                    artifact_url: artifact.url.clone(),
-                    build_id: None,
-                    built_at: None,
-                    has_diffoscope: false,
-                    has_attestation: false,
-                    checksum: None,
-                });
+            if log::log_enabled!(log::Level::Trace) {
+                for pkgbase in delete_batch {
+                    trace!("pkgbase in this batch: {:?}", pkgbase);
+                }
             }
 
-            backlog_insert_queue.push(models::NewQueued::new(pkgbase_id,
-                                                             group.version.clone(),
-                                                             distro.to_string(),
-                                                             DEFAULT_QUEUE_PRIORITY));
+            models::PkgBase::delete_batch(delete_batch, connection)
+                .with_context(|| anyhow!("Failed to delete pkgbases"))?;
         }
-    }
 
-    // inserting new packages
-    let mut progress_pkg_inserts = 0;
-    for pkg_batch in backlog_insert_pkgs.chunks(1_000) {
-        progress_pkg_inserts += pkg_batch.len();
-        info!("inserting new packages in batch: {}/{}", progress_pkg_inserts, backlog_insert_pkgs.len());
-        if log::log_enabled!(log::Level::Trace) {
-            for pkg in pkg_batch {
-                trace!("pkg in this batch: {:?}", pkg);
+        // inserting new groups
+        let mut progress_group_insert = 0;
+        for group_batch in new_namespace.groups.chunks(1_000) {
+            progress_group_insert += group_batch.len();
+            info!("inserting new groups in batch: {}/{}", progress_group_insert, new_namespace.groups.len());
+            let group_batch = group_batch.iter()
+                .map(pkggroup_to_newpkgbase)
+                .collect::<Result<Vec<_>>>()?;
+            if log::log_enabled!(log::Level::Trace) {
+                for group in &group_batch {
+                    trace!("group in this batch: {:?}", group);
+                }
+            }
+            models::NewPkgBase::insert_batch(&group_batch, connection)?;
+        }
+
+        // detecting pkgbase ids for new artifacts
+        let mut progress_pkgbase_detect = 0;
+        let mut backlog_insert_pkgs = Vec::new();
+        let mut backlog_insert_queue = Vec::new();
+        for group_batch in new_namespace.groups.chunks(1_000) {
+            progress_pkgbase_detect += group_batch.len();
+            info!("detecting pkgbase ids for new artifacts: {}/{}", progress_pkgbase_detect, new_namespace.groups.len());
+            for group in group_batch {
+                debug!("searching for pkgbases {:?} {:?} {:?} {:?} {:?}", group.name, group.version, distro, suite, group.architecture);
+                let pkgbases = models::PkgBase::get_by(&group.name,
+                                                      distro,
+                                                      suite,
+                                                      Some(&group.version),
+                                                      Some(&group.architecture),
+                                                      connection)?;
+
+                if pkgbases.len() != 1 {
+                    bail!("Failed to determine pkgbase in database for grouop (expected=1, found={}): {:?}", pkgbases.len(), group);
+                }
+                let pkgbase_id = pkgbases[0].id;
+
+                for artifact in &group.artifacts {
+                    backlog_insert_pkgs.push(models::NewPackage {
+                        pkgbase_id,
+                        name: artifact.name.clone(),
+                        version: artifact.version.clone(),
+                        status: Status::Unknown.to_string(),
+                        distro: distro.clone(),
+                        suite: suite.clone(),
+                        architecture: group.architecture.clone(),
+                        artifact_url: artifact.url.clone(),
+                        build_id: None,
+                        built_at: None,
+                        has_diffoscope: false,
+                        has_attestation: false,
+                        checksum: None,
+                    });
+                }
+
+                backlog_insert_queue.push(models::NewQueued::new(pkgbase_id,
+                                                                 group.version.clone(),
+                                                                 distro.to_string(),
+                                                                 DEFAULT_QUEUE_PRIORITY));
             }
         }
-        models::NewPackage::insert_batch(pkg_batch, connection)?;
-    }
 
-    // inserting to queue
-    // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
-    let mut progress_queue_inserts = 0;
-    for queue_batch in backlog_insert_queue.chunks(1_000) {
-        progress_queue_inserts += queue_batch.len();
-        info!("inserting to queue in batch: {}/{}", progress_queue_inserts, backlog_insert_queue.len());
-        if log::log_enabled!(log::Level::Trace) {
-            for queued in queue_batch {
-                trace!("queued in this batch: {:?}", queued);
+        // inserting new packages
+        let mut progress_pkg_inserts = 0;
+        for pkg_batch in backlog_insert_pkgs.chunks(1_000) {
+            progress_pkg_inserts += pkg_batch.len();
+            info!("inserting new packages in batch: {}/{}", progress_pkg_inserts, backlog_insert_pkgs.len());
+            if log::log_enabled!(log::Level::Trace) {
+                for pkg in pkg_batch {
+                    trace!("pkg in this batch: {:?}", pkg);
+                }
             }
+            models::NewPackage::insert_batch(pkg_batch, connection)?;
         }
-        models::Queued::insert_batch(queue_batch, connection)?;
-    }
+
+        // inserting to queue
+        // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
+        let mut progress_queue_inserts = 0;
+        for queue_batch in backlog_insert_queue.chunks(1_000) {
+            progress_queue_inserts += queue_batch.len();
+            info!("inserting to queue in batch: {}/{}", progress_queue_inserts, backlog_insert_queue.len());
+            if log::log_enabled!(log::Level::Trace) {
+                for queued in queue_batch {
+                    trace!("queued in this batch: {:?}", queued);
+                }
+            }
+            models::Queued::insert_batch(queue_batch, connection)?;
+        }
+
+        Ok(())
+    })?;
 
     info!("successfully synced import to database");
 
