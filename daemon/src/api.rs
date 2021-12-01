@@ -332,7 +332,7 @@ pub async fn requeue_pkgbase(
 pub async fn ping_build(
     req: HttpRequest,
     cfg: web::Data<Config>,
-    item: web::Json<QueueItem>,
+    item: web::Json<PingRequest>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     if auth::worker(&cfg, &req).is_err() {
@@ -343,7 +343,7 @@ pub async fn ping_build(
 
     let worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
     debug!("ping from worker: {:?}", worker);
-    let mut item = models::Queued::get_id(item.id, connection.as_ref())?;
+    let mut item = models::Queued::get_id(item.queue_id, connection.as_ref())?;
     debug!("trying to ping item: {:?}", item);
 
     if item.worker_id != Some(worker.id) {
