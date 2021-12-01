@@ -44,7 +44,9 @@ async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &Pr
                 return res;
             },
             _ = time::sleep(Duration::from_secs(PING_INTERVAL)) => {
-                if let Err(err) = client.ping_build(item).await {
+                if let Err(err) = client.ping_build(&PingRequest {
+                    queue_id: item.id,
+                }).await {
                     warn!("Failed to ping: {}", err);
                 }
             },

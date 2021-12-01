@@ -252,9 +252,9 @@ impl Client {
         Ok(())
     }
 
-    pub async fn ping_build(&self, ticket: &QueueItem) -> Result<()> {
+    pub async fn ping_build(&self, body: &PingRequest) -> Result<()> {
         self.post(Cow::Borrowed("api/v0/build/ping"))
-            .json(ticket)
+            .json(body)
             .send()
             .await?
             .error_for_status()?;
@@ -409,6 +409,11 @@ pub struct SuiteStats {
     pub good: usize,
     pub unknown: usize,
     pub bad: usize,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct PingRequest {
+    pub queue_id: i32,
 }
 
 #[cfg(test)]
