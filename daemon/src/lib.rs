@@ -8,12 +8,9 @@ use crate::dashboard::DashboardState;
 use diesel::RunQueryDsl;
 use rebuilderd_common::api::{BuildReport, SuiteImport};
 use rebuilderd_common::errors::*;
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
 
 pub mod api;
 pub mod auth;
@@ -24,17 +21,6 @@ pub mod schema;
 pub mod sync;
 pub mod models;
 pub mod web;
-
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
-struct Args {
-    /// Verbose logging
-    #[structopt(short)]
-    verbose: bool,
-    /// Configuration file path
-    #[structopt(short, long)]
-    config: Option<PathBuf>,
-}
 
 pub async fn run_config(config: Config) -> Result<()> {
     let pool = db::setup_pool("rebuilderd.db")?;
