@@ -61,12 +61,12 @@ pub enum VersionConstraint {
 
 #[derive(Debug)]
 pub struct DebianSourcePkg {
-    base: String,
-    binary: Vec<String>,
-    version: String,
-    directory: String,
-    architecture: String,
-    uploaders: Vec<String>,
+    pub base: String,
+    pub binary: Vec<String>,
+    pub version: String,
+    pub directory: String,
+    pub architecture: String,
+    pub uploaders: Vec<String>,
 }
 
 impl DebianSourcePkg {

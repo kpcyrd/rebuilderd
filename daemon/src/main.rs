@@ -36,5 +36,10 @@ async fn main() -> Result<()> {
 
     dotenv::dotenv().ok();
     let config = config::load(args.config.as_deref())?;
-    rebuilderd::run_config(config).await
+    if args.check_config {
+        println!("{:#?}", config);
+    } else {
+        rebuilderd::run_config(config).await?;
+    }
+    Ok(())
 }
