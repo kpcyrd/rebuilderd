@@ -161,7 +161,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
 
             // generate diffoscope diff if enabled
             if ctx.diffoscope.enabled {
-                let diff = diffoscope(&input_path, &output_path, &ctx.diffoscope)
+                let diff = diffoscope(&artifact_path, &output_path, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
                 res.diffoscope = Some(diff);
