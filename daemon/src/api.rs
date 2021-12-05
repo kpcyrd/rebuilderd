@@ -201,11 +201,14 @@ pub async fn push_queue(
 
     for pkg in pkgs {
         debug!("found pkg: {:?}", pkg);
-        let version = query.version.as_ref().unwrap_or(&pkg.version);
 
-        let item = models::NewQueued::new(pkg.id, version.to_string(), query.distro.to_string(), query.priority);
+        let pkgbase = models::PkgBase::get_id(pkg.pkgbase_id, connection.as_ref())?;
+        let item = models::NewQueued::new(pkgbase.id, pkgbase.version, pkgbase.distro, query.priority);
+
         debug!("adding to queue: {:?}", item);
-        item.insert(connection.as_ref())?;
+        if let Err(err) = item.insert(connection.as_ref()) {
+            error!("failed to queue item: {:#?}", err);
+        }
     }
 
     Ok(HttpResponse::Ok().json(()))
