@@ -91,6 +91,17 @@ impl PkgBase {
         self.next_retry = Some((Utc::now() + delay).naive_utc());
     }
 
+    pub fn clear_retry(&mut self, connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::pkgbases::columns::*;
+        self.next_retry = None;
+        diesel::update(pkgbases::table.filter(id.eq(self.id)))
+            .set((
+                next_retry.eq(None as Option::<NaiveDateTime>),
+            ))
+            .execute(connection)?;
+        Ok(())
+    }
+
     pub fn into_api_item(self) -> Result<PkgGroup> {
         let artifacts = serde_json::from_str(&self.artifacts).expect("Failed to deserialize artifact");
 

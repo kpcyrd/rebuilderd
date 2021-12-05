@@ -421,7 +421,7 @@ pub async fn report_build(
         pkgbase.retries += 1;
         pkgbase.schedule_retry(cfg.schedule.retry_delay_base());
     } else {
-        pkgbase.next_retry = None;
+        pkgbase.clear_retry(connection.as_ref())?;
     }
     pkgbase.update(connection.as_ref())?;
 
