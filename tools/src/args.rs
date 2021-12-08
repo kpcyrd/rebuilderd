@@ -91,6 +91,8 @@ pub struct PkgsSync {
     pub pkgs: Vec<Pattern>,
     #[structopt(long="exclude")]
     pub excludes: Vec<Pattern>,
+    #[structopt(long)]
+    pub sync_method: Option<String>,
 }
 
 #[derive(Debug, StructOpt)]

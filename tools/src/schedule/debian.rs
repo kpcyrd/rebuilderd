@@ -251,13 +251,13 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn ensure_group_exists(&mut self, src: &DebianSourcePkg, suite: String, arch: &str) {
+    fn ensure_group_exists(&mut self, src: &DebianSourcePkg, distro: String, suite: String, arch: &str) {
         // TODO: creating a new group isn't always needed
         let buildinfo_url = src.buildinfo_url(arch);
         let new_group = PkgGroup::new(
             src.base.clone(),
             src.version.clone(),
-            "debian".to_string(),
+            distro,
             suite,
             arch.to_string(),
             Some(buildinfo_url),
@@ -276,8 +276,8 @@ impl SyncState {
         }
     }
 
-    fn get_mut_group(&mut self, src: &DebianSourcePkg, suite: String, arch: &str) -> &mut PkgGroup {
-        self.ensure_group_exists(src, suite, arch);
+    fn get_mut_group(&mut self, src: &DebianSourcePkg, distro: String, suite: String, arch: &str) -> &mut PkgGroup {
+        self.ensure_group_exists(src, distro, suite, arch);
 
         // ensure_group_exists ensures the group exists
         let list = self.groups.get_mut(&src.base).unwrap();
@@ -292,8 +292,8 @@ impl SyncState {
         unreachable!()
     }
 
-    pub fn push(&mut self, src: &DebianSourcePkg, bin: DebianBinPkg, source: &str, suite: String) {
-        let group = self.get_mut_group(src, suite, &bin.architecture);
+    pub fn push(&mut self, src: &DebianSourcePkg, bin: DebianBinPkg, source: &str, distro: String, suite: String) {
+        let group = self.get_mut_group(src, distro, suite, &bin.architecture);
         let url = format!("{}/{}/{}_{}_{}.deb",
             source,
             src.directory,
@@ -359,7 +359,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let src = sources.get(&pkg)?;
                 debug!("Matched binary package to source package: {:?} {:?}", src.base, src.version);
 
-                out.push(src, pkg, &sync.source, sync.suite.clone());
+                out.push(src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
             }
         }
     }

@@ -161,7 +161,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let mut group = PkgGroup::new(
                     pkg.base.clone(),
                     pkg.version,
-                    "archlinux".to_string(),
+                    sync.distro.to_string(),
                     sync.suite.to_string(),
                     pkg.architecture,
                     None,
