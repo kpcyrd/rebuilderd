@@ -23,6 +23,7 @@ impl SyncConfigFile {
 #[derive(Debug, Deserialize)]
 pub struct SyncProfile {
     pub distro: String,
+    pub sync_method: Option<String>,
     pub suite: String,
     #[serde(default)]
     pub releases: Vec<String>,

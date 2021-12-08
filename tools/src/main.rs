@@ -36,11 +36,17 @@ fn print_json<S: Serialize>(x: &S) -> Result<()> {
 }
 
 pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
-    let mut pkgs = match sync.distro.as_str() {
+    let method = if let Some(method) = &sync.sync_method {
+        method.as_str()
+    } else {
+        sync.distro.as_str()
+    };
+
+    let mut pkgs = match method {
         "archlinux" => schedule::archlinux::sync(&sync).await?,
         "debian" => schedule::debian::sync(&sync).await?,
         "tails" => schedule::tails::sync(&sync).await?,
-        unknown => bail!("No integrated sync for {:?}, use sync-stdin instead", unknown),
+        unknown => bail!("No integrated sync for {:?}, use --sync-method or `pkgs sync-stdin` instead", unknown),
     };
     pkgs.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -130,6 +136,7 @@ async fn main() -> Result<()> {
 
             sync(client.with_auth_cookie()?, PkgsSync {
                 distro: profile.distro,
+                sync_method: profile.sync_method,
                 suite: profile.suite,
                 releases: profile.releases,
                 architectures: profile.architectures,
