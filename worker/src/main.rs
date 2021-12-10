@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
                 }],
                 input_url: build.input_url,
                 backend,
-                build: config::Build::default(),
+                build: config.build,
                 diffoscope,
                 privkey: &profile.privkey,
             }).await?;
