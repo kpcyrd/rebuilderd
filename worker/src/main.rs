@@ -90,7 +90,7 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                             artifact.clone(),
                             Rebuild::new(
                                 BuildStatus::Fail,
-                                "rebuilderd: unexpected error while rebuilding package\n".to_string()
+                                format!("rebuilderd: unexpected error while rebuilding package: {:#}\n", err)
                             ),
                         ));
                     }
