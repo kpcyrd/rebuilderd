@@ -1,6 +1,7 @@
 use crate::config;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
+use crate::heartbeat::HeartBeat;
 use crate::proc;
 use in_toto::crypto::PrivateKey;
 use in_toto::runlib::in_toto_run;
@@ -15,6 +16,8 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use tokio::select;
+use tokio::time;
 
 pub struct Context<'a> {
     pub artifacts: Vec<PkgArtifact>,
@@ -83,6 +86,18 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
 
         // advance the number of bytes that are equal
         pos += n;
+    }
+}
+
+pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, hb: &dyn HeartBeat) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+    let mut rebuild = Box::pin(rebuild(&ctx));
+    loop {
+        select! {
+            res = &mut rebuild => {
+                return res;
+            },
+            _ = time::sleep(hb.interval()) => hb.ping().await?,
+        }
     }
 }
 
