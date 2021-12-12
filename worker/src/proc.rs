@@ -24,8 +24,8 @@ pub struct Options {
     pub envs: HashMap<String, String>,
 }
 
-pub struct Capture {
-    output: Vec<u8>,
+pub struct Capture<'a> {
+    output: &'a mut Vec<u8>,
     timeout: Duration,
     size_limit: Option<usize>,
     kill_at_size_limit: bool,
@@ -34,10 +34,10 @@ pub struct Capture {
     truncated: bool,
 }
 
-pub fn capture(opts: Options) -> Capture {
+pub fn capture(output: &mut Vec<u8>, opts: Options) -> Capture<'_> {
     let start = Instant::now();
     Capture {
-        output: Vec::new(),
+        output,
         timeout: opts.timeout,
         size_limit: opts.size_limit,
         kill_at_size_limit: opts.kill_at_size_limit,
@@ -47,19 +47,15 @@ pub fn capture(opts: Options) -> Capture {
     }
 }
 
-impl Capture {
-    #[inline]
-    pub fn into_output(self) -> Vec<u8> {
-        self.output
-    }
-
+impl Capture<'_> {
     pub async fn push_bytes(&mut self, child: &mut Child, mut slice: &[u8]) -> Result<()> {
         if !self.truncated {
             if let Some(size_limit) = &self.size_limit {
                 let n = cmp::min(size_limit - self.output.len(), slice.len());
                 if n < 1 {
                     warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), size_limit);
-                    self.truncate(child, "TRUNCATED DUE TO SIZE LIMIT", self.kill_at_size_limit).await?;
+                    let msg = format!("TRUNCATED DUE TO SIZE LIMIT: {} bytes", size_limit);
+                    self.truncate(child, &msg, self.kill_at_size_limit).await?;
                     return Ok(());
                 } else {
                     // truncate to stay within the limit
@@ -114,7 +110,8 @@ impl Capture {
         } else if self.sigterm_sent.is_none() {
             // the process has timed out, sending SIGTERM
             warn!("child timed out, killing...");
-            self.truncate(child, "TRUNCATED DUE TO TIMEOUT", true).await?;
+            let msg = format!("TRUNCATED DUE TO TIMEOUT: {} seconds", self.timeout.as_secs());
+            self.truncate(child, &msg, true).await?;
         }
 
         // if we don't need any timeouts anymore we just return any value
@@ -122,7 +119,7 @@ impl Capture {
     }
 }
 
-pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, String)>
+pub async fn run<I, S>(bin: &Path, args: I, opts: Options, log: &mut Vec<u8>) -> Result<bool>
     where I: IntoIterator<Item = S> + fmt::Debug,
     S: AsRef<OsStr>,
 {
@@ -160,8 +157,8 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, Stri
 
     let mut stdout_open = true;
     let mut stderr_open = true;
-    let mut cap = capture(opts);
-    let (success, output) = loop {
+    let mut cap = capture(log, opts);
+    let success = loop {
         let remaining = cap.next_wakeup(&mut child, &mut stdout_open, &mut stderr_open).await?;
 
         if stdout_open || stderr_open {
@@ -196,17 +193,15 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options) -> Result<(bool, Stri
             select! {
                 status = child.wait().fuse() => {
                     let status = status?;
-                    let output = cap.into_output();
-                    info!("{:?} exited with exit={}, captured {} bytes", bin, status, output.len());
-                    break (status.success(), output);
+                    info!("{:?} exited with exit={}, captured {} bytes", bin, status, log.len());
+                    break status.success();
                 }
                 _ = time::sleep(remaining).fuse() => continue,
             }
         }
     };
 
-    let output = String::from_utf8_lossy(&output);
-    Ok((success, output.into_owned()))
+    Ok(success)
 }
 
 #[cfg(test)]
@@ -216,8 +211,10 @@ mod tests {
     async fn script(script: &str, opts: Options) -> Result<(bool, String, Duration)> {
         let start = Instant::now();
         let path = Path::new("sh");
-        let (success, output) = run(path, &["-c", script], opts).await?;
+        let mut output = Vec::new();
+        let success = run(path, &["-c", script], opts, &mut output).await?;
         let duration = start.elapsed();
+        let output = String::from_utf8_lossy(&output).into_owned();
         Ok((success, output, duration))
     }
 
@@ -249,7 +246,7 @@ mod tests {
         }).await.unwrap();
         assert!(success);
         assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
     }
 
     #[tokio::test]
@@ -268,7 +265,7 @@ mod tests {
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n");
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(5));
     }
@@ -289,7 +286,7 @@ mod tests {
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(3));
     }
@@ -310,7 +307,7 @@ mod tests {
         }).await.unwrap();
         assert!(!success);
         assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT\n\n\n\nTRUNCATED DUE TO TIMEOUT\n\n");
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(2));
     }

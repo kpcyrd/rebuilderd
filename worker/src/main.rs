@@ -80,25 +80,34 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                 queue_id: rb.id,
             };
 
-            let rebuilds = match rebuild::rebuild_with_heartbeat(&ctx, &hb).await {
+            let mut log = Vec::new();
+
+            let rebuilds = match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
                 Ok(res) => res,
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
+                    let msg = format!("rebuilderd: unexpected error while rebuilding package: {:#}\n", err);
+                    if !log.is_empty() {
+                        log.extend(b"\n\n");
+                    }
+                    log.extend(msg.as_bytes());
+
                     let mut res = vec![];
                     for artifact in &rb.pkgbase.artifacts {
                         res.push((
                             artifact.clone(),
-                            Rebuild::new(
-                                BuildStatus::Fail,
-                                format!("rebuilderd: unexpected error while rebuilding package: {:#}\n", err)
-                            ),
+                            Rebuild::new(BuildStatus::Fail)
                         ));
                     }
                     res
                 },
             };
+
+            let build_log = String::from_utf8_lossy(&log).into_owned();
+
             let report = BuildReport {
                 queue: *rb,
+                build_log,
                 rebuilds,
             };
             info!("Sending build report to rebuilderd...");
@@ -188,6 +197,8 @@ async fn main() -> Result<()> {
                 ..Default::default()
             };
 
+            let mut log = Vec::new();
+
             let res = rebuild::rebuild(&Context {
                 artifacts: vec![PkgArtifact {
                     name: "anonymous".to_string(),
@@ -199,7 +210,7 @@ async fn main() -> Result<()> {
                 build: config.build,
                 diffoscope,
                 privkey: &profile.privkey,
-            }).await?;
+            }, &mut log).await?;
 
             for (artifact, res) in res {
                 trace!("rebuild result object for {:?} is {:?}", artifact, res);

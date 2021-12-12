@@ -89,8 +89,8 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     }
 }
 
-pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, hb: &dyn HeartBeat) -> Result<Vec<(PkgArtifact, Rebuild)>> {
-    let mut rebuild = Box::pin(rebuild(&ctx));
+pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, log: &mut Vec<u8>, hb: &dyn HeartBeat) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+    let mut rebuild = Box::pin(rebuild(ctx, log));
     loop {
         select! {
             res = &mut rebuild => {
@@ -101,7 +101,7 @@ pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, hb: &dyn HeartBeat) -> Re
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -135,20 +135,19 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     let input_path = inputs_dir.join(&input_filename);
 
     // rebuild
-    let log = verify(ctx, &out_dir, &input_path).await?;
+    verify(ctx, log, &out_dir, &input_path).await?;
 
     // process results
     let mut results = Vec::new();
     for (artifact, artifact_filename, artifact_path) in artifacts {
-        let log = log.clone(); // TODO: our POST response should only include the log once
         let output_path = out_dir.join(&artifact_filename);
 
         let result = if !output_path.exists() {
             info!("No output artifact found, marking as BAD: {:?}", output_path);
-            Rebuild::new(BuildStatus::Bad, log)
+            Rebuild::new(BuildStatus::Bad)
         } else if compare_files(&artifact_path, &output_path).await? {
             info!("Output artifacts is identical, marking as GOOD: {:?}", output_path);
-            let mut res = Rebuild::new(BuildStatus::Good, log);
+            let mut res = Rebuild::new(BuildStatus::Good);
 
             info!("Generating signed link");
             match in_toto_run(
@@ -172,7 +171,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
             res
         } else {
             info!("Output artifact differs, marking as BAD: {:?}", output_path);
-            let mut res = Rebuild::new(BuildStatus::Bad, log);
+            let mut res = Rebuild::new(BuildStatus::Bad);
 
             // generate diffoscope diff if enabled
             if ctx.diffoscope.enabled {
@@ -191,7 +190,7 @@ pub async fn rebuild(ctx: &Context<'_>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     Ok(results)
 }
 
-async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<String> {
+async fn verify(ctx: &Context<'_>, log: &mut Vec<u8>, out_dir: &Path, input_path: &Path) -> Result<()> {
     let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
@@ -205,9 +204,10 @@ async fn verify(ctx: &Context<'_>, out_dir: &Path, input_path: &Path) -> Result<
         passthrough: !ctx.build.silent,
         envs,
     };
-    let (_success, log) = proc::run(bin.as_ref(), &[input_path], opts).await?;
 
-    Ok(log)
+    proc::run(bin.as_ref(), &[input_path], opts, log).await?;
+
+    Ok(())
 }
 
 #[cfg(test)]

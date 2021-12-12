@@ -22,6 +22,10 @@ pub async fn diffoscope(a: &Path, b: &Path, settings: &config::Diffoscope) -> Re
         envs: HashMap::new(),
     };
     let bin = Path::new("diffoscope");
-    let (_success, output) = proc::run(bin, &args, opts).await?;
-    Ok(output)
+
+    let mut output = Vec::new();
+    proc::run(bin, &args, opts, &mut output).await?;
+    let output = String::from_utf8_lossy(&output);
+
+    Ok(output.into_owned())
 }
