@@ -1,5 +1,6 @@
 #![recursion_limit="256"]
 
+use async_trait::async_trait;
 use crate::args::{Args, SubCommand};
 use crate::rebuild::Context;
 use env_logger::Env;
@@ -15,7 +16,6 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 use std::time::Duration;
-use tokio::select;
 use tokio::time;
 
 pub mod args;
@@ -23,34 +23,29 @@ pub mod auth;
 pub mod config;
 pub mod diffoscope;
 pub mod download;
+pub mod heartbeat;
 pub mod proc;
 pub mod rebuild;
 pub mod setup;
 
-async fn spawn_rebuilder_script_with_heartbeat<'a>(client: &Client, privkey: &PrivateKey, backend: config::Backend, item: &QueueItem, config: &config::ConfigFile) -> Result<Vec<(PkgArtifact, Rebuild)>> {
-    let ctx = Context {
-        artifacts: item.pkgbase.artifacts.clone(),
-        input_url: item.pkgbase.input_url.clone(),
-        backend,
-        build: config.build.clone(),
-        diffoscope: config.diffoscope.clone(),
-        privkey,
-    };
+pub struct HttpHeartBeat<'a> {
+    client: &'a Client,
+    queue_id: i32,
+}
 
-    let mut rebuild = Box::pin(rebuild::rebuild(&ctx));
-    loop {
-        select! {
-            res = &mut rebuild => {
-                return res;
-            },
-            _ = time::sleep(Duration::from_secs(PING_INTERVAL)) => {
-                if let Err(err) = client.ping_build(&PingRequest {
-                    queue_id: item.id,
-                }).await {
-                    warn!("Failed to ping: {}", err);
-                }
-            },
+#[async_trait]
+impl<'a> heartbeat::HeartBeat for HttpHeartBeat<'a> {
+    fn interval(&self) -> Duration {
+        Duration::from_secs(PING_INTERVAL)
+    }
+
+    async fn ping(&self) -> Result<()> {
+        if let Err(err) = self.client.ping_build(&PingRequest {
+            queue_id: self.queue_id,
+        }).await {
+            warn!("Failed to ping: {}", err);
         }
+        Ok(())
     }
 }
 
@@ -71,25 +66,48 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                 .cloned()
                 .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.pkgbase.distro))?;
 
-            let rebuilds = match spawn_rebuilder_script_with_heartbeat(client, privkey, backend, &rb, config).await {
+            let ctx = Context {
+                artifacts: rb.pkgbase.artifacts.clone(),
+                input_url: rb.pkgbase.input_url.clone(),
+                backend,
+                build: config.build.clone(),
+                diffoscope: config.diffoscope.clone(),
+                privkey,
+            };
+
+            let hb = HttpHeartBeat {
+                client,
+                queue_id: rb.id,
+            };
+
+            let mut log = Vec::new();
+
+            let rebuilds = match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
                 Ok(res) => res,
                 Err(err) => {
                     error!("Unexpected error while rebuilding package package: {:#}", err);
+                    let msg = format!("rebuilderd: unexpected error while rebuilding package: {:#}\n", err);
+                    if !log.is_empty() {
+                        log.extend(b"\n\n");
+                    }
+                    log.extend(msg.as_bytes());
+
                     let mut res = vec![];
                     for artifact in &rb.pkgbase.artifacts {
                         res.push((
                             artifact.clone(),
-                            Rebuild::new(
-                                BuildStatus::Fail,
-                                "rebuilderd: unexpected error while rebuilding package\n".to_string()
-                            ),
+                            Rebuild::new(BuildStatus::Fail)
                         ));
                     }
                     res
                 },
             };
+
+            let build_log = String::from_utf8_lossy(&log).into_owned();
+
             let report = BuildReport {
                 queue: *rb,
+                build_log,
                 rebuilds,
             };
             info!("Sending build report to rebuilderd...");
@@ -179,6 +197,8 @@ async fn main() -> Result<()> {
                 ..Default::default()
             };
 
+            let mut log = Vec::new();
+
             let res = rebuild::rebuild(&Context {
                 artifacts: vec![PkgArtifact {
                     name: "anonymous".to_string(),
@@ -190,7 +210,7 @@ async fn main() -> Result<()> {
                 build: config.build,
                 diffoscope,
                 privkey: &profile.privkey,
-            }).await?;
+            }, &mut log).await?;
 
             for (artifact, res) in res {
                 trace!("rebuild result object for {:?} is {:?}", artifact, res);

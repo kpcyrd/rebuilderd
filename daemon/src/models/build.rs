@@ -51,11 +51,11 @@ impl NewBuild {
         Ok(id)
     }
 
-    pub fn from_api(rebuild: &Rebuild) -> NewBuild {
+    pub fn from_api(rebuild: &Rebuild, build_log: Vec<u8>) -> NewBuild {
         NewBuild {
             diffoscope: rebuild.diffoscope.clone(),
             attestation: rebuild.attestation.clone(),
-            build_log: rebuild.log.as_bytes().to_vec(),
+            build_log,
         }
     }
 }

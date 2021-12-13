@@ -396,7 +396,7 @@ pub async fn report_build(
         let mut pkg = packages.remove(0);
 
         // adding build to package
-        let build = models::NewBuild::from_api(rebuild);
+        let build = models::NewBuild::from_api(rebuild, report.build_log.as_bytes().to_vec());
         let build_id = build.insert(connection.as_ref())?;
         pkg.build_id = Some(build_id);
 

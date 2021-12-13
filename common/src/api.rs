@@ -374,16 +374,14 @@ pub enum BuildStatus {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rebuild {
     pub status: BuildStatus,
-    pub log: String,
     pub diffoscope: Option<String>,
     pub attestation: Option<String>,
 }
 
 impl Rebuild {
-    pub fn new(status: BuildStatus, log: String) -> Rebuild {
+    pub fn new(status: BuildStatus) -> Rebuild {
         Rebuild {
             status,
-            log,
             diffoscope: None,
             attestation: None,
         }
@@ -393,6 +391,7 @@ impl Rebuild {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BuildReport {
     pub queue: QueueItem,
+    pub build_log: String,
     pub rebuilds: Vec<(PkgArtifact, Rebuild)>,
 }
 

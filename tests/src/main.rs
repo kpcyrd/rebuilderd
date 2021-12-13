@@ -209,7 +209,6 @@ async fn main() -> Result<()> {
         for artifact in queue.pkgbase.artifacts.clone() {
             rebuilds.push((artifact, Rebuild {
                 diffoscope: None,
-                log: String::new(),
                 status: BuildStatus::Bad,
                 attestation: None,
             }));
@@ -217,6 +216,7 @@ async fn main() -> Result<()> {
 
         let report = BuildReport {
             queue,
+            build_log: String::new(),
             rebuilds,
         };
         client.report_build(&report).await?;
@@ -286,7 +286,6 @@ async fn main() -> Result<()> {
         for artifact in queue.pkgbase.artifacts.clone() {
             rebuilds.push((artifact, Rebuild {
                 diffoscope: None,
-                log: String::new(),
                 status: BuildStatus::Good,
                 attestation: None,
             }));
@@ -294,6 +293,7 @@ async fn main() -> Result<()> {
 
         let report = BuildReport {
             queue,
+            build_log: String::new(),
             rebuilds,
         };
         client.report_build(&report).await?;
