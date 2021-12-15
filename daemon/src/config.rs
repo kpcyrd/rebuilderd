@@ -5,12 +5,15 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+const DEFAULT_POST_BODY_SIZE_LIMIT: usize = 2_usize.pow(30); // 1 GB
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub auth_cookie: String,
     pub worker: WorkerConfig,
     pub bind_addr: String,
     pub real_ip_header: Option<String>,
+    pub post_body_size_limit: usize,
     pub schedule: ScheduleConfig,
 }
 
@@ -28,6 +31,7 @@ pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
         worker: config.worker,
         bind_addr,
         real_ip_header: config.http.real_ip_header,
+        post_body_size_limit: config.http.post_body_size_limit.unwrap_or(DEFAULT_POST_BODY_SIZE_LIMIT),
         schedule: config.schedule,
     })
 }
