@@ -70,7 +70,7 @@ pub async fn run_config(config: Config) -> Result<()> {
                 web::resource("/api/v0/build/report").app_data(
                     // change json extractor configuration
                     web::Json::<BuildReport>::configure(|cfg| {
-                        cfg.limit(1024 * 1024 * 1024)
+                        cfg.limit(config.post_body_size_limit)
                     })
                 )
                 .route(web::post().to(api::report_build))
@@ -79,7 +79,7 @@ pub async fn run_config(config: Config) -> Result<()> {
                 web::resource("/api/v0/pkgs/sync").app_data(
                     // change json extractor configuration
                     web::Json::<SuiteImport>::configure(|cfg| {
-                        cfg.limit(1024 * 1024 * 1024)
+                        cfg.limit(config.post_body_size_limit)
                     })
                 )
                 .route(web::post().to(api::sync_work))

@@ -86,6 +86,7 @@ impl ConfigFile {
 pub struct HttpConfig {
     pub bind_addr: Option<String>,
     pub real_ip_header: Option<String>,
+    pub post_body_size_limit: Option<usize>,
     pub endpoint: Option<String>,
 }
 
