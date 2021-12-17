@@ -16,8 +16,8 @@ trap '{ rm -rf -- "$WORK_DIR"; }' EXIT
 chmod 0711 "$WORK_DIR"
 
 # import gpg keys to authenticate source code
-export GNUPGHOME="$WORK_DIR/gpg"
-mkdir -m 0700 -- "$GNUPGHOME"
+export HOME="$WORK_DIR/home"
+mkdir -m 0700 -- "$HOME"
 # https://tails.boum.org/tails-signing.key
 gpg --import <<EOF
 -----BEGIN PGP PUBLIC KEY BLOCK-----
