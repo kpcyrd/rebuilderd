@@ -83,10 +83,15 @@ impl DebianSourcePkg {
 
     fn buildinfo_url(&self, arch: &str) -> String {
         let directory = self.buildinfo_path();
+        let version_without_epoch = if let Some((_epoch, version)) = self.version.split_once(':') {
+            version
+        } else {
+            &self.version
+        };
         let buildinfo_url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
             directory,
             self.base,
-            self.version,
+            version_without_epoch,
             arch);
         buildinfo_url
     }
@@ -596,8 +601,7 @@ Section: misc
                 distro: "debian".to_string(),
                 suite: "main".to_string(),
                 architecture: "all".to_string(),
-                // TODO: the build info is https://buildinfos.debian.net/buildinfo-pool/m/mariadb-10.5/mariadb-10.5_10.5.12-1_all.buildinfo
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/m/mariadb-10.5/mariadb-10.5_1:10.5.12-1_all.buildinfo".to_string()),
+                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/m/mariadb-10.5/mariadb-10.5_10.5.12-1_all.buildinfo".to_string()),
                 artifacts: vec![
                     PkgArtifact {
                         name: "mariadb-server".to_string(),
