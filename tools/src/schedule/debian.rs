@@ -319,7 +319,8 @@ impl SyncState {
             .flatten()
             .collect::<Vec<_>>();
         out.sort_by(|a, b| a.name.cmp(&b.name)
-            .then_with(|| a.version.cmp(&b.version)));
+            .then_with(|| a.version.cmp(&b.version))
+            .then_with(|| a.architecture.cmp(&b.architecture)));
         out
     }
 }
