@@ -1,4 +1,3 @@
-# synax = docker/dockerfile:1.2
 FROM archlinux
 WORKDIR /usr/src/rebuilderd
 RUN pacman -Suy --noconfirm gcc pkgconf cargo openssl
