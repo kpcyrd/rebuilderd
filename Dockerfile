@@ -1,4 +1,3 @@
-# synax = docker/dockerfile:1.2
 FROM rust:alpine3.14
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /usr/src/rebuilderd
