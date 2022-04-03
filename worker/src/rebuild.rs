@@ -158,6 +158,10 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
                 &[],
                 Some(ctx.privkey),
                 Some(&["sha512", "sha256"]),
+                Some(&[
+                    &format!("{}/", inputs_dir.to_str().unwrap()),
+                    &format!("{}/", out_dir.to_str().unwrap()),
+                ]),
             ) {
                 Ok(signed_link) => {
                     info!("Signed link generated");

@@ -1135,9 +1135,9 @@ dependencies = [
 
 [[package]]
 name = "in-toto"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffa15857f047426254dec13e84423c8375b3c214a70a50d34a226daac3165ef7"
+checksum = "967c748e0529c0e69ced5bb67573457947353f1adf397ca5d036acf2e3c41397"
 dependencies = [
  "chrono",
  "data-encoding",
