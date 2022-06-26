@@ -1,4 +1,4 @@
-pub use actix_web::web::{post, Json, Data, Query, Path, resource};
+pub use actix_web::web::{post, Json, JsonConfig, Data, Query, Path, resource};
 use rebuilderd_common::errors;
 use std::fmt;
 
