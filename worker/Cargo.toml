@@ -19,18 +19,18 @@ assets = [
 
 [dependencies]
 rebuilderd-common = { version= "=0.18.1", path="../common" }
-structopt = "0.3"
-env_logger = "0.9"
-base64 = "0.13"
-toml = "0.5.6"
-serde = { version="1.0", features=["derive"] }
-serde_json = "1"
-reqwest = { version="0.11", features = ["stream"] }
-tempfile = "3.1.0"
-url = "2.1.1"
-tokio = { version="1", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
-futures-util = "0.3.7"
-futures = "0.3.7"
-nix = "0.23"
-in-toto = "0.2"
-async-trait = "0.1.52"
+structopt = "0.3.26"
+env_logger = "0.9.0"
+base64 = "0.13.0"
+toml = "0.5.9"
+serde = { version="1.0.137", features=["derive"] }
+serde_json = "1.0.81"
+reqwest = { version="0.11.11", features = ["stream"] }
+tempfile = "3.3.0"
+url = "2.2.2"
+tokio = { version="1.19.2", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
+futures-util = "0.3.21"
+futures = "0.3.21"
+nix = "0.24.1"
+in-toto = "0.2.0"
+async-trait = "0.1.56"
