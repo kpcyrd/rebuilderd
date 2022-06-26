@@ -36,6 +36,7 @@ pub trait Pkg {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn from_maintainer(&self, maintainers: &[String]) -> bool;
 
     fn match_name(&self, patterns: &[Pattern]) -> bool {
