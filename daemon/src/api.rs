@@ -108,7 +108,7 @@ pub async fn list_pkgs(
             }
         }
         let latest_built_at = SystemTime::from(latest_built_at);
-        builder.set(http::header::LastModified(latest_built_at.into()));
+        builder.insert_header(http::header::LastModified(latest_built_at.into()));
     }
 
     let mut pkgs = Vec::<PkgRelease>::new();
@@ -447,8 +447,8 @@ pub async fn get_build_log(
 
     let resp = HttpResponse::Ok()
         .content_type("text/plain; charset=utf-8")
-        .header("X-Content-Type-Options", "nosniff")
-        .header("Content-Security-Policy", "default-src 'none'")
+        .append_header(("X-Content-Type-Options", "nosniff"))
+        .append_header(("Content-Security-Policy", "default-src 'none'"))
         .body(build.build_log);
     Ok(resp)
 }
@@ -468,8 +468,8 @@ pub async fn get_attestation(
     if let Some(attestation) = build.attestation {
         let resp = HttpResponse::Ok()
             .content_type("application/json; charset=utf-8")
-            .header("X-Content-Type-Options", "nosniff")
-            .header("Content-Security-Policy", "default-src 'none'")
+            .append_header(("X-Content-Type-Options", "nosniff"))
+            .append_header(("Content-Security-Policy", "default-src 'none'"))
             .body(attestation);
         Ok(resp)
     } else {
@@ -492,8 +492,8 @@ pub async fn get_diffoscope(
     if let Some(diffoscope) = build.diffoscope {
         let resp = HttpResponse::Ok()
             .content_type("text/plain; charset=utf-8")
-            .header("X-Content-Type-Options", "nosniff")
-            .header("Content-Security-Policy", "default-src 'none'")
+            .append_header(("X-Content-Type-Options", "nosniff"))
+            .append_header(("Content-Security-Policy", "default-src 'none'"))
             .body(diffoscope);
         Ok(resp)
     } else {

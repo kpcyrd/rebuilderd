@@ -2,11 +2,11 @@
 #[macro_use] extern crate diesel_migrations;
 
 use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer, FromRequest};
+use actix_web::{App, HttpServer};
+use actix_web::web::Data;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
 use diesel::RunQueryDsl;
-use rebuilderd_common::api::{BuildReport, SuiteImport};
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -51,9 +51,9 @@ pub async fn run_config(config: Config) -> Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .data(pool.clone())
-            .data(config.clone())
-            .data(dashboard_cache.clone())
+            .app_data(Data::new(pool.clone()))
+            .app_data(Data::new(config.clone()))
+            .app_data(Data::new(dashboard_cache.clone()))
             .service(api::list_workers)
             .service(api::list_pkgs)
             .service(api::list_queue)
@@ -66,22 +66,12 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::get_diffoscope)
             .service(api::get_attestation)
             .service(api::get_dashboard)
-            .service(
-                web::resource("/api/v0/build/report").app_data(
-                    // change json extractor configuration
-                    web::Json::<BuildReport>::configure(|cfg| {
-                        cfg.limit(config.post_body_size_limit)
-                    })
-                )
+            .service(web::resource("/api/v0/build/report")
+                .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
                 .route(web::post().to(api::report_build))
             )
-            .service(
-                web::resource("/api/v0/pkgs/sync").app_data(
-                    // change json extractor configuration
-                    web::Json::<SuiteImport>::configure(|cfg| {
-                        cfg.limit(config.post_body_size_limit)
-                    })
-                )
+            .service(web::resource("/api/v0/pkgs/sync")
+                .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
                 .route(web::post().to(api::sync_work))
             )
     }).bind(&bind_addr)?
