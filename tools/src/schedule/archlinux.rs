@@ -50,7 +50,7 @@ impl Pkg for ArchPkg {
         &self.name
     }
 
-    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+    fn by_maintainer(&self, maintainers: &[String]) -> bool {
         maintainers.iter()
             .any(|m| self.packager.starts_with(m))
     }
