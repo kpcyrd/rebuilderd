@@ -32,12 +32,11 @@ pub trait Pkg {
         if sync.maintainers.is_empty() && sync.pkgs.is_empty() {
             true
         } else {
-            self.from_maintainer(&sync.maintainers) || self.match_name(&sync.pkgs)
+            self.by_maintainer(&sync.maintainers) || self.match_name(&sync.pkgs)
         }
     }
 
-    #[allow(clippy::wrong_self_convention)]
-    fn from_maintainer(&self, maintainers: &[String]) -> bool;
+    fn by_maintainer(&self, maintainers: &[String]) -> bool;
 
     fn match_name(&self, patterns: &[Pattern]) -> bool {
         patterns.iter()

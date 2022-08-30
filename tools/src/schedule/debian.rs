@@ -112,7 +112,7 @@ impl Pkg for DebianBinPkg {
         &self.name
     }
 
-    fn from_maintainer(&self, maintainers: &[String]) -> bool {
+    fn by_maintainer(&self, maintainers: &[String]) -> bool {
         self.uploaders.iter()
             .any(|uploader| maintainers.iter()
                 .any(|m| uploader.starts_with(m)))
