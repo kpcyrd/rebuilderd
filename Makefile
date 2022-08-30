@@ -28,7 +28,9 @@ install:
 		contrib/systemd/rebuilderd.service
 	install -Dm 644 contrib/systemd/rebuilderd.sysusers "$(DESTDIR)/usr/lib/sysusers.d/rebuilderd.conf"
 	install -Dm 644 contrib/systemd/rebuilderd.tmpfiles "$(DESTDIR)/usr/lib/tmpfiles.d/rebuilderd.conf"
-	systemd-sysusers || true
-	systemd-tmpfiles --create || true
+ifneq ($(SKIP_SETUP),1)
+	systemd-sysusers
+	systemd-tmpfiles --create
+endif
 
 .PHONY: all build docs install
