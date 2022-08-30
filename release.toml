@@ -1,5 +1,6 @@
-tag = false
+tag = true
 consolidate-commits = true
 consolidate-pushes = true
 shared-version = true
-pre-release-commit-message = "Release {{version}}"
+pre-release-commit-message = "Release v{{version}}"
+tag-prefix = ""
