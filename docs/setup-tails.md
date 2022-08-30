@@ -45,16 +45,8 @@ source $HOME/.cargo/env
 sudo apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev gcc libssl-dev
 git clone https://github.com/kpcyrd/rebuilderd
 cd rebuilderd
-cargo build --release
-sudo install -Dm 755 -t /usr/bin/ \
-    target/release/rebuilderd \
-    target/release/rebuildctl \
-    target/release/rebuilderd-worker
-sudo install -Dm 755 worker/rebuilder-tails.sh -t /usr/libexec/rebuilderd/
-sudo install -Dm 644 -t /etc \
-    contrib/confs/rebuilderd-sync.conf \
-    contrib/confs/rebuilderd-worker.conf \
-    contrib/confs/rebuilderd.conf
+make
+sudo make install
 ```
 
 Note: the permissions on `contrib/confs/rebuilderd.conf` need to be set more
@@ -64,25 +56,6 @@ doesn't contain any sensitive information.
 ## Starting the daemon and worker
 
 ### With systemd
-
-Install the systemd config files:
-
-```sh
-sudo install -Dm 644 -t "/usr/lib/systemd/system" \
-    contrib/systemd/rebuilderd-sync@.service \
-    contrib/systemd/rebuilderd-sync@.timer \
-    contrib/systemd/rebuilderd-worker@.service \
-    contrib/systemd/rebuilderd.service
-sudo install -Dm 644 contrib/systemd/rebuilderd.sysusers "/usr/lib/sysusers.d/rebuilderd.conf"
-sudo install -Dm 644 contrib/systemd/rebuilderd.tmpfiles "/usr/lib/tmpfiles.d/rebuilderd.conf"
-```
-
-Run setup:
-
-```sh
-sudo systemd-sysusers
-sudo systemd-tmpfiles --create
-```
 
 Start the daemon and a worker:
 
@@ -112,6 +85,9 @@ You need to re-login for this to work. Check it worked correctly like this:
 id
 rebuildctl status
 ```
+
+If the output of `id` doesn't list the rebuilderd group then `rebuildctl
+status` is going to fail too.
 
 ### Manually
 

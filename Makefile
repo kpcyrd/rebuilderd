@@ -1,4 +1,6 @@
-all:
+all: build docs
+
+build:
 	cargo build --release --all
 
 docs: contrib/docs/rebuilderd.1 contrib/docs/rebuildctl.1 contrib/docs/rebuilderd-worker.1 contrib/docs/rebuilderd.conf.5 contrib/docs/rebuilderd-sync.conf.5 contrib/docs/rebuilderd-worker.conf.5
@@ -6,4 +8,29 @@ docs: contrib/docs/rebuilderd.1 contrib/docs/rebuildctl.1 contrib/docs/rebuilder
 contrib/docs/%: contrib/docs/%.scd
 	scdoc < $^ > $@
 
-.PHONY: all docs
+install:
+	@if [ ! -e target/release/rebuilderd ]; then \
+		echo >&2 "No binary found, run make first"; \
+		false; \
+	fi
+	install -Dm 755 -t "$(DESTDIR)/usr/bin/" \
+		target/release/rebuilderd \
+		target/release/rebuildctl \
+		target/release/rebuilderd-worker
+	install -Dm 755	worker/rebuilder-*.sh -t "$(DESTDIR)/usr/libexec/rebuilderd/"
+	for f in rebuilderd.conf rebuilderd-sync.conf rebuilderd-worker.conf; do \
+		test -e "$(DESTDIR)/etc/$$f" || install -Dm 644 "contrib/confs/$$f" -t "$(DESTDIR)/etc" ; \
+	done
+	install -Dm 644 -t "$(DESTDIR)/usr/lib/systemd/system" \
+		contrib/systemd/rebuilderd-sync@.service \
+		contrib/systemd/rebuilderd-sync@.timer \
+		contrib/systemd/rebuilderd-worker@.service \
+		contrib/systemd/rebuilderd.service
+	install -Dm 644 contrib/systemd/rebuilderd.sysusers "$(DESTDIR)/usr/lib/sysusers.d/rebuilderd.conf"
+	install -Dm 644 contrib/systemd/rebuilderd.tmpfiles "$(DESTDIR)/usr/lib/tmpfiles.d/rebuilderd.conf"
+ifneq ($(SKIP_SETUP),1)
+	systemd-sysusers
+	systemd-tmpfiles --create
+endif
+
+.PHONY: all build docs install
