@@ -8,6 +8,7 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
 use serde::Serialize;
 use std::borrow::Cow;
+use std::fmt::Write as _;
 use std::io::prelude::*;
 use std::io;
 use structopt::StructOpt;
@@ -189,7 +190,7 @@ async fn main() -> Result<()> {
                     );
 
                     if let Some(build_id) = pkg.build_id {
-                        info.push_str(&format!(", #{}", build_id));
+                        write!(info, ", #{}", build_id)?;
                     }
 
                     if writeln!(stdout, "{} {:-60} ({}) {:?}",

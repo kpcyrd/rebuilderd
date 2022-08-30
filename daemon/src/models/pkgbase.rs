@@ -1,10 +1,12 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 use chrono::{Duration, NaiveDateTime, Utc};
 use crate::schema::*;
 use diesel::prelude::*;
 use rebuilderd_common::PkgGroup;
 use rebuilderd_common::errors::*;
 
-#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
 #[table_name="pkgbases"]
 pub struct PkgBase {
     pub id: i32,
@@ -141,7 +143,7 @@ impl PkgBase {
     }
 }
 
-#[derive(Insertable, PartialEq, Debug, Clone)]
+#[derive(Insertable, PartialEq, Eq, Debug, Clone)]
 #[table_name="pkgbases"]
 pub struct NewPkgBase {
     pub name: String,

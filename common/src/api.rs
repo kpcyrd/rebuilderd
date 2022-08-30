@@ -290,7 +290,7 @@ pub struct WorkQuery {
     pub supported_backends: Vec<String>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobAssignment {
     Nothing,
     Rebuild(Box<QueueItem>),
@@ -318,7 +318,7 @@ pub struct QueueList {
     pub queue: Vec<QueueItem>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueueItem {
     pub id: i32,
     pub pkgbase: PkgGroup,
@@ -364,7 +364,7 @@ pub struct RequeueQuery {
     pub reset: bool,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BuildStatus {
     Good,
     Bad,
