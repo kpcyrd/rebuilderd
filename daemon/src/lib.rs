@@ -6,7 +6,8 @@ use actix_web::{App, HttpServer};
 use actix_web::web::Data;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
-use diesel::RunQueryDsl;
+use crate::models::Build;
+use diesel::SqliteConnection;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -22,6 +23,22 @@ pub mod sync;
 pub mod models;
 pub mod web;
 
+fn db_collect_garbage(connection: &SqliteConnection) -> Result<()> {
+    let orphaned = Build::find_orphaned(connection)?;
+
+    if !orphaned.is_empty() {
+        info!("Deleting {} orphaned builds...", orphaned.len());
+        for ids in orphaned.chunks(500) {
+            Build::delete_multiple(ids, connection)
+                .context("Failed to delete builds")?;
+            debug!("Deleted chunk of {} builds", ids.len());
+        }
+        info!("Finished removing orphaned builds");
+    }
+
+    Ok(())
+}
+
 pub async fn run_config(config: Config) -> Result<()> {
     let pool = db::setup_pool("rebuilderd.db")?;
     let bind_addr = config.bind_addr.clone();
@@ -33,16 +50,13 @@ pub async fn run_config(config: Config) -> Result<()> {
         thread::spawn(move || {
             let connection = pool.get().expect("Failed to get connection from pool");
             loop {
-                let query = diesel::sql_query("delete from builds as b where not exists (select 1 from packages as p where p.build_id = b.id);");
-                info!("Deleting orphaned builds...");
-                match query.execute(&connection) {
-                    Ok(affected) => {
-                        info!("Deleted {} orphaned builds", affected);
-                    }
-                    Err(err) => {
-                        error!("Failed to delete orphaned builds: {:#}", err);
-                    }
+                debug!("Checking for orphaned builds...");
+
+                if let Err(err) = db_collect_garbage(connection.as_ref()) {
+                    error!("Failed to delete orphaned builds: {:#}", err);
                 }
+
+                debug!("Sleeping until next garbage collection cycle...");
                 thread::sleep(Duration::from_secs(24 * 3600));
             }
         });

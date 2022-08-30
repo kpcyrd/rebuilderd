@@ -3,6 +3,7 @@
 use crate::schema::*;
 use diesel::sql_types;
 use diesel::prelude::*;
+use diesel::sql_types::Integer;
 use rebuilderd_common::api::Rebuild;
 use rebuilderd_common::errors::*;
 
@@ -23,6 +24,25 @@ impl Build {
             .first::<Build>(connection)?;
         Ok(build)
     }
+
+    pub fn find_orphaned(connection: &SqliteConnection) -> Result<Vec<i32>> {
+        let ids = diesel::sql_query("select id from builds as b where not exists (select 1 from packages as p where p.build_id = b.id);")
+            .load::<IdRow>(connection)?;
+        let ids = ids.into_iter().map(|x| x.id).collect();
+        Ok(ids)
+    }
+
+    pub fn delete_multiple(ids: &[i32], connection: &SqliteConnection) -> Result<()> {
+        use crate::schema::builds::dsl::*;
+        diesel::delete(builds.filter(id.eq_any(ids))).execute(connection)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, QueryableByName)]
+struct IdRow {
+    #[sql_type = "Integer"]
+    id: i32,
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
