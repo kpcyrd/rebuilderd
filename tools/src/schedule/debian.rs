@@ -53,13 +53,13 @@ impl SourcePkgBucket {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum VersionConstraint {
     Explicit(String),
     Implicit(String),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DebianSourcePkg {
     pub base: String,
     pub binary: Vec<String>,
@@ -97,7 +97,7 @@ impl DebianSourcePkg {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DebianBinPkg {
     name: String,
     version: String,
@@ -253,7 +253,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
     Ok(pkgs)
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
     groups: HashMap<String, Vec<PkgGroup>>,
 }

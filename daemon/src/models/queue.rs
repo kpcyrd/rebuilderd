@@ -1,3 +1,5 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 use crate::schema::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::config::*;
@@ -8,7 +10,7 @@ use serde::{Serialize, Deserialize};
 use rebuilderd_common::api::QueueItem;
 use crate::models::PkgBase;
 
-#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Eq, Debug)]
 #[table_name="queue"]
 pub struct Queued {
     pub id: i32,

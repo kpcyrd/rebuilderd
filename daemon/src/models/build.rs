@@ -1,10 +1,12 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 use crate::schema::*;
 use diesel::sql_types;
 use diesel::prelude::*;
 use rebuilderd_common::api::Rebuild;
 use rebuilderd_common::errors::*;
 
-#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
 #[table_name="builds"]
 pub struct Build {
     pub id: i32,
@@ -23,7 +25,7 @@ impl Build {
     }
 }
 
-#[derive(Insertable, PartialEq, Debug, Clone)]
+#[derive(Insertable, PartialEq, Eq, Debug, Clone)]
 #[table_name="builds"]
 pub struct NewBuild {
     pub diffoscope: Option<String>,
@@ -41,7 +43,7 @@ impl NewBuild {
             no_arg_sql_function!(last_insert_rowid, sql_types::Integer);
             let rows = diesel::select(last_insert_rowid).load::<i32>(connection)?;
 
-            if let Some(id) = rows.get(0) {
+            if let Some(id) = rows.first() {
                 Ok(*id)
             } else {
                 bail!("Failed to get last_insert_id")

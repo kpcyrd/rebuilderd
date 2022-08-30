@@ -31,6 +31,6 @@ url = "2.2.2"
 tokio = { version="1.19.2", features=["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
 futures-util = "0.3.21"
 futures = "0.3.21"
-nix = "0.24.1"
-in-toto = "0.2.0"
+nix = "0.25"
+in-toto = "0.3"
 async-trait = "0.1.56"

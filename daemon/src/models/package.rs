@@ -1,10 +1,12 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 use chrono::NaiveDateTime;
 use crate::schema::*;
 use diesel::prelude::*;
 use rebuilderd_common::PkgRelease;
 use rebuilderd_common::errors::*;
 
-#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
 #[changeset_options(treat_none_as_null="true")]
 #[table_name="packages"]
 pub struct Package {
@@ -129,7 +131,7 @@ impl Package {
     }
 }
 
-#[derive(Insertable, PartialEq, Debug, Clone)]
+#[derive(Insertable, PartialEq, Eq, Debug, Clone)]
 #[table_name="packages"]
 pub struct NewPackage {
     pub pkgbase_id: i32,

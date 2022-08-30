@@ -1,3 +1,5 @@
+#![allow(clippy::extra_unused_lifetimes)]
+
 use crate::schema::*;
 use rebuilderd_common::api;
 use rebuilderd_common::config::*;
@@ -8,7 +10,7 @@ use chrono::Duration;
 use serde::{Serialize, Deserialize};
 use std::net::IpAddr;
 
-#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Eq, Debug)]
 #[table_name="workers"]
 pub struct Worker {
     pub id: i32,

@@ -12,7 +12,7 @@ pub mod config;
 pub mod errors;
 pub mod utils;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PkgRelease {
     pub name: String,
     pub version: String,
@@ -45,7 +45,7 @@ impl PkgRelease {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct PkgGroup {
     pub name: String,
     pub version: String,
@@ -58,7 +58,7 @@ pub struct PkgGroup {
     pub artifacts: Vec<PkgArtifact>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct PkgArtifact {
     pub name: String,
     pub version: String,
@@ -97,7 +97,7 @@ impl PkgGroup {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Status {
     #[serde(rename = "GOOD")]
     Good,
