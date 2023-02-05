@@ -1,3 +1,3 @@
 #!/bin/sh
 set -xe
-repro -o "${REBUILDERD_OUTDIR}" -- "${1}"
+NOCHECK=1 archlinux-repro -o "${REBUILDERD_OUTDIR}" -- "${1}"
