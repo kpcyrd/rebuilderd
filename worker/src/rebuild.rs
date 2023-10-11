@@ -239,8 +239,8 @@ mod tests {
     #[tokio::test]
     async fn compare_large_files_equal() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), &[0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), &[0u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("b"), [0u8; 4096 * 100]).unwrap();
         let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
         assert!(equal);
     }
@@ -248,8 +248,8 @@ mod tests {
     #[tokio::test]
     async fn compare_large_files_not_equal() {
         let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), &[0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), &[1u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
+        fs::write(dir.path().join("b"), [1u8; 4096 * 100]).unwrap();
         let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
         assert!(!equal);
     }
