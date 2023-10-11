@@ -1,13 +1,14 @@
+use data_encoding::BASE64;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd_common::api::Client;
 use rebuilderd_common::config::ConfigFile;
 use rebuilderd_common::errors::*;
-use std::fs;
-use std::path::Path;
 use std::fs::OpenOptions;
-use std::os::unix::fs::OpenOptionsExt;
+use std::fs;
 use std::io::ErrorKind;
 use std::io::prelude::*;
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
 
 pub struct Profile {
     pub pubkey: String,
@@ -58,7 +59,7 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<Profile> {
     };
 
     let pk = privkey.public();
-    let pubkey = base64::encode(pk.as_bytes());
+    let pubkey = BASE64.encode(pk.as_bytes());
 
     Ok(Profile {
         pubkey,

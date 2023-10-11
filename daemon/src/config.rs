@@ -38,9 +38,9 @@ pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
 
 pub fn load(path: Option<&Path>) -> Result<Config> {
     let config = if let Some(path) = path {
-        let buf = fs::read(path)
+        let buf = fs::read_to_string(path)
             .context("Failed to read config file")?;
-        toml::from_slice(&buf)?
+        toml::from_str(&buf)?
     } else {
         ConfigFile::default()
     };

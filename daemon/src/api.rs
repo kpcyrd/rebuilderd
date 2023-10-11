@@ -101,7 +101,7 @@ pub async fn list_pkgs(
     // Set Last-Modified header to the most recent build package time
     // If If-Modified-Since header is set, compare it to the latest built time.
     if let Some(latest_built_at) = models::Package::most_recent_built_at(connection.as_ref())? {
-        let latest_built_at = DateTime::from_utc(latest_built_at, Utc);
+        let latest_built_at = DateTime::from_naive_utc_and_offset(latest_built_at, Utc);
         if let Some(duration) = modified_since_duration(&req, latest_built_at) {
             if duration.num_seconds() >= 0 {
                 return Ok(not_modified());

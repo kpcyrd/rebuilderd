@@ -55,9 +55,9 @@ pub fn load(args: &Args) -> Result<ConfigFile> {
 
     let mut conf = if let Some(path) = path {
         info!("Loading configuration from {:?}", path);
-        let buf = fs::read(&path)
+        let buf = fs::read_to_string(&path)
             .with_context(|| anyhow!("Failed to open {:?}", path))?;
-        toml::from_slice::<ConfigFile>(&buf)?
+        toml::from_str::<ConfigFile>(&buf)?
     } else {
         info!("Using default configuration");
         ConfigFile::default()
