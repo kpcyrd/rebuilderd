@@ -24,6 +24,7 @@ pub fn detect_compression(bytes: &[u8]) -> CompressedWith {
     match mime {
         "application/gzip" => CompressedWith::Gzip,
         "application/x-bzip" => CompressedWith::Bzip2,
+        "application/x-bzip2" => CompressedWith::Bzip2,
         "application/x-xz" => CompressedWith::Xz,
         "application/zstd" => CompressedWith::Zstd,
         _ => CompressedWith::Unknown,
