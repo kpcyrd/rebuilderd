@@ -275,7 +275,7 @@ Debian: pkg-config liblzma-dev libssl-dev libsqlite3-dev libzstd-dev
 Rebuilderd development is currently funded by:
 
 - ~~kpcyrd's savings account~~
-- Google and The Linux Foundation
+- ~~Google and The Linux Foundation~~
 - People like you and me on [github sponsors](https://github.com/sponsors/kpcyrd)
 
 # License
