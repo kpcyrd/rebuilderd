@@ -25,8 +25,8 @@ impl AuthConfig {
 
 fn read_cookie_from_config<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
     debug!("Attempting reading cookie from config: {:?}", path.as_ref());
-    if let Ok(buf) = fs::read(path.as_ref()) {
-        let config = toml::from_slice::<Config>(&buf)?;
+    if let Ok(buf) = fs::read_to_string(path.as_ref()) {
+        let config = toml::from_str::<Config>(&buf)?;
         debug!("Found cookie in config {:?}", path.as_ref());
         Ok(config.auth.cookie)
     } else {

@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 pub fn write(buf: &[u8]) -> Result<()> {
     if atty::is(atty::Stream::Stdout) && env::var_os("NOPAGER").is_none() {
         let mut cmd = Command::new("less")
-            .args(&["-R"])
+            .args(["-R"])
             .stdin(Stdio::piped())
             .spawn()
             .context("Failed to spawn pager")?;

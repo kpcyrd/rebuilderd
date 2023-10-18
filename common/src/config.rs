@@ -42,9 +42,9 @@ fn config_path() -> Result<PathBuf> {
 }
 
 fn load_from<P: AsRef<Path>>(path: P) -> Result<Option<ConfigFile>> {
-    if let Ok(buf) = fs::read(path.as_ref()) {
+    if let Ok(buf) = fs::read_to_string(path.as_ref()) {
         debug!("loading config file {:?}", path.as_ref());
-        let config = toml::from_slice(&buf)
+        let config = toml::from_str(&buf)
             .context("Failed to load config")?;
         Ok(Some(config))
     } else {
