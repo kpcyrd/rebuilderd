@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd"
-version = "0.19.0"
+version = "0.20.0"
 description = "rebuilderd - independent build verification daemon"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0"
@@ -28,7 +28,7 @@ dotenv = "0.15.0"
 env_logger = "0.10"
 log = "0.4.17"
 rand = "0.8.5"
-rebuilderd-common = { version= "=0.19.0", path="../common" }
+rebuilderd-common = { version= "=0.20.0", path="../common" }
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
 structopt = "0.3.26"
