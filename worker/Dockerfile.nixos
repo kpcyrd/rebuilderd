@@ -1,0 +1,26 @@
+FROM rust:bullseye
+WORKDIR /usr/src/rebuilderd
+RUN apt-get update && apt-get install -y libssl-dev
+COPY . .
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/debian/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
+
+FROM debian:bullseye
+RUN apt-get update && apt install -y libssl-dev git mmdebstrap diffoscope \
+    python3-apt python3-dateutil python3-requests python3-rstr python3-setuptools python3-httpx python3-tenacity \
+    debian-keyring debian-archive-keyring debian-ports-archive-keyring
+# this is a temporary solution
+# copied from https://github.com/fepitre/package-rebuilder/blob/fc38df2f6e81ae6307e47cf515caa3e92ec8f5a4/rebuilder.Dockerfile
+RUN git clone https://salsa.debian.org/python-debian-team/python-debian /opt/python-debian
+RUN cd /opt/python-debian && git checkout e28d7a5729b187cfd0ec95da25030224cd10021a && python3 setup.py build install
+RUN git clone --depth=1 'https://github.com/fepitre/debrebuild' /debrebuild
+RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux --init none --no-confirm
+COPY --from=0 \
+    /usr/src/rebuilderd/worker/rebuilder-nixos.sh \
+    /usr/local/libexec/rebuilderd/
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENV REBUILDERD_WORKER_BACKEND=nixos=/usr/local/libexec/rebuilderd/rebuilder-nixos.sh
+ENTRYPOINT ["rebuilderd-worker"]
