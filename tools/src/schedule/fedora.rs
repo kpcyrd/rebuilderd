@@ -14,42 +14,49 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     if !url.ends_with('/') {
         url.push('/');
     }
-
-    let bytes = fetch_url_or_path(&client, &format!("{url}repodata/repomd.xml")).await?;
-    let location = get_primary_location_from_xml(&bytes)?;
-
-    let bytes = fetch_url_or_path(&client, &format!("{url}{location}")).await?;
-    info!("Parsing index ({} bytes)...", bytes.len());
-    let packages = parse_package_index(GzDecoder::new(&bytes[..]))?;
+    url.push_str(&sync.suite);
+    url.push('/');
 
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
-    for pkg in packages {
-        if !pkg.matches(sync) {
-            continue;
-        }
+    for arch in &sync.architectures {
+        let mut url = url.clone();
+        url.push_str(&arch);
+        url.push_str("/os/");
 
-        // let url = mirror_to_url(source, &sync.suite, arch, &pkg.filename)?;
-        let url = format!("{url}{}", pkg.location.href);
-        let version= format!("{}-{}", pkg.version.ver, pkg.version.rel);
-        let artifact = PkgArtifact {
-            name: pkg.name,
-            version,
-            url,
-        };
+        let bytes = fetch_url_or_path(&client, &format!("{url}repodata/repomd.xml")).await?;
+        let location = get_primary_location_from_xml(&bytes)?;
 
-        if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
-            group.add_artifact(artifact);
-        } else {
-            let mut group = PkgGroup::new(
-                pkg.format.sourcerpm.clone(),
-                format!("{}-{}", pkg.version.ver, pkg.version.rel),
-                sync.distro.to_string(),
-                sync.suite.to_string(),
-                pkg.arch,
-                None,
-            );
-            group.add_artifact(artifact);
-            bases.insert(pkg.format.sourcerpm, group);
+        let bytes = fetch_url_or_path(&client, &format!("{url}{location}")).await?;
+        info!("Parsing index ({} bytes)...", bytes.len());
+        let packages = parse_package_index(GzDecoder::new(&bytes[..]))?;
+
+        for pkg in packages {
+            if !pkg.matches(sync) {
+                continue;
+            }
+
+            let url = format!("{url}{}", pkg.location.href);
+            let version= format!("{}-{}", pkg.version.ver, pkg.version.rel);
+            let artifact = PkgArtifact {
+                name: pkg.name,
+                version,
+                url,
+            };
+
+            if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
+                group.add_artifact(artifact);
+            } else {
+                let mut group = PkgGroup::new(
+                    pkg.format.sourcerpm.clone(),
+                    format!("{}-{}", pkg.version.ver, pkg.version.rel),
+                    sync.distro.to_string(),
+                    sync.suite.to_string(),
+                    pkg.arch,
+                    None,
+                );
+                group.add_artifact(artifact);
+                bases.insert(pkg.format.sourcerpm, group);
+            }
         }
     }
 
