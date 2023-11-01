@@ -20,7 +20,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
     for arch in &sync.architectures {
         let mut url = url.clone();
-        url.push_str(&arch);
+        url.push_str(arch);
         url.push_str("/os/");
 
         let bytes = fetch_url_or_path(&client, &format!("{url}repodata/repomd.xml")).await?;
