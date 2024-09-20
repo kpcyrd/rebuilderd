@@ -26,15 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
-        components: clippy
     - name: Install dependencies
       run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
-    - uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all --lib --tests -- --deny warnings
+    - name: Run clippy
+      #run: cargo clippy --all --lib --tests -- --deny warnings
+      run: cargo clippy --all --lib --tests
