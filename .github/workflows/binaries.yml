@@ -24,19 +24,19 @@ jobs:
       run: strip target/release/rebuild{erd,ctl,erd-worker}
 
     - name: Archive executable (rebuilderd)
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: rebuilderd
         path: target/release/rebuilderd
 
     - name: Archive executable (rebuildctl)
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: rebuildctl
         path: target/release/rebuildctl
 
     - name: Archive executable (rebuilderd-worker)
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: rebuilderd-worker
         path: target/release/rebuilderd-worker
