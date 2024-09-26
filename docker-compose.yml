@@ -51,6 +51,18 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+  worker-fedora:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile.fedora
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
+    environment:
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+    - ./secret:/secret
   worker-tails:
     build:
       context: .

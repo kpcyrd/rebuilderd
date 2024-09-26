@@ -1,0 +1,18 @@
+FROM fedora
+WORKDIR /usr/src/rebuilderd
+RUN dnf -y install cargo openssl-devel rust
+COPY . .
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/fedora/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/fedora/target/release/rebuilderd-worker /
+
+FROM fedora
+RUN dnf -y install openssl-libs
+COPY --from=0 \
+    /usr/src/rebuilderd/worker/rebuilder-fedora.sh \
+    /usr/local/libexec/rebuilderd/
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENV REBUILDERD_WORKER_BACKEND=fedora=/usr/local/libexec/rebuilderd/rebuilder-fedora.sh
+ENTRYPOINT ["rebuilderd-worker"]
