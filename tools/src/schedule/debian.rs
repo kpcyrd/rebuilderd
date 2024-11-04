@@ -32,8 +32,12 @@ impl SourcePkgBucket {
         }
     }
 
-    pub fn get(&self, pkg: &DebianBinPkg) -> Result<&DebianSourcePkg> {
+    pub fn get(&self, pkg: &DebianBinPkg) -> Result<DebianSourcePkg> {
         let (name, version) = &pkg.source;
+        let bin_nmu = pkg.version.rfind("+b")
+            .map(|idx| pkg.version.split_at(idx).1)
+            .filter(|num| num[2..].parse::<u64>().is_ok())
+            .unwrap_or("");
         let list = self.pkgs.get(name)
             .with_context(|| anyhow!("No source package found with name: {:?}", name))?;
 
@@ -45,7 +49,9 @@ impl SourcePkgBucket {
 
         for src in list {
             if src.version == *version {
-                return Ok(src);
+                let mut src_cpy = src.clone();
+                src_cpy.version.push_str(&bin_nmu);
+                return Ok(src_cpy);
             }
         }
 
@@ -59,7 +65,7 @@ pub enum VersionConstraint {
     Implicit(String),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DebianSourcePkg {
     pub base: String,
     pub binary: Vec<String>,
@@ -366,7 +372,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let src = sources.get(&pkg)?;
                 debug!("Matched binary package to source package: {:?} {:?}", src.base, src.version);
 
-                out.push(src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
+                out.push(&src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
             }
         }
     }
