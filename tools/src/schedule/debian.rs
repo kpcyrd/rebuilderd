@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::prelude::*;
 
+pub const BIN_NMU_PREFIX: &str = "+b";
+
 // TODO: support more archs
 pub fn any_architectures() -> Vec<String> {
     vec![
@@ -34,11 +36,15 @@ impl SourcePkgBucket {
 
     pub fn get(&self, pkg: &DebianBinPkg) -> Result<DebianSourcePkg> {
         let (name, version) = &pkg.source;
-        let bin_nmu = pkg.version.rfind("+b")
+        let bin_nmu = pkg
+            .version
+            .rfind(BIN_NMU_PREFIX)
             .map(|idx| pkg.version.split_at(idx).1)
-            .filter(|num| num[2..].parse::<u64>().is_ok())
+            .filter(|num| num[BIN_NMU_PREFIX.len()..].parse::<u64>().is_ok())
             .unwrap_or("");
-        let list = self.pkgs.get(name)
+        let list = self
+            .pkgs
+            .get(name)
             .with_context(|| anyhow!("No source package found with name: {:?}", name))?;
 
         // we currently track if the version was set explicitly or implicitly, keeping track just in case
@@ -50,7 +56,7 @@ impl SourcePkgBucket {
         for src in list {
             if src.version == *version {
                 let mut src_cpy = src.clone();
-                src_cpy.version.push_str(&bin_nmu);
+                src_cpy.version.push_str(bin_nmu);
                 return Ok(src_cpy);
             }
         }
