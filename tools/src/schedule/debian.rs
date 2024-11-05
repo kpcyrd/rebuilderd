@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::prelude::*;
 
+pub const BIN_NMU_PREFIX: &str = "+b";
+
 // TODO: support more archs
 pub fn any_architectures() -> Vec<String> {
     vec![
@@ -32,9 +34,17 @@ impl SourcePkgBucket {
         }
     }
 
-    pub fn get(&self, pkg: &DebianBinPkg) -> Result<&DebianSourcePkg> {
+    pub fn get(&self, pkg: &DebianBinPkg) -> Result<DebianSourcePkg> {
         let (name, version) = &pkg.source;
-        let list = self.pkgs.get(name)
+        let bin_nmu = pkg
+            .version
+            .rfind(BIN_NMU_PREFIX)
+            .map(|idx| pkg.version.split_at(idx).1)
+            .filter(|num| num[BIN_NMU_PREFIX.len()..].parse::<u64>().is_ok())
+            .unwrap_or("");
+        let list = self
+            .pkgs
+            .get(name)
             .with_context(|| anyhow!("No source package found with name: {:?}", name))?;
 
         // we currently track if the version was set explicitly or implicitly, keeping track just in case
@@ -45,7 +55,9 @@ impl SourcePkgBucket {
 
         for src in list {
             if src.version == *version {
-                return Ok(src);
+                let mut src_cpy = src.clone();
+                src_cpy.version.push_str(bin_nmu);
+                return Ok(src_cpy);
             }
         }
 
@@ -59,7 +71,7 @@ pub enum VersionConstraint {
     Implicit(String),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DebianSourcePkg {
     pub base: String,
     pub binary: Vec<String>,
@@ -366,7 +378,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
                 let src = sources.get(&pkg)?;
                 debug!("Matched binary package to source package: {:?} {:?}", src.base, src.version);
 
-                out.push(src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
+                out.push(&src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
             }
         }
     }
@@ -1015,21 +1027,26 @@ Section: mail
         let cursor = Cursor::new(bytes);
         let src_pkgs = extract_pkgs_uncompressed::<DebianSourcePkg, _>(cursor).unwrap();
 
+        let mut sources = SourcePkgBucket::new();
+        for pkg in src_pkgs {
+            sources.push(pkg);
+        }
+
         let mut state = SyncState::new();
         for bin in bin_pkgs {
-            state.push(&src_pkgs[0], bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
+            let src = sources.get(&bin).unwrap();
+            state.push(&src, bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
         }
 
         let mut groups = HashMap::new();
         groups.insert("courier".to_string(), vec![
             PkgGroup {
                 name: "courier".to_string(),
-                version: "1.0.16-3".to_string(),
+                version: "1.0.16-3+b1".to_string(),
                 distro: "debian".to_string(),
                 suite: "main".to_string(),
                 architecture: "amd64".to_string(),
-                // TODO: correct buildinfo file is https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3_amd64.buildinfo".to_string()),
+                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo".to_string()),
                 artifacts: vec![
                     PkgArtifact {
                         name: "courier-base".to_string(),
