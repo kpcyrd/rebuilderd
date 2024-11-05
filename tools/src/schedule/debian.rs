@@ -1021,21 +1021,26 @@ Section: mail
         let cursor = Cursor::new(bytes);
         let src_pkgs = extract_pkgs_uncompressed::<DebianSourcePkg, _>(cursor).unwrap();
 
+        let mut sources = SourcePkgBucket::new();
+        for pkg in src_pkgs {
+            sources.push(pkg);
+        }
+
         let mut state = SyncState::new();
         for bin in bin_pkgs {
-            state.push(&src_pkgs[0], bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
+            let src = sources.get(&bin).unwrap();
+            state.push(&src, bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
         }
 
         let mut groups = HashMap::new();
         groups.insert("courier".to_string(), vec![
             PkgGroup {
                 name: "courier".to_string(),
-                version: "1.0.16-3".to_string(),
+                version: "1.0.16-3+b1".to_string(),
                 distro: "debian".to_string(),
                 suite: "main".to_string(),
                 architecture: "amd64".to_string(),
-                // TODO: correct buildinfo file is https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3_amd64.buildinfo".to_string()),
+                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo".to_string()),
                 artifacts: vec![
                     PkgArtifact {
                         name: "courier-base".to_string(),
