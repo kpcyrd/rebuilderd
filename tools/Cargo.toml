@@ -41,4 +41,4 @@ regex = "1.5.6"
 url = "2.2.2"
 
 [dev-dependencies]
-base64 = "0.13.0"
+data-encoding = "2"

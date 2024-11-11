@@ -44,6 +44,7 @@ pub fn stream<'a>(comp: CompressedWith, bytes: &'a [u8]) -> Result<Box<dyn Read 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_encoding::BASE64;
 
     #[test]
     fn detect_no_compression() {
@@ -62,14 +63,14 @@ mod tests {
 
     #[test]
     fn detect_gzip_compression() {
-        let bytes = base64::decode("H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
+        let bytes = BASE64.decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Gzip);
     }
 
     #[test]
     fn decompress_gzip_compression() {
-        let bytes = base64::decode("H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
+        let bytes = BASE64.decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Gzip);
 
@@ -80,14 +81,14 @@ mod tests {
 
     #[test]
     fn detect_bzip2_compression() {
-        let bytes = base64::decode("QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
+        let bytes = BASE64.decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Bzip2);
     }
 
     #[test]
     fn decompress_bzip2_compression() {
-        let bytes = base64::decode("QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
+        let bytes = BASE64.decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Bzip2);
 
@@ -98,14 +99,14 @@ mod tests {
 
     #[test]
     fn detect_xz_compression() {
-        let bytes = base64::decode("/Td6WFoAAATm1rRGAgAhARYAAAB0L+WjAQAEb2hhaQoAAAAACyuekVbXbHMAAR0FuC2Arx+2830BAAAAAARZWg==").unwrap();
+        let bytes = BASE64.decode(b"/Td6WFoAAATm1rRGAgAhARYAAAB0L+WjAQAEb2hhaQoAAAAACyuekVbXbHMAAR0FuC2Arx+2830BAAAAAARZWg==").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Xz);
     }
 
     #[test]
     fn decompress_xz_compression() {
-        let bytes = base64::decode("/Td6WFoAAATm1rRGAgAhARYAAAB0L+WjAQAEb2hhaQoAAAAACyuekVbXbHMAAR0FuC2Arx+2830BAAAAAARZWg==").unwrap();
+        let bytes = BASE64.decode(b"/Td6WFoAAATm1rRGAgAhARYAAAB0L+WjAQAEb2hhaQoAAAAACyuekVbXbHMAAR0FuC2Arx+2830BAAAAAARZWg==").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Xz);
 
@@ -116,14 +117,14 @@ mod tests {
 
     #[test]
     fn detect_zstd_compression() {
-        let bytes = base64::decode("KLUv/QRYKQAAb2hhaQpnBE++").unwrap();
+        let bytes = BASE64.decode(b"KLUv/QRYKQAAb2hhaQpnBE++").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Zstd);
     }
 
     #[test]
     fn decompress_zstd_compression() {
-        let bytes = base64::decode("KLUv/QRYKQAAb2hhaQpnBE++").unwrap();
+        let bytes = BASE64.decode(b"KLUv/QRYKQAAb2hhaQpnBE++").unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Zstd);
 
