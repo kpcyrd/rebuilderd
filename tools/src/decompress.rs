@@ -2,7 +2,7 @@ use rebuilderd_common::errors::*;
 use std::io::Read;
 use flate2::read::GzDecoder;
 use bzip2::read::BzDecoder;
-use xz::read::XzDecoder;
+use xz2::read::XzDecoder;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompressedWith {

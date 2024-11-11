@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
 use crate::schedule::{Pkg, fetch_url_or_path};
-use lzma::LzmaReader;
+use xz2::read::XzDecoder;
 use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use std::collections::HashMap;
@@ -194,7 +194,7 @@ impl AnyhowTryFrom<NewPkg> for DebianBinPkg {
 }
 
 pub fn extract_pkg<T: AnyhowTryFrom<NewPkg>>(bytes: &[u8]) -> Result<Vec<T>> {
-    let r = LzmaReader::new_decompressor(bytes)?;
+    let r = XzDecoder::new(bytes);
     let r = BufReader::new(r);
     extract_pkgs_uncompressed(r)
 }

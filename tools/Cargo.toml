@@ -18,16 +18,15 @@ assets = [
 [dependencies]
 rebuilderd-common = { version= "=0.20.0", path="../common" }
 structopt = "0.3.26"
-env_logger = "0.9.0"
+env_logger = "0.11"
 reqwest = { version="0.11.11", features=["json"] }
 chrono = { version = "0.4.19", features=["serde"] }
-rust-lzma = "0.5.1"
 tar = "0.4.38"
 flate2 = "1.0.24"
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
 colored = "2.0.0"
-toml = "0.5.9"
+toml = "0.8"
 dirs-next = "2.0.0"
 glob = "0.3.0"
 nom = "7.1.1"
@@ -35,8 +34,8 @@ tokio = { version="1.19.2", features=["macros", "rt-multi-thread", "io-std", "io
 atty = "0.2.14"
 tree_magic_mini = "3.0.3"
 bzip2 = "0.4.3"
-xz = "0.1.0"
-zstd = { version = "0.11.2", features = ["pkg-config"] }
+xz2 = "0.1"
+zstd = { version = "0.13", features = ["pkg-config"] }
 regex = "1.5.6"
 url = "2.2.2"
 
