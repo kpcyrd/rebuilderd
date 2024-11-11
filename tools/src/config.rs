@@ -12,9 +12,9 @@ pub struct SyncConfigFile {
 
 impl SyncConfigFile {
     pub fn load<P: AsRef<Path>>(path: P) -> Result<SyncConfigFile> {
-        let buf = fs::read(path)
+        let buf = fs::read_to_string(path)
             .context("Failed to read config file")?;
-        let config = toml::from_slice(&buf)
+        let config = toml::from_str(&buf)
             .context("Failed to load config")?;
         Ok(config)
     }

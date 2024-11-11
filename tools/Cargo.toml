@@ -26,7 +26,7 @@ flate2 = "1.0.24"
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
 colored = "2.0.0"
-toml = "0.5.9"
+toml = "0.8"
 dirs-next = "2.0.0"
 glob = "0.3.0"
 nom = "7.1.1"

@@ -1668,7 +1668,7 @@ dependencies = [
  "structopt",
  "tar",
  "tokio",
- "toml 0.5.11",
+ "toml",
  "tree_magic_mini",
  "url",
  "xz2",
@@ -1692,7 +1692,7 @@ dependencies = [
  "serde",
  "serde_json",
  "structopt",
- "toml 0.8.19",
+ "toml",
 ]
 
 [[package]]
@@ -1706,7 +1706,7 @@ dependencies = [
  "log",
  "reqwest",
  "serde",
- "toml 0.8.19",
+ "toml",
  "url",
 ]
 
@@ -1743,7 +1743,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "tokio",
- "toml 0.8.19",
+ "toml",
  "url",
 ]
 
@@ -2327,15 +2327,6 @@ dependencies = [
  "futures-sink",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "toml"
-version = "0.5.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
-dependencies = [
- "serde",
 ]
 
 [[package]]
