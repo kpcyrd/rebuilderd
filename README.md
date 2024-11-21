@@ -280,4 +280,4 @@ Rebuilderd development is currently funded by:
 
 # License
 
-GPLv3+
+`GPL-3.0-or-later`
