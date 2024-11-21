@@ -3,7 +3,7 @@ name = "rebuilderd-common"
 version = "0.20.0"
 description = "rebuilderd - common code"
 authors = ["kpcyrd <git@rxv.cc>"]
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/kpcyrd/rebuilderd"
 edition = "2018"
 
@@ -13,7 +13,7 @@ edition = "2018"
 anyhow = "1.0.58"
 log = "0.4.17"
 serde = { version="1.0.137", features=["derive"] }
-reqwest = { version="0.11.11", features=["blocking", "json"] }
+reqwest = { version="0.12", features=["blocking", "json"] }
 chrono = { version = "0.4.19", features=["serde"] }
 colored = "2.0.0"
 dirs-next = "2.0.0"
