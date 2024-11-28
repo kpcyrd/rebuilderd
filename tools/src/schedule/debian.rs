@@ -141,8 +141,6 @@ pub struct NewPkg {
     architecture: Option<String>,
     filename: Option<String>,
     uploaders: Vec<String>,
-    // skip everything that has this set
-    extra_source_only: bool,
 }
 
 pub trait AnyhowTryFrom<T>: Sized {
@@ -207,9 +205,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
     while let Some(line) = lines.next() {
         let line = line?;
         if line.is_empty() {
-            if !pkg.extra_source_only {
-                pkgs.push(T::try_from(pkg)?);
-            }
+            pkgs.push(T::try_from(pkg)?);
             pkg = NewPkg::default();
         }
         if let Some((a, b)) = line.split_once(": ") {
@@ -253,9 +249,6 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
                         uploaders.push(uploader.to_string());
                     }
                     pkg.uploaders = uploaders;
-                },
-                "Extra-Source-Only" => if b == "yes" {
-                    pkg.extra_source_only = true;
                 },
                 _ => (),
             }
