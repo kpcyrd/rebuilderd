@@ -1114,4 +1114,171 @@ Section: mail
             groups,
         });
     }
+
+    #[test]
+    fn test_extra_source_only() {
+        let packages_bytes = "Package: python3-buildlog-consultant
+Source: buildlog-consultant
+Version: 0.0.37-1
+Installed-Size: 6972
+Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
+Architecture: amd64
+Depends: python3-debian, python3-requirement-parser, python3-yaml, python3 (<< 3.13), python3 (>= 3.11~), python3:any, libc6 (>= 2.34), libgcc-s1 (>= 4.2)
+Description: build log parser and analyser
+Homepage: https://github.com/jelmer/buildlog-consultant
+Description-md5: 03628aeae53788e68d12a1d9646fbb72
+Section: python
+Priority: optional
+Filename: pool/main/b/buildlog-consultant/python3-buildlog-consultant_0.0.37-1_amd64.deb
+Size: 1079688
+MD5sum: 56a82bbe8d7b730c7eeb0f59e7fad6a6
+SHA256: 23d9edc63238b104b42c58a82937e1e06e7351ed7df5a938029d335b3bec8e4a
+
+Package: buildlog-consultant
+Source: rust-buildlog-consultant (0.0.44-1)
+Version: 0.0.44-1+b1
+Installed-Size: 17441
+Maintainer: Debian Rust Maintainers <pkg-rust-maintainers@alioth-lists.debian.net>
+Architecture: amd64
+Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.2)
+Description: build log parser and analyser
+Multi-Arch: allowed
+Homepage: https://github.com/jelmer/buildlog-consultant
+Built-Using: rust-lazy-regex (= 2.5.0-3), rustc (= 1.81.0+dfsg1-2)
+Description-md5: 03628aeae53788e68d12a1d9646fbb72
+Static-Built-Using: rust-aho-corasick (= 1.1.3-1), rust-anstream (= 0.6.15-1), rust-anstyle (= 1.0.8-1), rust-anstyle-parse (= 0.2.1-1), rust-anstyle-query (= 1.0.0-1), rust-bit-set (= 0.5.2-1), rust-bit-vec (= 0.6.3-1), rust-chrono (= 0.4.38-2), rust-clap (= 4.5.16-1), rust-clap-builder (= 4.5.15-2), rust-clap-lex (= 0.7.2-2), rust-colorchoice (= 1.0.0-1), rust-countme (= 3.0.1-1), rust-deb822-lossless (= 0.2.1-1), rust-debian-control (= 0.1.38-1), rust-debversion (= 0.4.3-2), rust-env-logger (= 0.10.2-2), rust-equivalent (= 1.0.1-1), rust-fancy-regex (= 0.11.0-2), rust-form-urlencoded (= 1.2.1-1), rust-hashbrown (= 0.14.5-5), rust-humantime (= 2.1.0-1), rust-iana-time-zone (= 0.1.60-1), rust-idna (= 0.4.0-1), rust-indexmap (= 2.2.6-1), rust-inventory (= 0.3.2-1), rust-itoa (= 1.0.9-1), rust-lazy-regex (= 2.5.0-3), rust-lazy-static (= 1.4.0-2), rust-log (= 0.4.22-1), rust-maplit (= 1.0.2-1), rust-memchr (= 2.7.4-1), rust-num-traits (= 0.2.19-2), rust-once-cell (= 1.20.2-1), rust-pep440-rs (= 0.6.6-1), rust-pep508-rs (= 0.6.1-2), rust-percent-encoding (= 2.3.1-1), rust-regex (= 1.10.6-1), rust-regex-automata (= 0.4.7-1), rust-regex-syntax (= 0.8.2-1), rust-rowan (= 0.15.16-1), rust-rustc-hash (= 1.1.0-1), rust-ryu (= 1.0.15-1), rust-serde (= 1.0.210-2), rust-serde-json (= 1.0.128-1), rust-serde-yaml (= 0.9.34-1), rust-shlex (= 1.3.0-1), rust-smallvec (= 1.13.2-1), rust-smawk (= 0.3.2-1), rust-strsim-0.10 (= 0.10.0-3), rust-termcolor (= 1.4.1-1), rust-text-size (= 1.1.1-1), rust-textwrap (= 0.16.1-1), rust-thiserror (= 1.0.59-1), rust-unicode-bidi (= 0.3.13-1), rust-unicode-linebreak (= 0.1.4-2), rust-unicode-normalization (= 0.1.22-1), rust-unicode-width (= 0.1.14-1), rust-unsafe-libyaml (= 0.2.11-1), rust-unscanny (= 0.1.0-1), rust-url (= 2.5.0-1), rust-urlencoding (= 2.1.3-1), rust-utf8parse (= 0.2.1-1), rustc (= 1.81.0+dfsg1-2)
+Section: devel
+Priority: optional
+Filename: pool/main/r/rust-buildlog-consultant/buildlog-consultant_0.0.44-1+b1_amd64.deb
+Size: 2155184
+MD5sum: f396e8745f571aa6eb27ddbaf52594ad
+SHA256: 7dfba1f88be2f8bdf7480085dd018333d0159ac40462daf3679f3757347262c4
+
+";
+
+    let sources_bytes = "Package: buildlog-consultant
+Binary: python3-buildlog-consultant
+Version: 0.0.37-1
+Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
+Build-Depends: debhelper-compat (= 13), dh-sequence-python3, librust-debversion-dev, librust-fancy-regex-dev, librust-pyo3-dev, librust-pyo3-file-dev, librust-pyo3-filelike-dev, librust-pyo3-log-dev, librust-shlex-dev, librust-text-size-dev, librust-textwrap-dev, python3-all, python3-debian, python3-requirement-parser, python3-setuptools, python3-setuptools-rust, python3-yaml
+Architecture: any
+Standards-Version: 4.6.2
+Format: 3.0 (quilt)
+Files:
+ 6ad424f44b03af2394502b51004e715e 1999 buildlog-consultant_0.0.37-1.dsc
+ 94bc4b065b25128d6c2df7549ba0ce14 106321 buildlog-consultant_0.0.37.orig.tar.gz
+ 505fb064e8b97e075566cf654f6cd916 2784 buildlog-consultant_0.0.37-1.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/jelmer/buildlog-consultant
+Vcs-Git: https://salsa.debian.org/jelmer/buildlog-consultant.git
+Checksums-Sha256:
+ 92ce9e76fb268de73a1fa627cc9f64d97b670fed9d77ea2bbb0b7e17e33512be 1999 buildlog-consultant_0.0.37-1.dsc
+ 53deb11bf4e83e9f40e2df906215f55a4c6bd8299fdc07897d87ddd15f56d65a 106321 buildlog-consultant_0.0.37.orig.tar.gz
+ 93ae05557c211d2091cfabcc545d4a625f75c8ac3390a019c087d73528b86f4a 2784 buildlog-consultant_0.0.37-1.debian.tar.xz
+Homepage: https://github.com/jelmer/buildlog-consultant
+Package-List:
+ python3-buildlog-consultant deb python optional arch=any
+Extra-Source-Only: yes
+Directory: pool/main/b/buildlog-consultant
+Priority: optional
+Section: misc
+
+Package: rust-buildlog-consultant
+Binary: librust-buildlog-consultant-dev, buildlog-consultant
+Version: 0.0.44-1
+Maintainer: Debian Rust Maintainers <pkg-rust-maintainers@alioth-lists.debian.net>
+Uploaders: Jelmer Vernooĳ <jelmer@debian.org>
+Build-Depends: debhelper-compat (= 13), dh-cargo (>= 25), cargo:native, rustc:native, libstd-rust-dev, librust-chrono-0.4+default-dev (>= 0.4.31-~~), librust-clap-4+default-dev, librust-clap-4+derive-dev, librust-debian-control-0.1+default-dev (>= 0.1.18-~~), librust-debversion-0.4+default-dev, librust-debversion-0.4+serde-dev, librust-env-logger+default-dev (>= 0.10-~~), librust-fancy-regex-0.11+default-dev, librust-inventory-0.3+default-dev, librust-lazy-regex+default-dev (>= 2-~~), librust-lazy-static-1+default-dev, librust-log-0.4+default-dev (>= 0.4.20-~~), librust-maplit-1+default-dev (>= 1.0.2-~~), librust-pep440-rs-0.6+default-dev (>= 0.6.5-~~), librust-pep508-rs-0.6+default-dev (>= 0.6.1-~~), librust-regex-1+default-dev, librust-serde-1+default-dev, librust-serde-1+derive-dev, librust-serde-json-1+default-dev, librust-serde-yaml-0.9+default-dev, librust-shlex-1+default-dev, librust-text-size-1+default-dev (>= 1.1.1-~~), librust-textwrap-0.16+default-dev
+Architecture: any
+Standards-Version: 4.7.0
+Format: 3.0 (quilt)
+Files:
+ e96dc4dbabe2027ccfffb31a47f167dd 2912 rust-buildlog-consultant_0.0.44-1.dsc
+ d6de700387b2ae8ca5afb34bd9d3424d 111058 rust-buildlog-consultant_0.0.44.orig.tar.gz
+ 8ec7a5e281352f6401db2d75dceb8de6 3624 rust-buildlog-consultant_0.0.44-1.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/rust-team/debcargo-conf/tree/master/src/buildlog-consultant
+Vcs-Git: https://salsa.debian.org/rust-team/debcargo-conf.git [src/buildlog-consultant]
+Checksums-Sha256:
+ 0baa39785abfe865a70e456b8de6eaf48578e4bade493807e768a2026ec8ae1f 2912 rust-buildlog-consultant_0.0.44-1.dsc
+ 488ee699c8b6d02bde8ee3a7cb8eb9b1377f638fb34cfb6ea5a74f45d54748d9 111058 rust-buildlog-consultant_0.0.44.orig.tar.gz
+ d32092503606597d71d9f39d36afd295cc675e2bf0f64f209691d50020c47061 3624 rust-buildlog-consultant_0.0.44-1.debian.tar.xz
+Homepage: https://github.com/jelmer/buildlog-consultant
+Package-List:
+ buildlog-consultant deb devel optional arch=any
+ librust-buildlog-consultant-dev deb rust optional arch=any
+Testsuite: autopkgtest
+Testsuite-Triggers: dh-cargo, librust-maplit-1+default-dev, rustc
+Directory: pool/main/r/rust-buildlog-consultant
+Priority: optional
+Section: misc
+
+Package: rust-buildlog-consultant
+Binary: librust-buildlog-consultant-dev, buildlog-consultant
+Version: 0.1.0-1
+Maintainer: Debian Rust Maintainers <pkg-rust-maintainers@alioth-lists.debian.net>
+Uploaders: Jelmer Vernooĳ <jelmer@debian.org>
+Build-Depends: debhelper-compat (= 13), dh-sequence-cargo, cargo:native, rustc:native, libstd-rust-dev, librust-chrono-0.4+default-dev (>= 0.4.31-~~), librust-clap-4+default-dev, librust-clap-4+derive-dev, librust-debian-control-0.1+default-dev (>= 0.1.18-~~), librust-debversion-0.4+default-dev, librust-debversion-0.4+serde-dev, librust-env-logger+default-dev (>= 0.10-~~), librust-fancy-regex-0.11+default-dev, librust-inventory-0.3+default-dev, librust-lazy-regex+default-dev (>= 2-~~), librust-lazy-static-1+default-dev, librust-log-0.4+default-dev (>= 0.4.20-~~), librust-maplit-1+default-dev (>= 1.0.2-~~), librust-pep508-rs-0.9+default-dev (>= 0.9.1-~~), librust-regex-1+default-dev, librust-serde-1+default-dev, librust-serde-1+derive-dev, librust-serde-json-1+default-dev, librust-serde-yaml-0.9+default-dev, librust-shlex-1+default-dev, librust-text-size-1+default-dev (>= 1.1.1-~~), librust-textwrap-0.16+default-dev
+Architecture: any
+Standards-Version: 4.7.0
+Format: 3.0 (quilt)
+Files:
+ 7f4d52474fdeb91fd28b30265c2951a0 2881 rust-buildlog-consultant_0.1.0-1.dsc
+ 780a2b95f0b58b8607811f8c2a3ed5b3 112422 rust-buildlog-consultant_0.1.0.orig.tar.gz
+ a83d2bdc040e133428a3d08d1beb6511 3716 rust-buildlog-consultant_0.1.0-1.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/rust-team/debcargo-conf/tree/master/src/buildlog-consultant
+Vcs-Git: https://salsa.debian.org/rust-team/debcargo-conf.git [src/buildlog-consultant]
+Checksums-Sha256:
+ d866b60e266258cd49cc0b5e0eef4328469ac2001c5d470564ac8aca37768539 2881 rust-buildlog-consultant_0.1.0-1.dsc
+ e18d1855ddb4376d5dc6e34c6e1ae818c46437092d56ea5c559358548d5be842 112422 rust-buildlog-consultant_0.1.0.orig.tar.gz
+ 54bbbec4464f413d059406c93ffe3fa92e1a7b3385c8dfbcf5ce7d0b2a236c93 3716 rust-buildlog-consultant_0.1.0-1.debian.tar.xz
+Homepage: https://github.com/jelmer/buildlog-consultant
+Package-List:
+ buildlog-consultant deb devel optional arch=any
+ librust-buildlog-consultant-dev deb rust optional arch=any
+Testsuite: autopkgtest
+Testsuite-Triggers: dh-cargo, librust-maplit-1+default-dev, rustc
+Directory: pool/main/r/rust-buildlog-consultant
+Priority: optional
+Section: misc
+
+";
+
+        let mut sources = SourcePkgBucket::new();
+        for pkg in extract_pkgs_uncompressed::<DebianSourcePkg, _>(sources_bytes.as_bytes()).unwrap() {
+            sources.push(pkg);
+        }
+
+        let pkgs = extract_pkgs_uncompressed::<DebianBinPkg, _>(packages_bytes.as_bytes()).unwrap();
+        let mut pkgs = pkgs.into_iter();
+
+        // test first package (with Extra-Source-Only)
+        let pkg = pkgs.next().unwrap();
+        let src = sources.get(&pkg).unwrap();
+        assert_eq!(src, DebianSourcePkg {
+            base: "buildlog-consultant".to_string(),
+            binary: vec![
+                "python3-buildlog-consultant".to_string(),
+            ],
+            version: "0.0.37-1".to_string(),
+            directory: "pool/main/b/buildlog-consultant".to_string(),
+            architecture: "any".to_string(),
+            uploaders: vec![],
+        });
+
+        // test second package (without Extra-Source-Only)
+        let pkg = pkgs.next().unwrap();
+        let src = sources.get(&pkg).unwrap();
+        assert_eq!(src, DebianSourcePkg {
+            base: "rust-buildlog-consultant".to_string(),
+            binary: vec![
+                "librust-buildlog-consultant-dev".to_string(),
+                "buildlog-consultant".to_string(),
+            ],
+            version: "0.0.44-1+b1".to_string(),
+            directory: "pool/main/r/rust-buildlog-consultant".to_string(),
+            architecture: "any".to_string(),
+            uploaders: vec!["Jelmer Vernooĳ <jelmer@debian.org>".to_string()],
+        });
+
+        assert_eq!(pkgs.next(), None);
+    }
 }
