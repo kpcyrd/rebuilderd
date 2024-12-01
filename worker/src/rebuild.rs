@@ -128,7 +128,7 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
             .await
             .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?
     } else {
-        artifacts.get(0)
+        artifacts.first()
             .context("Failed to use first artifact as build input")?
             .1.to_owned()
     };

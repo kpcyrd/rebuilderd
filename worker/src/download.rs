@@ -12,16 +12,17 @@ pub async fn download(url_str: &str, path: &Path) -> Result<PathBuf> {
     let filename = url.path_segments()
         .ok_or_else(|| format_err!("Url doesn't seem to have a path"))?
         .last()
-        .ok_or_else(|| format_err!("Failed to get filename from path"))?;
+        .ok_or_else(|| format_err!("Failed to get filename from path"))?
+        .to_owned();
     if filename.is_empty() {
-        bail!("Filename is empty");
+        bail!("Filename detected from url is empty");
     }
 
-    let target = path.join(filename);
+    let target = path.join(&filename);
 
     info!("Downloading {:?} to {:?}", url_str, target);
     let client = reqwest::Client::new();
-    let mut stream = client.get(&url.to_string())
+    let mut stream = client.get(url)
         .send()
         .await?
         .error_for_status()?

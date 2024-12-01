@@ -71,12 +71,12 @@ impl TryInto<ArchPkg> for NewPkg {
 
     fn try_into(self: NewPkg) -> Result<ArchPkg> {
         Ok(ArchPkg {
-            name: self.name.get(0).ok_or_else(|| anyhow!("Missing pkg name field"))?.to_string(),
-            base: self.base.get(0).ok_or_else(|| anyhow!("Missing pkg base field"))?.to_string(),
-            filename: self.filename.get(0).ok_or_else(|| anyhow!("Missing filename field"))?.to_string(),
-            version: self.version.get(0).ok_or_else(|| anyhow!("Missing version field"))?.to_string(),
-            architecture: self.architecture.get(0).ok_or_else(|| anyhow!("Missing architecture field"))?.to_string(),
-            packager: self.packager.get(0).ok_or_else(|| anyhow!("Missing packager field"))?.to_string(),
+            name: self.name.first().ok_or_else(|| anyhow!("Missing pkg name field"))?.to_string(),
+            base: self.base.first().ok_or_else(|| anyhow!("Missing pkg base field"))?.to_string(),
+            filename: self.filename.first().ok_or_else(|| anyhow!("Missing filename field"))?.to_string(),
+            version: self.version.first().ok_or_else(|| anyhow!("Missing version field"))?.to_string(),
+            architecture: self.architecture.first().ok_or_else(|| anyhow!("Missing architecture field"))?.to_string(),
+            packager: self.packager.first().ok_or_else(|| anyhow!("Missing packager field"))?.to_string(),
         })
     }
 }

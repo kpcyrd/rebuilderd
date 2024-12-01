@@ -34,7 +34,7 @@ pub struct HttpHeartBeat<'a> {
 }
 
 #[async_trait]
-impl<'a> heartbeat::HeartBeat for HttpHeartBeat<'a> {
+impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
     fn interval(&self) -> Duration {
         Duration::from_secs(PING_INTERVAL)
     }
