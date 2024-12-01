@@ -5,7 +5,7 @@ description = "rebuilderd - rebuild worker"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/kpcyrd/rebuilderd"
-edition = "2018"
+edition = "2021"
 
 [package.metadata.deb]
 depends = "$auto, rebuilderd"
