@@ -54,9 +54,9 @@ pub async fn list_workers(
         return Ok(forbidden());
     }
 
-    let connection = pool.get().map_err(Error::from)?;
-    models::Worker::mark_stale_workers_offline(connection.as_ref())?;
-    let workers = models::Worker::list(connection.as_ref())?;
+    let mut connection = pool.get().map_err(Error::from)?;
+    models::Worker::mark_stale_workers_offline(connection.as_mut())?;
+    let workers = models::Worker::list(connection.as_mut())?;
     Ok(HttpResponse::Ok().json(workers))
 }
 
@@ -73,9 +73,9 @@ pub async fn sync_work(
     }
 
     let import = import.into_inner();
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    sync::run(import, connection.as_ref())?;
+    sync::run(import, connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(JobAssignment::Nothing))
 }
@@ -95,12 +95,12 @@ pub async fn list_pkgs(
     query: web::Query<ListPkgs>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
     let mut builder = HttpResponse::Ok();
 
     // Set Last-Modified header to the most recent build package time
     // If If-Modified-Since header is set, compare it to the latest built time.
-    if let Some(latest_built_at) = models::Package::most_recent_built_at(connection.as_ref())? {
+    if let Some(latest_built_at) = models::Package::most_recent_built_at(connection.as_mut())? {
         let latest_built_at = DateTime::from_naive_utc_and_offset(latest_built_at, Utc);
         if let Some(duration) = modified_since_duration(&req, latest_built_at) {
             if duration.num_seconds() >= 0 {
@@ -112,7 +112,7 @@ pub async fn list_pkgs(
     }
 
     let mut pkgs = Vec::<PkgRelease>::new();
-    for pkg in models::Package::list(connection.as_ref())? {
+    for pkg in models::Package::list(connection.as_mut())? {
         if opt_filter(&pkg.name, query.name.as_deref()) {
             continue;
         }
@@ -140,12 +140,12 @@ pub async fn list_queue(
     query: web::Json<ListQueue>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    models::Queued::free_stale_jobs(connection.as_ref())?;
-    let queue = models::Queued::list(query.limit, connection.as_ref())?;
+    models::Queued::free_stale_jobs(connection.as_mut())?;
+    let queue = models::Queued::list(query.limit, connection.as_mut())?;
     let queue: Vec<QueueItem> = queue.into_iter()
-        .map(|x| x.into_api_item(connection.as_ref()))
+        .map(|x| x.into_api_item(connection.as_mut()))
         .collect::<Result<_>>()?;
 
     let now = Utc::now().naive_utc();
@@ -156,7 +156,7 @@ pub async fn list_queue(
     }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &SqliteConnection) -> web::Result<models::Worker> {
+fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &mut SqliteConnection) -> web::Result<models::Worker> {
     let key = header(req, WORKER_KEY_HEADER)
         .context("Failed to get worker key")?;
 
@@ -194,19 +194,19 @@ pub async fn push_queue(
     }
 
     let query = query.into_inner();
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
     debug!("searching pkg: {:?}", query);
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_mut())?;
 
     for pkg in pkgs {
         debug!("found pkg: {:?}", pkg);
 
-        let pkgbase = models::PkgBase::get_id(pkg.pkgbase_id, connection.as_ref())?;
+        let pkgbase = models::PkgBase::get_id(pkg.pkgbase_id, connection.as_mut())?;
         let item = models::NewQueued::new(pkgbase.id, pkgbase.version, pkgbase.distro, query.priority);
 
         debug!("adding to queue: {:?}", item);
-        if let Err(err) = item.insert(connection.as_ref()) {
+        if let Err(err) = item.insert(connection.as_mut()) {
             error!("failed to queue item: {:#?}", err);
         }
     }
@@ -225,12 +225,12 @@ pub async fn pop_queue(
         return Ok(forbidden());
     }
 
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
 
-    models::Queued::free_stale_jobs(connection.as_ref())?;
-    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_ref())? {
+    models::Queued::free_stale_jobs(connection.as_mut())?;
+    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_mut())? {
 
 
         // TODO: claim item correctly
@@ -243,7 +243,7 @@ pub async fn pop_queue(
     };
 
     worker.status = status;
-    worker.update(connection.as_ref())?;
+    worker.update(connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(resp))
 }
@@ -260,14 +260,14 @@ pub async fn drop_from_queue(
     }
 
     let query = query.into_inner();
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, None, query.architecture.as_deref(), connection.as_ref())?;
+    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, None, query.architecture.as_deref(), connection.as_mut())?;
     let pkgbases = pkgbases.iter()
         .map(|p| p.id)
         .collect::<Vec<_>>();
 
-    models::Queued::drop_for_pkgbases(&pkgbases, connection.as_ref())?;
+    models::Queued::drop_for_pkgbases(&pkgbases, connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
@@ -283,11 +283,11 @@ pub async fn requeue_pkgbase(
         return Ok(forbidden());
     }
 
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
     let mut pkg_ids = Vec::new();
     let mut pkgbase_ids = HashSet::new();
-    for pkg in models::Package::list(connection.as_ref())? {
+    for pkg in models::Package::list(connection.as_mut())? {
         // TODO: this should be filtered in the database
         if opt_filter(&pkg.name, query.name.as_deref()) {
             continue;
@@ -311,7 +311,7 @@ pub async fn requeue_pkgbase(
     }
 
     let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
-    let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_ref())?;
+    let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_mut())?;
 
     let to_be_queued = pkgbases.into_iter()
         .map(|pkgbase| {
@@ -322,10 +322,10 @@ pub async fn requeue_pkgbase(
         })
         .collect::<Vec<_>>();
 
-    models::Queued::insert_batch(&to_be_queued, connection.as_ref())?;
+    models::Queued::insert_batch(&to_be_queued, connection.as_mut())?;
 
     if query.reset {
-        models::Package::reset_status_for_requeued_list(&pkg_ids, connection.as_ref())?;
+        models::Package::reset_status_for_requeued_list(&pkg_ids, connection.as_mut())?;
     }
 
     Ok(HttpResponse::Ok().json(()))
@@ -342,11 +342,11 @@ pub async fn ping_build(
         return Ok(forbidden());
     }
 
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
+    let worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
     debug!("ping from worker: {:?}", worker);
-    let mut item = models::Queued::get_id(item.queue_id, connection.as_ref())?;
+    let mut item = models::Queued::get_id(item.queue_id, connection.as_mut())?;
     debug!("trying to ping item: {:?}", item);
 
     if item.worker_id != Some(worker.id) {
@@ -354,9 +354,9 @@ pub async fn ping_build(
     }
 
     debug!("updating database (item)");
-    item.ping_job(connection.as_ref())?;
+    item.ping_job(connection.as_mut())?;
     debug!("updating database (worker)");
-    worker.update(connection.as_ref())?;
+    worker.update(connection.as_mut())?;
     debug!("successfully pinged job");
 
     Ok(HttpResponse::Ok().json(()))
@@ -374,11 +374,11 @@ pub async fn report_build(
         return Ok(forbidden());
     }
 
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut worker = get_worker_from_request(&req, &cfg, connection.as_ref())?;
-    let queue_item = models::Queued::get_id(report.queue.id, connection.as_ref())?;
-    let mut pkgbase = models::PkgBase::get_id(queue_item.pkgbase_id, connection.as_ref())?;
+    let mut worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
+    let queue_item = models::Queued::get_id(report.queue.id, connection.as_mut())?;
+    let mut pkgbase = models::PkgBase::get_id(queue_item.pkgbase_id, connection.as_mut())?;
 
     let mut needs_retry = false;
     for (artifact, rebuild) in &report.rebuilds {
@@ -386,7 +386,7 @@ pub async fn report_build(
                                                &pkgbase.distro,
                                                &pkgbase.suite,
                                                None,
-                                               connection.as_ref())?;
+                                               connection.as_mut())?;
 
         packages.retain(|x| x.pkgbase_id == pkgbase.id);
         if packages.len() != 1 {
@@ -397,7 +397,7 @@ pub async fn report_build(
 
         // adding build to package
         let build = models::NewBuild::from_api(rebuild, report.build_log.as_bytes().to_vec());
-        let build_id = build.insert(connection.as_ref())?;
+        let build_id = build.insert(connection.as_mut())?;
         pkg.build_id = Some(build_id);
 
         pkg.status = match rebuild.status {
@@ -413,7 +413,7 @@ pub async fn report_build(
             needs_retry = true;
         }
 
-        pkg.update(connection.as_ref())?;
+        pkg.update(connection.as_mut())?;
     }
 
     // update pkgbase
@@ -421,14 +421,14 @@ pub async fn report_build(
         pkgbase.retries += 1;
         pkgbase.schedule_retry(cfg.schedule.retry_delay_base());
     } else {
-        pkgbase.clear_retry(connection.as_ref())?;
+        pkgbase.clear_retry(connection.as_mut())?;
     }
-    pkgbase.update(connection.as_ref())?;
+    pkgbase.update(connection.as_mut())?;
 
     // cleanup queue item and worker status
-    queue_item.delete(connection.as_ref())?;
+    queue_item.delete(connection.as_mut())?;
     worker.status = None;
-    worker.update(connection.as_ref())?;
+    worker.update(connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
@@ -438,9 +438,9 @@ pub async fn get_build_log(
     id: web::Path<i32>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_ref()) {
+    let build = match models::Build::get_id(*id, connection.as_mut()) {
         Ok(build) => build,
         Err(_) => return Ok(not_found()),
     };
@@ -458,9 +458,9 @@ pub async fn get_attestation(
     id: web::Path<i32>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_ref()) {
+    let build = match models::Build::get_id(*id, connection.as_mut()) {
         Ok(build) => build,
         Err(_) => return Ok(not_found()),
     };
@@ -482,9 +482,9 @@ pub async fn get_diffoscope(
     id: web::Path<i32>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_ref()) {
+    let build = match models::Build::get_id(*id, connection.as_mut()) {
         Ok(build) => build,
         Err(_) => return Ok(not_found()),
     };
@@ -506,7 +506,7 @@ pub async fn get_dashboard(
     pool: web::Data<Pool>,
     lock: web::Data<Arc<RwLock<DashboardState>>>,
 ) -> web::Result<impl Responder> {
-    let connection = pool.get().map_err(Error::from)?;
+    let mut connection = pool.get().map_err(Error::from)?;
     let stale = {
         let state = lock.read().unwrap();
         !state.is_fresh()
@@ -514,7 +514,7 @@ pub async fn get_dashboard(
     if stale {
         let mut state = lock.write().unwrap();
         debug!("Updating cached dashboard");
-        state.update(connection.as_ref())?;
+        state.update(connection.as_mut())?;
     }
     let state = lock.read().unwrap();
     let resp = state.get_response()?;
