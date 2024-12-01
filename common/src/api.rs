@@ -215,8 +215,8 @@ impl Client {
             .await?
             .error_for_status()?
             .json()
-            .await?;
-        Ok(())
+            .await
+            .map_err(Error::from)
     }
 
     pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
@@ -237,8 +237,8 @@ impl Client {
             .await?
             .error_for_status()?
             .json()
-            .await?;
-        Ok(())
+            .await
+            .map_err(Error::from)
     }
 
     pub async fn requeue_pkgs(&self, requeue: &RequeueQuery) -> Result<()> {
@@ -248,8 +248,8 @@ impl Client {
             .await?
             .error_for_status()?
             .json()
-            .await?;
-        Ok(())
+            .await
+            .map_err(Error::from)
     }
 
     pub async fn ping_build(&self, body: &PingRequest) -> Result<()> {
