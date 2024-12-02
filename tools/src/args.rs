@@ -1,45 +1,45 @@
-#![allow(clippy::large_enum_variant)]
-
-use rebuilderd_common::Status;
-use rebuilderd_common::errors::*;
+use clap::{ArgAction, CommandFactory, Parser};
+use clap_complete::Shell;
 use glob::Pattern;
-use std::io::stdout;
+use rebuilderd_common::errors::*;
+use rebuilderd_common::Status;
+use std::io;
 use std::path::PathBuf;
-use structopt::StructOpt;
-use structopt::clap::{AppSettings, Shell};
 
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+#[derive(Debug, Parser)]
+#[command(version)]
 pub struct Args {
     /// Verbose logging
-    #[structopt(short, long, global = true, parse(from_occurrences))]
+    #[arg(short, long, global = true, action(ArgAction::Count))]
     pub verbose: u8,
     /// rebuilderd endpoint to talk to
-    #[structopt(short="H", long)]
+    #[arg(short = 'H', long)]
     pub endpoint: Option<String>,
     /// Configuration file path
-    #[structopt(short, long)]
+    #[arg(short, long)]
     pub config: Option<PathBuf>,
     /// Bypass tty detection and always use colors
-    #[structopt(short="C", long, global=true)]
+    #[arg(short = 'C', long, global = true)]
     pub color: bool,
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub subcommand: SubCommand,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum SubCommand {
     /// Show worker status
     Status,
     /// Package related subcommands
+    #[command(subcommand)]
     Pkgs(Pkgs),
     /// Queue related subcommands
+    #[command(subcommand)]
     Queue(Queue),
     /// Generate shell completions
     Completions(Completions),
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Pkgs {
     /// Sync package index
     Sync(PkgsSync),
@@ -59,119 +59,119 @@ pub enum Pkgs {
     Attestation(PkgsAttestation),
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsSyncProfile {
-    #[structopt(long="print-json")]
+    #[arg(long)]
     pub print_json: bool,
     pub profile: String,
-    #[structopt(long="sync-config", default_value="/etc/rebuilderd-sync.conf")]
+    #[arg(long = "sync-config", default_value = "/etc/rebuilderd-sync.conf")]
     pub config_file: String,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsSyncStdin {
     pub distro: String,
     pub suite: String,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsSync {
     pub distro: String,
     pub suite: String,
     pub source: String,
-    #[structopt(long="architecture")]
+    #[arg(long = "architecture")]
     pub architectures: Vec<String>,
-    #[structopt(long="print-json")]
+    #[arg(long)]
     pub print_json: bool,
-    #[structopt(long="maintainer")]
+    #[arg(long = "maintainer")]
     pub maintainers: Vec<String>,
-    #[structopt(long="release")]
+    #[arg(long = "release")]
     pub releases: Vec<String>,
-    #[structopt(long="pkg")]
+    #[arg(long = "pkg")]
     pub pkgs: Vec<Pattern>,
-    #[structopt(long="exclude")]
+    #[arg(long = "exclude")]
     pub excludes: Vec<Pattern>,
-    #[structopt(long)]
+    #[arg(long)]
     pub sync_method: Option<String>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsFilter {
     /// Filter packages matching this name
-    #[structopt(long)]
+    #[arg(long)]
     pub name: Option<String>,
     /// Filter packages matching this status
-    #[structopt(long, possible_values=&["GOOD", "BAD", "UNKWN"])]
+    #[arg(long)]
     pub status: Option<Status>,
     /// Filter packages matching this distro
-    #[structopt(long)]
+    #[arg(long)]
     pub distro: Option<String>,
     /// Filter packages matching this suite
-    #[structopt(long)]
+    #[arg(long)]
     pub suite: Option<String>,
     /// Filter packages matching this architecture
-    #[structopt(long)]
+    #[arg(long)]
     pub architecture: Option<String>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsList {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub filter: PkgsFilter,
-    #[structopt(long)]
+    #[arg(long)]
     pub json: bool,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsRequeue {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub filter: PkgsFilter,
     /// Requeue with given priority
-    #[structopt(long, default_value="0")]
+    #[arg(long, default_value = "0")]
     pub priority: i32,
     /// Reset the status back to UNKWN
-    #[structopt(long)]
+    #[arg(long)]
     pub reset: bool,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsLog {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub filter: PkgsFilter,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsDiffoscope {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub filter: PkgsFilter,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct PkgsAttestation {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub filter: PkgsFilter,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Queue {
     /// List the current build queue
     Ls(QueueList),
     /// Add a new task to the queue manually
     Push(QueuePush),
     /// Drop packages from queue matching given filter
-    #[structopt(name="drop")]
+    #[command(name = "drop")]
     Delete(QueueDrop),
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct QueueList {
-    #[structopt(long)]
+    #[arg(long)]
     pub head: bool,
-    #[structopt(long)]
+    #[arg(long)]
     pub json: bool,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct QueuePush {
     pub distro: String,
     pub suite: String,
@@ -179,30 +179,34 @@ pub struct QueuePush {
     pub name: String,
     pub version: Option<String>,
 
-    #[structopt(long)]
+    #[arg(long)]
     pub architecture: Option<String>,
-    #[structopt(long, default_value="0")]
+    #[arg(long, default_value = "0")]
     pub priority: i32,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct QueueDrop {
     pub distro: String,
     pub suite: String,
-    #[structopt(long)]
+    #[arg(long)]
     pub architecture: Option<String>,
 
     pub name: String,
     pub version: Option<String>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Completions {
-    #[structopt(possible_values=&Shell::variants())]
     pub shell: Shell,
 }
 
 pub fn gen_completions(args: &Completions) -> Result<()> {
-    Args::clap().gen_completions_to("rebuildctl", args.shell, &mut stdout());
+    clap_complete::generate(
+        args.shell,
+        &mut Args::command(),
+        "rebuildctl",
+        &mut io::stdout(),
+    );
     Ok(())
 }

@@ -9,11 +9,11 @@ publish = false
 
 [dependencies]
 actix-web = "4.1.0"
+clap = { version = "4", features = ["derive"] }
 colored = "2.0.0"
 env_logger = "0.11"
 futures = "0.3.21"
 rebuilderd = { version= "=0.21.0", path="../daemon" }
 rebuilderd-common = { version= "=0.21.0", path="../common" }
-structopt = "0.3.26"
 tempfile = "3.3.0"
 tokio = { version="1.19.2", features=["macros", "rt-multi-thread"] }

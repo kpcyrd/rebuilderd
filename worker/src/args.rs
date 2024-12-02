@@ -1,24 +1,23 @@
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
+use clap::{Parser, ArgAction};
 use std::path::PathBuf;
 
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+#[derive(Debug, Parser)]
+#[command(version)]
 pub struct Args {
     /// Verbose logging
-    #[structopt(short, long, global = true, parse(from_occurrences))]
+    #[arg(short, long, global = true, action(ArgAction::Count))]
     pub verbose: u8,
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub subcommand: SubCommand,
-    #[structopt(short, long)]
+    #[arg(short, long)]
     pub name: Option<String>,
-    #[structopt(short, long, global = true, env = "REBUILDERD_WORKER_CONFIG")]
+    #[arg(short, long, global = true, env = "REBUILDERD_WORKER_CONFIG")]
     pub config: Option<PathBuf>,
-    #[structopt(long="backend", global = true, env = "REBUILDERD_WORKER_BACKEND")]
+    #[arg(long = "backend", global = true, env = "REBUILDERD_WORKER_BACKEND")]
     pub backends: Vec<String>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum SubCommand {
     /// Rebuild an individual package
     Build(Build),
@@ -30,29 +29,29 @@ pub enum SubCommand {
     CheckConfig,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Build {
     /// Selects the right build profile from the configuration
     pub distro: String,
     /// The pre-built artifact that should be reproduced
     pub artifact_url: String,
     /// Pass a different input file to the rebuilder backend
-    #[structopt(long)]
+    #[arg(long)]
     pub input_url: Option<String>,
     /// Use a specific rebuilder script instead of the default
-    #[structopt(long)]
+    #[arg(long)]
     pub script_location: Option<PathBuf>,
     /// Use diffoscope to generate a diff
-    #[structopt(long)]
+    #[arg(long)]
     pub gen_diffoscope: bool,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Connect {
     pub endpoint: Option<String>,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Diffoscope {
     pub a: PathBuf,
     pub b: PathBuf,
