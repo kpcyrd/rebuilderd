@@ -25,6 +25,18 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+  worker-nixos:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile.nixos
+    # number of concurrent workers
+    scale: 1
+    init: true
+    command: ['connect', 'http://daemon:8484']
+    environment:
+    - REBUILDERD_COOKIE_PATH=/secret/auth
+    volumes:
+    - ./secret:/secret
   worker-archlinux:
     build:
       context: .
