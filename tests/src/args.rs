@@ -1,16 +1,16 @@
-use structopt::StructOpt;
+use clap::{Parser, ArgAction};
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Args {
     pub endpoint: Option<String>,
-    #[structopt(short="b", default_value = "127.0.0.1:8484")]
+    #[arg(short = 'b', default_value = "127.0.0.1:8484")]
     pub bind_addr: String,
-    #[structopt(long)]
+    #[arg(long)]
     pub cookie: String,
     /// Verbose logging
-    #[structopt(short, long, parse(from_occurrences))]
+    #[arg(short, long, action(ArgAction::Count))]
     pub verbose: u8,
     /// Do not start a test daemon
-    #[structopt(long)]
+    #[arg(long)]
     pub no_daemon: bool,
 }

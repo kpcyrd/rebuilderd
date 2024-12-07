@@ -1,27 +1,26 @@
+use clap::{Parser, ArgAction};
 use env_logger::Env;
 use std::path::PathBuf;
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
 use rebuilderd::config;
 use rebuilderd_common::errors::*;
 
-#[derive(Debug, StructOpt)]
-#[structopt(global_settings = &[AppSettings::ColoredHelp])]
+#[derive(Debug, Parser)]
+#[command(version)]
 struct Args {
     /// Verbose logging
-    #[structopt(short, long, parse(from_occurrences))]
+    #[arg(short, long, action(ArgAction::Count))]
     verbose: u8,
     /// Load and print a config
-    #[structopt(long)]
+    #[arg(long)]
     check_config: bool,
     /// Configuration file path
-    #[structopt(short, long)]
+    #[arg(short, long)]
     config: Option<PathBuf>,
 }
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     let logging = match args.verbose {
         0 => "actix_web=debug,info",

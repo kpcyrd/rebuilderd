@@ -1,4 +1,5 @@
 use crate::args::Args;
+use clap::Parser;
 use colored::Colorize;
 use env_logger::Env;
 use rebuilderd::config::Config;
@@ -12,7 +13,6 @@ use std::time::Duration;
 use std::io;
 use std::io::prelude::*;
 use std::net::TcpStream;
-use structopt::StructOpt;
 use tempfile::TempDir;
 
 mod args;
@@ -92,7 +92,7 @@ fn wait_for_server(addr: &str) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     let logging = match args.verbose {
         0 => "warn,rebuilderd_tests=info",

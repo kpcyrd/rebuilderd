@@ -97,13 +97,16 @@ impl PkgGroup {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 pub enum Status {
     #[serde(rename = "GOOD")]
+    #[clap(name = "GOOD")]
     Good,
     #[serde(rename = "BAD")]
+    #[clap(name = "BAD")]
     Bad,
     #[serde(rename = "UNKWN")]
+    #[clap(name = "UNKWN")]
     Unknown,
 }
 

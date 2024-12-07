@@ -1,4 +1,5 @@
 use colored::*;
+use clap::Parser;
 use crate::args::*;
 use crate::config::SyncConfigFile;
 use env_logger::Env;
@@ -11,7 +12,6 @@ use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::io::prelude::*;
 use std::io;
-use structopt::StructOpt;
 use tokio::io::AsyncReadExt;
 
 pub mod args;
@@ -88,7 +88,7 @@ async fn fetch_build_id_by_filter(client: &Client, filter: PkgsFilter) -> Result
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     let logging = match args.verbose {
         0 => "info",

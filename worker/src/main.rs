@@ -1,11 +1,11 @@
 #![recursion_limit="256"]
 
 use async_trait::async_trait;
+use clap::Parser;
 use crate::args::{Args, SubCommand};
 use crate::rebuild::Context;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
-use structopt::StructOpt;
 use rebuilderd_common::PkgArtifact;
 use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
@@ -141,7 +141,7 @@ async fn run_worker_loop(client: &Client, privkey: &PrivateKey, config: &config:
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
 
     let logging = match args.verbose {
         0 => "info",
