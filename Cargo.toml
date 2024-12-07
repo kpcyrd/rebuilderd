@@ -6,3 +6,4 @@ members = [
     "tools",
     "worker",
 ]
+resolver = "2"

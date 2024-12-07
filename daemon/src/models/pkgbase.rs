@@ -1,5 +1,3 @@
-#![allow(clippy::extra_unused_lifetimes)]
-
 use chrono::{Duration, NaiveDateTime, Utc};
 use crate::schema::*;
 use diesel::prelude::*;
@@ -7,7 +5,7 @@ use rebuilderd_common::PkgGroup;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
-#[table_name="pkgbases"]
+#[diesel(table_name = pkgbases)]
 pub struct PkgBase {
     pub id: i32,
     pub name: String,
@@ -22,7 +20,7 @@ pub struct PkgBase {
 }
 
 impl PkgBase {
-    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &mut SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let bases = pkgbases
             .filter(distro.eq(my_distro))
@@ -31,7 +29,7 @@ impl PkgBase {
         Ok(bases)
     }
 
-    pub fn list_pkgs(&self, connection: &SqliteConnection) -> Result<Vec<i32>> {
+    pub fn list_pkgs(&self, connection: &mut SqliteConnection) -> Result<Vec<i32>> {
         use crate::schema::packages::dsl::*;
         let pkgs = packages
             .select(id)
@@ -40,7 +38,7 @@ impl PkgBase {
         Ok(pkgs)
     }
 
-    pub fn get_id(my_id: i32, connection: &SqliteConnection) -> Result<PkgBase> {
+    pub fn get_id(my_id: i32, connection: &mut SqliteConnection) -> Result<PkgBase> {
         use crate::schema::pkgbases::dsl::*;
         let pkgbase = pkgbases
             .filter(id.eq(my_id))
@@ -48,7 +46,7 @@ impl PkgBase {
         Ok(pkgbase)
     }
 
-    pub fn get_id_list(my_ids: &[i32], connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+    pub fn get_id_list(my_ids: &[i32], connection: &mut SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let pkgbase = pkgbases
             .filter(id.eq_any(my_ids))
@@ -56,7 +54,7 @@ impl PkgBase {
         Ok(pkgbase)
     }
 
-    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_version: Option<&str>, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<PkgBase>> {
+    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_version: Option<&str>, my_architecture: Option<&str>, connection: &mut SqliteConnection) -> Result<Vec<PkgBase>> {
         use crate::schema::pkgbases::dsl::*;
         let mut query = pkgbases
             .filter(name.eq(my_name))
@@ -72,7 +70,7 @@ impl PkgBase {
         Ok(query.load::<PkgBase>(connection)?)
     }
 
-    pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<(i32, String)>> {
+    pub fn list_distro_suite_due_retries(my_distro: &str, my_suite: &str, connection: &mut SqliteConnection) -> Result<Vec<(i32, String)>> {
         use crate::schema::pkgbases::dsl::*;
         use crate::schema::queue;
         let pkgs = pkgbases
@@ -93,7 +91,7 @@ impl PkgBase {
         self.next_retry = Some((Utc::now() + delay).naive_utc());
     }
 
-    pub fn clear_retry(&mut self, connection: &SqliteConnection) -> Result<()> {
+    pub fn clear_retry(&mut self, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::pkgbases::columns::*;
         self.next_retry = None;
         diesel::update(pkgbases::table.filter(id.eq(self.id)))
@@ -120,7 +118,7 @@ impl PkgBase {
         })
     }
 
-    pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
+    pub fn update(&self, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::pkgbases::columns::*;
         diesel::update(pkgbases::table.filter(id.eq(self.id)))
             .set(self)
@@ -128,14 +126,14 @@ impl PkgBase {
         Ok(())
     }
 
-    pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {
+    pub fn delete(my_id: i32, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::pkgbases::dsl::*;
         diesel::delete(pkgbases.filter(id.eq(my_id)))
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn delete_batch(batch: &[i32], connection: &SqliteConnection) -> Result<()> {
+    pub fn delete_batch(batch: &[i32], connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::pkgbases::dsl::*;
         diesel::delete(pkgbases.filter(id.eq_any(batch)))
             .execute(connection)?;
@@ -144,7 +142,7 @@ impl PkgBase {
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
-#[table_name="pkgbases"]
+#[diesel(table_name = pkgbases)]
 pub struct NewPkgBase {
     pub name: String,
     pub version: String,
@@ -158,14 +156,14 @@ pub struct NewPkgBase {
 }
 
 impl NewPkgBase {
-    pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
+    pub fn insert(&self, connection: &mut SqliteConnection) -> Result<()> {
         diesel::insert_into(pkgbases::table)
             .values(self)
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn insert_batch(pkgs: &[NewPkgBase], connection: &SqliteConnection) -> Result<()> {
+    pub fn insert_batch(pkgs: &[NewPkgBase], connection: &mut SqliteConnection) -> Result<()> {
         diesel::insert_into(pkgbases::table)
             .values(pkgs)
             .execute(connection)?;

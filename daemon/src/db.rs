@@ -1,22 +1,28 @@
+use diesel::connection::{Instrumentation, SimpleConnection, TransactionManager};
 use diesel::prelude::*;
+use diesel::query_builder::{QueryFragment, QueryId};
 use diesel::r2d2::{self, ConnectionManager};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use rebuilderd_common::errors::*;
-use diesel::query_builder::QueryId;
-use diesel::query_builder::QueryFragment;
-use diesel::deserialize::QueryableByName;
-use diesel::connection::SimpleConnection;
-use diesel::query_builder::AsQuery;
-use diesel::sql_types::HasSqlType;
-use std::io;
 
-embed_migrations!("migrations");
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 pub type Pool = r2d2::Pool<ConnectionManager<SqliteConnectionWrap>>;
 
 pub fn setup(url: &str) -> Result<SqliteConnection> {
     info!("Using database at {:?}", url);
-    let connection = SqliteConnection::establish(url)?;
-    embedded_migrations::run_with_output(&connection, &mut io::stdout())?;
+    let mut connection = SqliteConnection::establish(url)?;
+
+    while connection
+        .has_pending_migration(MIGRATIONS)
+        .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?
+    {
+        let version = connection
+            .run_next_migration(MIGRATIONS)
+            .map_err(|err| anyhow!("Failed to run pending migration: {err:#}"))?;
+        info!("Applied database migration: {version}");
+    }
+
     Ok(connection)
 }
 
@@ -32,14 +38,26 @@ pub fn setup_pool(url: &str) -> Result<Pool> {
 
 pub struct SqliteConnectionWrap(SqliteConnection);
 
-impl AsRef<SqliteConnection> for SqliteConnectionWrap {
-    fn as_ref(&self) -> &SqliteConnection {
-        &self.0
+impl std::convert::AsMut<SqliteConnection> for SqliteConnectionWrap {
+    fn as_mut(&mut self) -> &mut SqliteConnection {
+        &mut self.0
     }
 }
 
-impl SimpleConnection for SqliteConnectionWrap {
-    fn batch_execute(&self, query: &str) -> QueryResult<()> {
+impl diesel::r2d2::R2D2Connection for SqliteConnectionWrap {
+    fn ping(&mut self) -> QueryResult<()> {
+        self.0.ping()
+    }
+
+    fn is_broken(&mut self) -> bool {
+        self.0.is_broken()
+    }
+}
+
+impl diesel::connection::ConnectionSealed for SqliteConnectionWrap {}
+
+impl diesel::connection::SimpleConnection for SqliteConnectionWrap {
+    fn batch_execute(&mut self, query: &str) -> QueryResult<()> {
         self.0.batch_execute(query)
     }
 }
@@ -49,16 +67,18 @@ impl Connection for SqliteConnectionWrap {
     type TransactionManager = <SqliteConnection as Connection>::TransactionManager;
 
     fn establish(database_url: &str) -> ConnectionResult<Self> {
-        let c = SqliteConnection::establish(database_url)
-            .map_err(|err| {
-                warn!("establish returned error: {:?}", err);
-                err
-            })?;
+        let mut c = SqliteConnection::establish(database_url).map_err(|err| {
+            warn!("establish returned error: {:?}", err);
+            err
+        })?;
 
-        c.batch_execute("
+        c.batch_execute(
+            "
             PRAGMA busy_timeout = 10000;        -- sleep if the database is busy
             PRAGMA foreign_keys = ON;           -- enforce foreign keys
-        ").map_err(|err| {
+        ",
+        )
+        .map_err(|err| {
             warn!("executing pragmas for busy_timeout failed: {:?}", err);
             ConnectionError::CouldntSetupConfiguration(err)
         })?;
@@ -77,36 +97,24 @@ impl Connection for SqliteConnectionWrap {
         Ok(Self(c))
     }
 
-    fn execute(&self, query: &str) -> QueryResult<usize> {
-        self.0.execute(query)
-    }
-
-    fn query_by_index<T, U>(&self, source: T) -> QueryResult<Vec<U>>
-        where
-            T: AsQuery,
-            T::Query: QueryFragment<Self::Backend> + QueryId,
-            Self::Backend: HasSqlType<T::SqlType>,
-            U: Queryable<T::SqlType, Self::Backend>,
-    {
-        self.0.query_by_index(source)
-    }
-
-    fn query_by_name<T, U>(&self, source: &T) -> QueryResult<Vec<U>>
-        where
-        T: QueryFragment<Self::Backend> + QueryId,
-        U: QueryableByName<Self::Backend>,
-    {
-        self.0.query_by_name(source)
-    }
-
-    fn execute_returning_count<T>(&self, source: &T) -> QueryResult<usize>
-        where
+    fn execute_returning_count<T>(&mut self, source: &T) -> QueryResult<usize>
+    where
         T: QueryFragment<Self::Backend> + QueryId,
     {
         self.0.execute_returning_count(source)
     }
 
-    fn transaction_manager(&self) -> &Self::TransactionManager {
-        self.0.transaction_manager()
+    fn transaction_state(
+        &mut self,
+    ) -> &mut <Self::TransactionManager as TransactionManager<Self>>::TransactionStateData {
+        self.0.transaction_state()
+    }
+
+    fn instrumentation(&mut self) -> &mut dyn Instrumentation {
+        self.0.instrumentation()
+    }
+
+    fn set_instrumentation(&mut self, instrumentation: impl Instrumentation) {
+        self.0.set_instrumentation(instrumentation)
     }
 }

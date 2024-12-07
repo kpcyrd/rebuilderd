@@ -16,7 +16,7 @@ pub struct CurrentArtifactNamespace {
 }
 
 impl CurrentArtifactNamespace {
-    pub fn load_current_namespace_from_database(distro: &str, suite: &str, connection: &SqliteConnection) -> Result<Self> {
+    pub fn load_current_namespace_from_database(distro: &str, suite: &str, connection: &mut SqliteConnection) -> Result<Self> {
         let mut existing_pkgbases = HashMap::new();
         for pkgbase in models::PkgBase::list_distro_suite(distro, suite, connection)? {
             let key = Self::gen_key_for_pkgbase(&pkgbase);
@@ -91,8 +91,8 @@ fn pkggroup_to_newpkgbase(group: &PkgGroup) -> Result<models::NewPkgBase> {
     })
 }
 
-fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
-    connection.transaction::<(), _, _>(|| {
+fn sync(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
+    connection.transaction::<(), _, _>(|connection| {
         let distro = &import.distro;
         let suite = &import.suite;
 
@@ -232,7 +232,7 @@ fn sync(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
     Ok(())
 }
 
-fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
+fn retry(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     info!("selecting packages with due retries");
     let queue = models::PkgBase::list_distro_suite_due_retries(import.distro.as_ref(), &import.suite, connection)?;
 
@@ -246,7 +246,7 @@ fn retry(import: &SuiteImport, connection: &SqliteConnection) -> Result<()> {
     Ok(())
 }
 
-pub fn run(import: SuiteImport, connection: &SqliteConnection) -> Result<()> {
+pub fn run(import: SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     sync(&import, connection)?;
     retry(&import, connection)?;
     Ok(())

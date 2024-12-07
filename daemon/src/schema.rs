@@ -1,4 +1,6 @@
-table! {
+// @generated automatically by Diesel CLI.
+
+diesel::table! {
     builds (id) {
         id -> Integer,
         diffoscope -> Nullable<Text>,
@@ -7,7 +9,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     packages (id) {
         id -> Integer,
         pkgbase_id -> Integer,
@@ -26,7 +28,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     pkgbases (id) {
         id -> Integer,
         name -> Text,
@@ -41,7 +43,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     queue (id) {
         id -> Integer,
         pkgbase_id -> Integer,
@@ -55,7 +57,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     workers (id) {
         id -> Integer,
         key -> Text,
@@ -66,12 +68,12 @@ table! {
     }
 }
 
-joinable!(packages -> builds (build_id));
-joinable!(packages -> pkgbases (pkgbase_id));
-joinable!(queue -> pkgbases (pkgbase_id));
-joinable!(queue -> workers (worker_id));
+diesel::joinable!(packages -> builds (build_id));
+diesel::joinable!(packages -> pkgbases (pkgbase_id));
+diesel::joinable!(queue -> pkgbases (pkgbase_id));
+diesel::joinable!(queue -> workers (worker_id));
 
-allow_tables_to_appear_in_same_query!(
+diesel::allow_tables_to_appear_in_same_query!(
     builds,
     packages,
     pkgbases,

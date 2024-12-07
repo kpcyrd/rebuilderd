@@ -36,7 +36,7 @@ impl DashboardState {
         }
     }
 
-    pub fn update(&mut self, connection: &diesel::SqliteConnection) -> Result<()> {
+    pub fn update(&mut self, connection: &mut diesel::SqliteConnection) -> Result<()> {
         models::Queued::free_stale_jobs(connection)?;
         let pkgs = models::Package::list(connection)?;
         let queue = models::Queued::list(None, connection)?;

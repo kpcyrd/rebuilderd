@@ -1,5 +1,3 @@
-#![allow(clippy::extra_unused_lifetimes)]
-
 use chrono::NaiveDateTime;
 use crate::schema::*;
 use diesel::prelude::*;
@@ -7,8 +5,8 @@ use rebuilderd_common::PkgRelease;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
-#[changeset_options(treat_none_as_null="true")]
-#[table_name="packages"]
+#[diesel(treat_none_as_null = true)]
+#[diesel(table_name = packages)]
 pub struct Package {
     pub id: i32,
     pub pkgbase_id: i32,
@@ -27,7 +25,7 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn get_id(my_id: i32, connection: &SqliteConnection) -> Result<Package> {
+    pub fn get_id(my_id: i32, connection: &mut SqliteConnection) -> Result<Package> {
         use crate::schema::packages::dsl::*;
         let pkg = packages
             .filter(id.eq(my_id))
@@ -35,7 +33,7 @@ impl Package {
         Ok(pkg)
     }
 
-    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: Option<&str>, connection: &SqliteConnection) -> Result<Vec<Package>> {
+    pub fn get_by(my_name: &str, my_distro: &str, my_suite: &str, my_architecture: Option<&str>, connection: &mut SqliteConnection) -> Result<Vec<Package>> {
         use crate::schema::packages::dsl::*;
         let mut query = packages
             .filter(name.eq(my_name))
@@ -49,7 +47,7 @@ impl Package {
         Ok(pkg)
     }
 
-    pub fn get_by_api(pkg: &PkgRelease, connection: &SqliteConnection) -> Result<Package> {
+    pub fn get_by_api(pkg: &PkgRelease, connection: &mut SqliteConnection) -> Result<Package> {
         use crate::schema::packages::dsl::*;
         let pkg = packages
             .filter(name.eq(&pkg.name))
@@ -61,7 +59,7 @@ impl Package {
         Ok(pkg)
     }
 
-    pub fn list(connection: &SqliteConnection) -> Result<Vec<Package>> {
+    pub fn list(connection: &mut SqliteConnection) -> Result<Vec<Package>> {
         use crate::schema::packages::dsl::*;
         let pkgs = packages
             .order_by((name, distro))
@@ -69,7 +67,7 @@ impl Package {
         Ok(pkgs)
     }
 
-    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &SqliteConnection) -> Result<Vec<Package>> {
+    pub fn list_distro_suite(my_distro: &str, my_suite: &str, connection: &mut SqliteConnection) -> Result<Vec<Package>> {
         use crate::schema::packages::dsl::*;
         let pkgs = packages
             .filter(distro.eq(my_distro))
@@ -78,7 +76,7 @@ impl Package {
         Ok(pkgs)
     }
 
-    pub fn update(&self, connection: &SqliteConnection) -> Result<()> {
+    pub fn update(&self, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
         diesel::update(packages::table.filter(id.eq(self.id)))
             .set(self)
@@ -86,7 +84,7 @@ impl Package {
         Ok(())
     }
 
-    pub fn reset_status_for_requeued_list(pkgs: &[i32], connection: &SqliteConnection) -> Result<()> {
+    pub fn reset_status_for_requeued_list(pkgs: &[i32], connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::packages::columns::*;
         diesel::update(packages::table
                 .filter(id.eq_any(pkgs))
@@ -99,14 +97,14 @@ impl Package {
         Ok(())
     }
 
-    pub fn delete(my_id: i32, connection: &SqliteConnection) -> Result<()> {
+    pub fn delete(my_id: i32, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::packages::dsl::*;
         diesel::delete(packages.filter(id.eq(my_id)))
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn most_recent_built_at(connection: &SqliteConnection) -> Result<Option<NaiveDateTime>> {
+    pub fn most_recent_built_at(connection: &mut SqliteConnection) -> Result<Option<NaiveDateTime>> {
         use crate::schema::packages::dsl::*;
 
         let latest_built = packages.select(diesel::dsl::max(built_at)).first(connection)?;
@@ -132,7 +130,7 @@ impl Package {
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
-#[table_name="packages"]
+#[diesel(table_name = packages)]
 pub struct NewPackage {
     pub pkgbase_id: i32,
     pub name: String,
@@ -150,14 +148,14 @@ pub struct NewPackage {
 }
 
 impl NewPackage {
-    pub fn insert(&self, connection: &SqliteConnection) -> Result<()> {
+    pub fn insert(&self, connection: &mut SqliteConnection) -> Result<()> {
         diesel::insert_into(packages::table)
             .values(self)
             .execute(connection)?;
         Ok(())
     }
 
-    pub fn insert_batch(pkgs: &[NewPackage], connection: &SqliteConnection) -> Result<()> {
+    pub fn insert_batch(pkgs: &[NewPackage], connection: &mut SqliteConnection) -> Result<()> {
         diesel::insert_into(packages::table)
             .values(pkgs)
             .execute(connection)?;

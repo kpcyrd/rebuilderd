@@ -1,5 +1,5 @@
-#[macro_use] extern crate diesel;
-#[macro_use] extern crate diesel_migrations;
+extern crate diesel;
+extern crate diesel_migrations;
 
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
@@ -23,7 +23,7 @@ pub mod sync;
 pub mod models;
 pub mod web;
 
-fn db_collect_garbage(connection: &SqliteConnection) -> Result<()> {
+fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
     let orphaned = Build::find_orphaned(connection)?;
 
     if !orphaned.is_empty() {
@@ -48,11 +48,11 @@ pub async fn run_config(config: Config) -> Result<()> {
     {
         let pool = pool.clone();
         thread::spawn(move || {
-            let connection = pool.get().expect("Failed to get connection from pool");
+            let mut connection = pool.get().expect("Failed to get connection from pool");
             loop {
                 debug!("Checking for orphaned builds...");
 
-                if let Err(err) = db_collect_garbage(connection.as_ref()) {
+                if let Err(err) = db_collect_garbage(connection.as_mut()) {
                     error!("Failed to delete orphaned builds: {:#}", err);
                 }
 

@@ -5,7 +5,7 @@ description = "rebuilderd - independent build verification daemon"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/kpcyrd/rebuilderd"
-edition = "2018"
+edition = "2021"
 
 [package.metadata.deb]
 maintainer-scripts = "daemon/debian"
@@ -21,8 +21,8 @@ assets = [
 [dependencies]
 actix-web = "4.1.0"
 chrono = { version = "0.4.19", features=["serde"] }
-diesel = { version = "1.4.8", features = ["sqlite", "r2d2", "chrono"] }
-diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
+diesel = { version = "2", features = ["sqlite", "r2d2", "chrono", "i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
+diesel_migrations = { version = "2", features = ["sqlite"] }
 dirs-next = "2.0.0"
 dotenv = "0.15.0"
 env_logger = "0.11"
