@@ -9,13 +9,6 @@ use std::io::prelude::*;
 
 pub const BIN_NMU_PREFIX: &str = "+b";
 
-// TODO: support more archs
-pub fn any_architectures() -> Vec<String> {
-    vec![
-        String::from("amd64"),
-    ]
-}
-
 #[derive(Debug, Default)]
 pub struct SourcePkgBucket {
     pkgs: HashMap<String, Vec<DebianSourcePkg>>,
