@@ -6,6 +6,7 @@ use env_logger::Env;
 use glob::Pattern;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::http;
 use rebuilderd_common::utils;
 use serde::Serialize;
 use std::borrow::Cow;
@@ -43,10 +44,11 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         sync.distro.as_str()
     };
 
+    let http = http::client()?;
     let mut pkgs = match method {
-        "archlinux" => schedule::archlinux::sync(&sync).await?,
-        "debian" => schedule::debian::sync(&sync).await?,
-        "tails" => schedule::tails::sync(&sync).await?,
+        "archlinux" => schedule::archlinux::sync(&http, &sync).await?,
+        "debian" => schedule::debian::sync(&http, &sync).await?,
+        "tails" => schedule::tails::sync(&http, &sync).await?,
         unknown => bail!("No integrated sync for {:?}, use --sync-method or `pkgs sync-stdin` instead", unknown),
     };
     pkgs.sort_by(|a, b| a.name.cmp(&b.name));

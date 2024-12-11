@@ -1,10 +1,10 @@
 use crate::args::PkgsSync;
 use glob::Pattern;
 use rebuilderd_common::errors::*;
-use reqwest::Client;
+use rebuilderd_common::http;
 use std::fs;
 
-pub async fn fetch_url_or_path(client: &Client, path: &str) -> Result<Vec<u8>> {
+pub async fn fetch_url_or_path(client: &http::Client, path: &str) -> Result<Vec<u8>> {
     let bytes = if path.starts_with("https://") || path.starts_with("http://") {
         info!("Downloading {:?}...", path);
         client.get(path)

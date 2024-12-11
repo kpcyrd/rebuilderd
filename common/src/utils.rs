@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn test_secs_to_human_12h_10m_30s() {
-        let x = secs_to_human(3600*12 + 600 + 30);
+        let x = secs_to_human(3600 * 12 + 600 + 30);
         assert_eq!(x, "12h 10m 30s");
     }
 

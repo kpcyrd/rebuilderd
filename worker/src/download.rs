@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::http;
 use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -21,7 +22,7 @@ pub async fn download(url_str: &str, path: &Path) -> Result<PathBuf> {
     let target = path.join(&filename);
 
     info!("Downloading {:?} to {:?}", url_str, target);
-    let client = reqwest::Client::new();
+    let client = http::client()?;
     let mut stream = client.get(url)
         .send()
         .await?

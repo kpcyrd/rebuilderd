@@ -1,10 +1,8 @@
-use chrono::prelude::*;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::{PkgRelease, PkgArtifact, PkgGroup, Status};
-use crate::auth;
-use reqwest::{Client as HttpClient, RequestBuilder};
-use serde::{Serialize, Deserialize};
+use crate::{auth, http, PkgArtifact, PkgGroup, PkgRelease, Status};
+use chrono::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
@@ -16,7 +14,7 @@ pub const SIGNUP_SECRET_HEADER: &str = "X-Signup-Secret";
 
 pub struct Client {
     endpoint: Url,
-    client: HttpClient,
+    client: http::Client,
     is_default_endpoint: bool,
     auth_cookie: Option<String>,
     worker_key: Option<String>,
@@ -26,7 +24,9 @@ pub struct Client {
 impl Client {
     pub fn new(config: ConfigFile, endpoint: Option<String>) -> Result<Client> {
         let (endpoint, auth_cookie, is_default_endpoint) = if let Some(endpoint) = endpoint {
-            let cookie = config.endpoints.get(&endpoint)
+            let cookie = config
+                .endpoints
+                .get(&endpoint)
                 .map(|e| e.cookie.to_string());
             (endpoint, cookie, false)
         } else if let Some(endpoint) = config.http.endpoint {
@@ -35,15 +35,18 @@ impl Client {
             ("http://127.0.0.1:8484".to_string(), None, true)
         };
 
-        let mut endpoint = endpoint.parse::<Url>()
+        let mut endpoint = endpoint
+            .parse::<Url>()
             .with_context(|| anyhow!("Failed to parse endpoint as url: {:?}", endpoint))?;
 
         // If the url ends with a slash, remove it
-        endpoint.path_segments_mut().map_err(|_| anyhow!("Given endpoint url cannot be base"))?
+        endpoint
+            .path_segments_mut()
+            .map_err(|_| anyhow!("Given endpoint url cannot be base"))?
             .pop_if_empty();
 
         debug!("Setting rebuilderd endpoint to {:?}", endpoint.as_str());
-        let client = HttpClient::new();
+        let client = http::client()?;
         Ok(Client {
             endpoint,
             client,
@@ -57,12 +60,11 @@ impl Client {
     pub fn with_auth_cookie(&mut self) -> Result<&mut Self> {
         if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
             debug!("Found cookie path in environment: {:?}", cookie_path);
-            let auth_cookie = auth::read_cookie_from_file(cookie_path)
-                .context("Failed to load auth cookie")?;
+            let auth_cookie =
+                auth::read_cookie_from_file(cookie_path).context("Failed to load auth cookie")?;
             Ok(self.auth_cookie(auth_cookie))
         } else if self.is_default_endpoint {
-            let auth_cookie = auth::find_auth_cookie()
-                .context("Failed to load auth cookie")?;
+            let auth_cookie = auth::find_auth_cookie().context("Failed to load auth cookie")?;
             Ok(self.auth_cookie(auth_cookie))
         } else {
             Ok(self)
@@ -94,7 +96,7 @@ impl Client {
         url
     }
 
-    pub fn get(&self, path: Cow<'static,str>) -> RequestBuilder {
+    pub fn get(&self, path: Cow<'static, str>) -> http::RequestBuilder {
         let mut req = self.client.get(self.url_join(&path));
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
@@ -108,7 +110,7 @@ impl Client {
         req
     }
 
-    pub fn post(&self, path: Cow<'static, str>) -> RequestBuilder {
+    pub fn post(&self, path: Cow<'static, str>) -> http::RequestBuilder {
         let mut req = self.client.post(self.url_join(&path));
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
@@ -123,7 +125,8 @@ impl Client {
     }
 
     pub async fn list_workers(&self) -> Result<Vec<Worker>> {
-        let workers = self.get(Cow::Borrowed("api/v0/workers"))
+        let workers = self
+            .get(Cow::Borrowed("api/v0/workers"))
             .send()
             .await?
             .error_for_status()?
@@ -143,7 +146,8 @@ impl Client {
     }
 
     pub async fn list_pkgs(&self, list: &ListPkgs) -> Result<Vec<PkgRelease>> {
-        let pkgs = self.get(Cow::Borrowed("api/v0/pkgs/list"))
+        let pkgs = self
+            .get(Cow::Borrowed("api/v0/pkgs/list"))
             .query(list)
             .send()
             .await?
@@ -160,7 +164,8 @@ impl Client {
             bail!("Filter matched too many packages: {}", pkgs.len());
         }
 
-        let pkg = pkgs.into_iter()
+        let pkg = pkgs
+            .into_iter()
             .next()
             .context("Filter didn't match any packages on this rebuilder")?;
 
@@ -168,7 +173,8 @@ impl Client {
     }
 
     pub async fn fetch_log(&self, id: i32) -> Result<Vec<u8>> {
-        let log = self.get(Cow::Owned(format!("api/v0/builds/{}/log", id)))
+        let log = self
+            .get(Cow::Owned(format!("api/v0/builds/{}/log", id)))
             .send()
             .await?
             .error_for_status()?
@@ -178,7 +184,8 @@ impl Client {
     }
 
     pub async fn fetch_diffoscope(&self, id: i32) -> Result<Vec<u8>> {
-        let log = self.get(Cow::Owned(format!("api/v0/builds/{}/diffoscope", id)))
+        let log = self
+            .get(Cow::Owned(format!("api/v0/builds/{}/diffoscope", id)))
             .send()
             .await?
             .error_for_status()?
@@ -188,7 +195,8 @@ impl Client {
     }
 
     pub async fn fetch_attestation(&self, id: i32) -> Result<Vec<u8>> {
-        let attestation = self.get(Cow::Owned(format!("api/v0/builds/{}/attestation", id)))
+        let attestation = self
+            .get(Cow::Owned(format!("api/v0/builds/{}/attestation", id)))
             .send()
             .await?
             .error_for_status()?
@@ -198,7 +206,8 @@ impl Client {
     }
 
     pub async fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {
-        let pkgs = self.post(Cow::Borrowed("api/v0/queue/list"))
+        let pkgs = self
+            .post(Cow::Borrowed("api/v0/queue/list"))
             .json(list)
             .send()
             .await?
@@ -220,7 +229,8 @@ impl Client {
     }
 
     pub async fn pop_queue(&self, query: &WorkQuery) -> Result<JobAssignment> {
-        let assignment = self.post(Cow::Borrowed("api/v0/queue/pop"))
+        let assignment = self
+            .post(Cow::Borrowed("api/v0/queue/pop"))
             .json(query)
             .send()
             .await?
@@ -427,25 +437,41 @@ mod tests {
 
     #[test]
     fn test_endpoint_format_example_com() {
-        let client = Client::new(ConfigFile::default(), Some("https://example.com".into())).unwrap();
+        let client =
+            Client::new(ConfigFile::default(), Some("https://example.com".into())).unwrap();
         assert_eq!(client.endpoint, "https://example.com".parse().unwrap());
     }
 
     #[test]
     fn test_endpoint_format_example_com_trailing_slash() {
-        let client = Client::new(ConfigFile::default(), Some("https://example.com/".into())).unwrap();
+        let client =
+            Client::new(ConfigFile::default(), Some("https://example.com/".into())).unwrap();
         assert_eq!(client.endpoint, "https://example.com".parse().unwrap());
     }
 
     #[test]
     fn test_endpoint_format_example_com_with_path() {
-        let client = Client::new(ConfigFile::default(), Some("https://example.com/re/build".into())).unwrap();
-        assert_eq!(client.endpoint, "https://example.com/re/build".parse().unwrap());
+        let client = Client::new(
+            ConfigFile::default(),
+            Some("https://example.com/re/build".into()),
+        )
+        .unwrap();
+        assert_eq!(
+            client.endpoint,
+            "https://example.com/re/build".parse().unwrap()
+        );
     }
 
     #[test]
     fn test_endpoint_format_example_com_with_path_trailing_slash() {
-        let client = Client::new(ConfigFile::default(), Some("https://example.com/re/build/".into())).unwrap();
-        assert_eq!(client.endpoint, "https://example.com/re/build".parse().unwrap());
+        let client = Client::new(
+            ConfigFile::default(),
+            Some("https://example.com/re/build/".into()),
+        )
+        .unwrap();
+        assert_eq!(
+            client.endpoint,
+            "https://example.com/re/build".parse().unwrap()
+        );
     }
 }

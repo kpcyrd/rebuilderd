@@ -2,11 +2,10 @@ use crate::args::PkgsSync;
 use url::Url;
 use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
+use rebuilderd_common::http;
 use regex::Regex;
 
-pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let client = reqwest::Client::new();
-
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let source = sync.source.parse::<Url>()
         .context("Failed to parse source as url")?;
 
@@ -16,7 +15,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
         .push(&sync.suite);
 
     info!("Downloading directory list from {}", url);
-    let directory_list = client.get(url)
+    let directory_list = http.get(url)
         .send()
         .await?
         .error_for_status()?
