@@ -8,7 +8,7 @@ pkgdesc='Independent verification system of binary packages'
 url='https://github.com/kpcyrd/rebuilderd'
 arch=('x86_64')
 license=('GPL3')
-depends=('openssl' 'shared-mime-info' 'xz' 'libzstd.so')
+depends=('shared-mime-info' 'xz' 'libzstd.so')
 makedepends=('cargo' 'sqlite' 'scdoc')
 backup=('etc/rebuilderd.conf'
         'etc/rebuilderd-sync.conf'

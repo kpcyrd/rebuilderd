@@ -1,6 +1,5 @@
 FROM rust:bullseye
 WORKDIR /usr/src/rebuilderd
-RUN apt-get update && apt-get install -y libssl-dev
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -9,7 +8,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
 FROM debian:bullseye
-RUN apt-get update && apt-get install -y libssl1.1 dpkg-dev sudo \
+RUN apt-get update && apt-get install -y dpkg-dev sudo \
     psmisc git rake libvirt-daemon-system dnsmasq-base ebtables faketime pigz qemu-system-x86 qemu-utils vagrant vagrant-libvirt vmdb2
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-tails.sh \

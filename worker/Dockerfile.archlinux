@@ -1,6 +1,6 @@
 FROM archlinux
 WORKDIR /usr/src/rebuilderd
-RUN pacman -Suy --noconfirm gcc pkgconf cargo openssl
+RUN pacman -Suy --noconfirm gcc pkgconf cargo
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/archlinux/target/release/rebuilderd-worker /
 
 FROM archlinux
-RUN pacman -Suy --noconfirm archlinux-repro openssl
+RUN pacman -Suy --noconfirm archlinux-repro
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-archlinux.sh \
     /usr/local/libexec/rebuilderd/

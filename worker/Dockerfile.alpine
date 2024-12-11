@@ -1,7 +1,7 @@
 FROM rust:alpine3.18
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 WORKDIR /usr/src/rebuilderd
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig
+RUN apk add --no-cache musl-dev pkgconfig
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/alpine/target/release/rebuilderd-worker /
 
 FROM alpine:3.18
-RUN apk add --no-cache libgcc openssl
+RUN apk add --no-cache libgcc
 COPY --from=0 /rebuilderd-worker /usr/local/bin/
 ENV REBUILDERD_WORKER_BACKEND=alpine=/usr/local/libexec/rebuilderd/rebuilder-alpine.sh
 ENTRYPOINT ["rebuilderd-worker"]
