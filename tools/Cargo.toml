@@ -29,7 +29,6 @@ glob = "0.3.0"
 nom = "7.1.1"
 rebuilderd-common = { version= "=0.21.0", path="../common" }
 regex = "1.5.6"
-reqwest = { version="0.12", features=["json"] }
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
 tar = "0.4.38"

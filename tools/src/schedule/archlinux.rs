@@ -4,6 +4,7 @@ use crate::schedule::{Pkg, fetch_url_or_path};
 use nom::bytes::complete::take_till;
 use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
+use rebuilderd_common::http;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
@@ -124,7 +125,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
     Ok(pkgs)
 }
 
-pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     let source = if sync.source.ends_with(".db") {
         warn!("Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch");
         "https://mirrors.kernel.org/archlinux/$repo/os/$arch"
@@ -132,13 +133,11 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
         &sync.source
     };
 
-    let client = reqwest::Client::new();
-
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
 
     for arch in &sync.architectures {
         let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
-        let bytes = fetch_url_or_path(&client, &db)
+        let bytes = fetch_url_or_path(http, &db)
             .await?;
 
         info!("Parsing index ({} bytes)...", bytes.len());

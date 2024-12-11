@@ -42,7 +42,7 @@ rust and compile rebuilderd from source:
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
-sudo apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev gcc libssl-dev
+sudo apt install liblzma-dev pkg-config libzstd-dev libsqlite3-dev gcc
 git clone https://github.com/kpcyrd/rebuilderd
 cd rebuilderd
 make

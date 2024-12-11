@@ -3,18 +3,12 @@ use crate::schedule::{Pkg, fetch_url_or_path};
 use xz2::read::XzDecoder;
 use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
+use rebuilderd_common::http;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::prelude::*;
 
 pub const BIN_NMU_PREFIX: &str = "+b";
-
-// TODO: support more archs
-pub fn any_architectures() -> Vec<String> {
-    vec![
-        String::from("amd64"),
-    ]
-}
 
 #[derive(Debug, Default)]
 pub struct SourcePkgBucket {
@@ -330,9 +324,7 @@ impl SyncState {
     }
 }
 
-pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let client = reqwest::Client::new();
-
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
     if sync.releases.len() > 1 {
         bail!("Tracking multiple releases in the same rebuilder is currently unsupported");
     }
@@ -345,7 +337,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
         // Downloading source package index
         let db_url = format!("{}/dists/{}/{}/source/Sources.xz", sync.source, release, sync.suite);
 
-        let bytes = fetch_url_or_path(&client, &db_url)
+        let bytes = fetch_url_or_path(http, &db_url)
             .await?;
 
         info!("Building map of all source packages");
@@ -358,7 +350,7 @@ pub async fn sync(sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
             // Downloading binary package index
             let db_url = format!("{}/dists/{}/{}/binary-{}/Packages.xz", sync.source, release, sync.suite, arch);
 
-            let bytes = fetch_url_or_path(&client, &db_url)
+            let bytes = fetch_url_or_path(http, &db_url)
                 .await?;
 
             for pkg in extract_pkg::<DebianBinPkg>(&bytes)? {

@@ -1,6 +1,5 @@
 FROM rust:bullseye
 WORKDIR /usr/src/rebuilderd
-RUN apt-get update && apt-get install -y libssl-dev
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -9,7 +8,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
 FROM debian:bullseye
-RUN apt-get update && apt install -y libssl-dev git mmdebstrap diffoscope \
+RUN apt-get update && apt install -y git mmdebstrap diffoscope \
     python3-apt python3-dateutil python3-requests python3-rstr python3-setuptools python3-httpx python3-tenacity \
     debian-keyring debian-archive-keyring debian-ports-archive-keyring
 # this is a temporary solution

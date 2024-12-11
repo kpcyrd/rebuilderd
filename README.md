@@ -268,7 +268,7 @@ cargo run --bin rebuilderd-worker -- \
 
 ## Dependencies
 
-Debian: pkg-config liblzma-dev libssl-dev libsqlite3-dev libzstd-dev
+Debian: pkg-config liblzma-dev libsqlite3-dev libzstd-dev
 
 # Funding
 

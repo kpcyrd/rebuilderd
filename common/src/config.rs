@@ -27,8 +27,7 @@ pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
     }
 
     if let Some(path) = path {
-        let c = load_from(path)?
-            .ok_or_else(|| format_err!("Failed to read config file"))?;
+        let c = load_from(path)?.ok_or_else(|| format_err!("Failed to read config file"))?;
         config.update(c);
     }
 
@@ -36,16 +35,15 @@ pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
 }
 
 fn config_path() -> Result<PathBuf> {
-    let config_dir = dirs_next::config_dir()
-        .ok_or_else(|| format_err!("Failed to find config dir"))?;
+    let config_dir =
+        dirs_next::config_dir().ok_or_else(|| format_err!("Failed to find config dir"))?;
     Ok(config_dir.join("rebuilderd.conf"))
 }
 
 fn load_from<P: AsRef<Path>>(path: P) -> Result<Option<ConfigFile>> {
     if let Ok(buf) = fs::read_to_string(path.as_ref()) {
         debug!("loading config file {:?}", path.as_ref());
-        let config = toml::from_str(&buf)
-            .context("Failed to load config")?;
+        let config = toml::from_str(&buf).context("Failed to load config")?;
         Ok(Some(config))
     } else {
         Ok(None)

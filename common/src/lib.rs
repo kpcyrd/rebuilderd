@@ -1,7 +1,7 @@
 use crate::errors::*;
-use colored::*;
 use chrono::NaiveDateTime;
-use serde::{Serialize, Deserialize};
+use colored::*;
+use serde::{Deserialize, Serialize};
 use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -10,6 +10,7 @@ pub mod api;
 pub mod auth;
 pub mod config;
 pub mod errors;
+pub mod http;
 pub mod utils;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,7 +29,14 @@ pub struct PkgRelease {
 }
 
 impl PkgRelease {
-    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, artifact_url: String) -> PkgRelease {
+    pub fn new(
+        name: String,
+        version: String,
+        distro: String,
+        suite: String,
+        architecture: String,
+        artifact_url: String,
+    ) -> PkgRelease {
         PkgRelease {
             name,
             version,
@@ -66,7 +74,14 @@ pub struct PkgArtifact {
 }
 
 impl PkgGroup {
-    pub fn new(name: String, version: String, distro: String, suite: String, architecture: String, input_url: Option<String>) -> PkgGroup {
+    pub fn new(
+        name: String,
+        version: String,
+        distro: String,
+        suite: String,
+        architecture: String,
+        input_url: Option<String>,
+    ) -> PkgGroup {
         PkgGroup {
             name,
             version,
@@ -113,8 +128,8 @@ pub enum Status {
 impl Status {
     pub fn fancy(&self) -> String {
         match self {
-            Status::Good    => "GOOD ".green().to_string(),
-            Status::Bad     => "BAD  ".red().to_string(),
+            Status::Good => "GOOD ".green().to_string(),
+            Status::Bad => "BAD  ".red().to_string(),
             Status::Unknown => "UNKWN".yellow().to_string(),
         }
     }
@@ -125,8 +140,8 @@ impl Deref for Status {
 
     fn deref(&self) -> &'static str {
         match self {
-            Status::Good    => "GOOD",
-            Status::Bad     => "BAD",
+            Status::Good => "GOOD",
+            Status::Bad => "BAD",
             Status::Unknown => "UNKWN",
         }
     }
