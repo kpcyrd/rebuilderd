@@ -1,10 +1,10 @@
 use rebuilderd_common::errors::*;
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::process::{Command, Stdio};
 
 pub fn write(buf: &[u8]) -> Result<()> {
-    if atty::is(atty::Stream::Stdout) && env::var_os("NOPAGER").is_none() {
+    if io::stdout().is_terminal() && env::var_os("NOPAGER").is_none() {
         let mut cmd = Command::new("less")
             .args(["-R"])
             .stdin(Stdio::piped())

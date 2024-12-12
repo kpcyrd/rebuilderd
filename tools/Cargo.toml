@@ -16,7 +16,6 @@ assets = [
 ]
 
 [dependencies]
-atty = "0.2.14"
 bzip2 = "0.4.3"
 chrono = { version = "0.4.19", features=["serde"] }
 clap = { version = "4", features = ["derive"] }
