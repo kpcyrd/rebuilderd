@@ -24,7 +24,7 @@ data-encoding = "2"
 env_logger = "0.11"
 futures = "0.3.21"
 futures-util = "0.3.21"
-in-toto = "0.3"
+in-toto = "0.4"
 nix = { version = "0.29", features = ["process", "signal"] }
 rebuilderd-common = { version= "=0.21.0", path="../common" }
 serde = { version="1.0.137", features=["derive"] }
