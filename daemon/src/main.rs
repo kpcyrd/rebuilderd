@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(Env::default()
         .default_filter_or(logging));
 
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
     let config = config::load(args.config.as_deref())?;
     if args.check_config {
         println!("{:#?}", config);
