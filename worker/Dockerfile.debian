@@ -1,4 +1,4 @@
-FROM rust:bullseye
+FROM rust:bookworm
 WORKDIR /usr/src/rebuilderd
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
@@ -7,15 +7,8 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cargo build --release --locked -p rebuilderd-worker && \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
-FROM debian:bullseye
-RUN apt-get update && apt install -y git mmdebstrap diffoscope \
-    python3-apt python3-dateutil python3-requests python3-rstr python3-setuptools python3-httpx python3-tenacity \
-    debian-keyring debian-archive-keyring debian-ports-archive-keyring
-# this is a temporary solution
-# copied from https://github.com/fepitre/package-rebuilder/blob/fc38df2f6e81ae6307e47cf515caa3e92ec8f5a4/rebuilder.Dockerfile
-RUN git clone https://salsa.debian.org/python-debian-team/python-debian /opt/python-debian
-RUN cd /opt/python-debian && git checkout e28d7a5729b187cfd0ec95da25030224cd10021a && python3 setup.py build install
-RUN git clone --depth=1 'https://github.com/fepitre/debrebuild' /debrebuild
+FROM debian:trixie
+RUN apt-get update && apt install -y apt-utils debian-keyring devscripts diffoscope dpkg-dev mmdebstrap sbuild uidmap
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-debian.sh \
     /usr/local/libexec/rebuilderd/
