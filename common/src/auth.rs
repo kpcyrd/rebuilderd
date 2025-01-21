@@ -4,6 +4,9 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+const SYSTEM_CONFIG_PATH: &str = "/etc/rebuilderd.conf";
+const SYSTEM_COOKIE_PATH: &str = "/var/lib/rebuilderd/auth-cookie";
+
 #[derive(Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default)]
@@ -43,27 +46,32 @@ pub fn read_cookie_from_file<P: AsRef<Path>>(path: P) -> Result<String> {
 
 pub fn find_auth_cookie() -> Result<String> {
     if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
+        debug!("Using auth cookie from cookie path env: {cookie_path:?}");
         return read_cookie_from_file(cookie_path);
     }
 
     if let Some(config_dir) = dirs_next::config_dir() {
         let path = config_dir.join("rebuilderd.conf");
-        if let Some(cookie) = read_cookie_from_config(path)? {
+        if let Some(cookie) = read_cookie_from_config(&path)? {
+            debug!("Using auth cookie from user-config: {path:?}");
             return Ok(cookie);
         }
     }
 
-    if let Some(cookie) = read_cookie_from_config("/etc/rebuilderd.conf")? {
+    if let Some(cookie) = read_cookie_from_config(SYSTEM_CONFIG_PATH)? {
+        debug!("Using auth cookie from system-config: {SYSTEM_CONFIG_PATH:?}");
         return Ok(cookie);
     }
 
-    if let Ok(cookie) = read_cookie_from_file("/var/lib/rebuilderd/auth-cookie") {
+    if let Ok(cookie) = read_cookie_from_file(SYSTEM_COOKIE_PATH) {
+        debug!("Using auth cookie from system-daemon: {SYSTEM_COOKIE_PATH:?}");
         return Ok(cookie);
     }
 
     if let Some(data_dir) = dirs_next::data_dir() {
         let path = data_dir.join("rebuilderd-auth-cookie");
-        if let Ok(cookie) = read_cookie_from_file(path) {
+        if let Ok(cookie) = read_cookie_from_file(&path) {
+            debug!("Using auth cookie from user-daemon: {path:?}");
             return Ok(cookie);
         }
     }
