@@ -190,7 +190,7 @@ cd daemon; cargo run
 ```
 
 This takes a moment but the api should now be available at
-`https://127.0.0.1:8484/api/v0/dashboard`.
+`http://127.0.0.1:8484/api/v0/dashboard`.
 
 This daemon needs to run in the background, so we're starting a new terminal to
 continue with the next steps.
