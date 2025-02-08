@@ -9,52 +9,49 @@ use std::collections::HashMap;
 use std::io::Read;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let mut url = sync.source.clone();
-    if !url.ends_with('/') {
-        url.push('/');
+    if sync.releases.len() > 1 {
+        bail!("Tracking multiple releases in the same rebuilder is currently unsupported");
     }
-    url.push_str(&sync.suite);
-    url.push('/');
 
     let mut bases: HashMap<_, PkgGroup> = HashMap::new();
-    for arch in &sync.architectures {
-        let mut url = url.clone();
-        url.push_str(arch);
-        url.push_str("/os/");
 
-        let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
-        let location = get_primary_location_from_xml(&bytes)?;
+    for release in &sync.releases {
+        for arch in &sync.architectures {
+            let url = format!("{}/{}/{}/{}/os/", sync.source, release, sync.suite, arch);
+            let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
+            let location = get_primary_location_from_xml(&bytes)?;
 
-        let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
-        info!("Parsing index ({} bytes)...", bytes.len());
-        let packages = parse_package_index(GzDecoder::new(&bytes[..]))?;
+            let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
+            info!("Parsing index ({} bytes)...", bytes.len());
+            let packages = parse_package_index(GzDecoder::new(&bytes[..]))?;
 
-        for pkg in packages {
-            if !pkg.matches(sync) {
-                continue;
-            }
+            for pkg in packages {
+                if !pkg.matches(sync) {
+                    continue;
+                }
 
-            let url = format!("{url}{}", pkg.location.href);
-            let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
-            let artifact = PkgArtifact {
-                name: pkg.name,
-                version,
-                url,
-            };
+                let url = format!("{url}{}", pkg.location.href);
+                let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
+                let artifact = PkgArtifact {
+                    name: pkg.name,
+                    version,
+                    url,
+                };
 
-            if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
-                group.add_artifact(artifact);
-            } else {
-                let mut group = PkgGroup::new(
-                    pkg.format.sourcerpm.clone(),
-                    format!("{}-{}", pkg.version.ver, pkg.version.rel),
-                    sync.distro.to_string(),
-                    sync.suite.to_string(),
-                    pkg.arch,
-                    None,
-                );
-                group.add_artifact(artifact);
-                bases.insert(pkg.format.sourcerpm, group);
+                if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
+                    group.add_artifact(artifact);
+                } else {
+                    let mut group = PkgGroup::new(
+                        pkg.format.sourcerpm.clone(),
+                        format!("{}-{}", pkg.version.ver, pkg.version.rel),
+                        sync.distro.to_string(),
+                        sync.suite.to_string(),
+                        pkg.arch,
+                        None,
+                    );
+                    group.add_artifact(artifact);
+                    bases.insert(pkg.format.sourcerpm, group);
+                }
             }
         }
     }
