@@ -1,8 +1,8 @@
-use chrono::prelude::*;
 use crate::models;
-use rebuilderd_common::Status;
+use chrono::prelude::*;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::Status;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -78,7 +78,7 @@ impl DashboardState {
     }
 
     pub fn get_response(&self) -> Result<&DashboardResponse> {
-        if let Some(resp) =&self.response {
+        if let Some(resp) = &self.response {
             Ok(resp)
         } else {
             bail!("No cached state")

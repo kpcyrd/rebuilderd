@@ -1,17 +1,17 @@
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
-use async_trait::async_trait;
-use clap::Parser;
 use crate::args::{Args, SubCommand};
 use crate::rebuild::Context;
+use async_trait::async_trait;
+use clap::Parser;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
-use rebuilderd_common::PkgArtifact;
 use rebuilderd_common::api::*;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
+use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::errors::{Context as _};
+use rebuilderd_common::PkgArtifact;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
@@ -40,9 +40,13 @@ impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
     }
 
     async fn ping(&self) -> Result<()> {
-        if let Err(err) = self.client.ping_build(&PingRequest {
-            queue_id: self.queue_id,
-        }).await {
+        if let Err(err) = self
+            .client
+            .ping_build(&PingRequest {
+                queue_id: self.queue_id,
+            })
+            .await
+        {
             warn!("Failed to ping: {}", err);
         }
         Ok(())
@@ -52,17 +56,20 @@ impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
 async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
     let supported_backends = config.backends.keys().map(String::from).collect::<Vec<_>>();
-    match client.pop_queue(&WorkQuery {
-        supported_backends,
-    }).await? {
+    match client.pop_queue(&WorkQuery { supported_backends }).await? {
         JobAssignment::Nothing => {
             info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
-        },
+        }
         JobAssignment::Rebuild(rb) => {
-            info!("Starting rebuild of {:?} {:?}",  rb.pkgbase.name, rb.pkgbase.version);
+            info!(
+                "Starting rebuild of {:?} {:?}",
+                rb.pkgbase.name, rb.pkgbase.version
+            );
 
-            let backend = config.backends.get(&rb.pkgbase.distro)
+            let backend = config
+                .backends
+                .get(&rb.pkgbase.distro)
                 .cloned()
                 .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.pkgbase.distro))?;
 
@@ -85,8 +92,14 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
             let rebuilds = match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
                 Ok(res) => res,
                 Err(err) => {
-                    error!("Unexpected error while rebuilding package package: {:#}", err);
-                    let msg = format!("rebuilderd: unexpected error while rebuilding package: {:#}\n", err);
+                    error!(
+                        "Unexpected error while rebuilding package package: {:#}",
+                        err
+                    );
+                    let msg = format!(
+                        "rebuilderd: unexpected error while rebuilding package: {:#}\n",
+                        err
+                    );
                     if !log.is_empty() {
                         log.extend(b"\n\n");
                     }
@@ -94,13 +107,10 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
 
                     let mut res = vec![];
                     for artifact in &rb.pkgbase.artifacts {
-                        res.push((
-                            artifact.clone(),
-                            Rebuild::new(BuildStatus::Fail)
-                        ));
+                        res.push((artifact.clone(), Rebuild::new(BuildStatus::Fail)));
                     }
                     res
-                },
+                }
             };
 
             let build_log = String::from_utf8_lossy(&log).into_owned();
@@ -111,7 +121,8 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                 rebuilds,
             };
             info!("Sending build report to rebuilderd...");
-            client.report_build(&report)
+            client
+                .report_build(&report)
                 .await
                 .context("Failed to POST to rebuilderd")?;
         }
@@ -119,10 +130,17 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
     Ok(())
 }
 
-async fn run_worker_loop(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
+async fn run_worker_loop(
+    client: &Client,
+    privkey: &PrivateKey,
+    config: &config::ConfigFile,
+) -> Result<()> {
     loop {
         if let Err(err) = rebuild(client, privkey, config).await {
-            error!("Unexpected error, sleeping for {}s: {:#}", API_ERROR_DELAY, err);
+            error!(
+                "Unexpected error, sleeping for {}s: {:#}",
+                API_ERROR_DELAY, err
+            );
             time::sleep(Duration::from_secs(API_ERROR_DELAY)).await;
         }
 
@@ -149,11 +167,9 @@ async fn main() -> Result<()> {
         _ => "trace",
     };
 
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
+    env_logger::init_from_env(Env::default().default_filter_or(logging));
 
-    let config = config::load(&args)
-        .context("Failed to load config file")?;
+    let config = config::load(&args).context("Failed to load config file")?;
 
     let cookie = find_auth_cookie().ok();
     if cookie.is_some() {
@@ -161,8 +177,7 @@ async fn main() -> Result<()> {
     }
 
     if let Some(name) = args.name {
-        setup::run(&name)
-            .context("Failed to setup worker")?;
+        setup::run(&name).context("Failed to setup worker")?;
     }
     let profile = auth::load()?;
 
@@ -173,13 +188,20 @@ async fn main() -> Result<()> {
             let endpoint = if let Some(endpoint) = connect.endpoint {
                 endpoint
             } else {
-                config.endpoint.clone()
+                config
+                    .endpoint
+                    .clone()
                     .ok_or_else(|| format_err!("No endpoint configured"))?
             };
 
-            let client = profile.new_client(system_config, endpoint, config.signup_secret.clone(), cookie)?;
+            let client = profile.new_client(
+                system_config,
+                endpoint,
+                config.signup_secret.clone(),
+                cookie,
+            )?;
             run_worker_loop(&client, &profile.privkey, &config).await?;
-        },
+        }
         // this is only really for debugging
         SubCommand::Build(build) => {
             let backend = if let Some(script_location) = build.script_location {
@@ -187,7 +209,9 @@ async fn main() -> Result<()> {
                     path: script_location,
                 }
             } else {
-                config.backends.get(&build.distro)
+                config
+                    .backends
+                    .get(&build.distro)
                     .cloned()
                     .ok_or_else(|| anyhow!("No backend configured in config file"))?
             };
@@ -199,18 +223,22 @@ async fn main() -> Result<()> {
 
             let mut log = Vec::new();
 
-            let res = rebuild::rebuild(&Context {
-                artifacts: vec![PkgArtifact {
-                    name: "anonymous".to_string(),
-                    version: "0.0.0".to_string(),
-                    url: build.artifact_url,
-                }],
-                input_url: build.input_url,
-                backend,
-                build: config.build,
-                diffoscope,
-                privkey: &profile.privkey,
-            }, &mut log).await?;
+            let res = rebuild::rebuild(
+                &Context {
+                    artifacts: vec![PkgArtifact {
+                        name: "anonymous".to_string(),
+                        version: "0.0.0".to_string(),
+                        url: build.artifact_url,
+                    }],
+                    input_url: build.input_url,
+                    backend,
+                    build: config.build,
+                    diffoscope,
+                    privkey: &profile.privkey,
+                },
+                &mut log,
+            )
+            .await?;
 
             for (artifact, res) in res {
                 trace!("rebuild result object for {:?} is {:?}", artifact, res);
@@ -224,15 +252,16 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-        },
+        }
         SubCommand::Diffoscope(diffoscope) => {
-            let output = diffoscope::diffoscope(&diffoscope.a, &diffoscope.b, &config.diffoscope).await?;
+            let output =
+                diffoscope::diffoscope(&diffoscope.a, &diffoscope.b, &config.diffoscope).await?;
             print!("{}", output);
-        },
+        }
         SubCommand::CheckConfig => {
             let json = serde_json::to_string_pretty(&config)?;
             println!("{}", json);
-        },
+        }
     }
 
     Ok(())

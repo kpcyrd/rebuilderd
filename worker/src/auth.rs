@@ -3,10 +3,10 @@ use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd_common::api::Client;
 use rebuilderd_common::config::ConfigFile;
 use rebuilderd_common::errors::*;
-use std::fs::OpenOptions;
 use std::fs;
-use std::io::ErrorKind;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
+use std::io::ErrorKind;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
@@ -16,7 +16,13 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn new_client(&self, config: ConfigFile, endpoint: String, signup_secret: Option<String>, auth_cookie: Option<String>) -> Result<Client> {
+    pub fn new_client(
+        &self,
+        config: ConfigFile,
+        endpoint: String,
+        signup_secret: Option<String>,
+        auth_cookie: Option<String>,
+    ) -> Result<Client> {
         let mut client = Client::new(config, Some(endpoint))?;
         client.worker_key(self.pubkey.clone());
         if let Some(signup_secret) = signup_secret {
@@ -61,8 +67,5 @@ fn load_key<P: AsRef<Path>>(path: P) -> Result<Profile> {
     let pk = privkey.public();
     let pubkey = BASE64.encode(pk.as_bytes());
 
-    Ok(Profile {
-        pubkey,
-        privkey,
-    })
+    Ok(Profile { pubkey, privkey })
 }

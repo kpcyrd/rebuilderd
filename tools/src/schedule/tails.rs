@@ -1,21 +1,25 @@
 use crate::args::PkgsSync;
-use url::Url;
-use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
+use rebuilderd_common::{PkgArtifact, PkgGroup};
 use regex::Regex;
+use url::Url;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let source = sync.source.parse::<Url>()
+    let source = sync
+        .source
+        .parse::<Url>()
         .context("Failed to parse source as url")?;
 
     let mut url = source.clone();
-    url.path_segments_mut().map_err(|_| anyhow!("cannot be base"))?
+    url.path_segments_mut()
+        .map_err(|_| anyhow!("cannot be base"))?
         .pop_if_empty()
         .push(&sync.suite);
 
     info!("Downloading directory list from {}", url);
-    let directory_list = http.get(url)
+    let directory_list = http
+        .get(url)
         .send()
         .await?
         .error_for_status()?
@@ -25,7 +29,9 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
     info!("Detecting tails versions");
 
     let re = Regex::new(r"tails-amd64-([0-9a-z~\.]+)/").unwrap();
-    let cap = re.captures_iter(&directory_list).next()
+    let cap = re
+        .captures_iter(&directory_list)
+        .next()
         .ok_or_else(|| anyhow!("Regular expression didn't match any versions"))?;
     let version = &cap[1];
 
@@ -44,13 +50,10 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
         let filename = format!("tails-amd64-{}.{}", version, ext);
 
         let mut url = source.clone();
-        url.path_segments_mut().map_err(|_| anyhow!("cannot be base"))?
+        url.path_segments_mut()
+            .map_err(|_| anyhow!("cannot be base"))?
             .pop_if_empty()
-            .extend(&[
-                &sync.suite,
-                &format!("tails-amd64-{}", version),
-                &filename,
-            ]);
+            .extend(&[&sync.suite, &format!("tails-amd64-{}", version), &filename]);
 
         let url = url.to_string();
         info!("Artifact url: {:?}", url);

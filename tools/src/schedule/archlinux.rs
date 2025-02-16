@@ -1,10 +1,10 @@
 use crate::args::PkgsSync;
 use crate::decompress;
-use crate::schedule::{Pkg, fetch_url_or_path};
+use crate::schedule::{fetch_url_or_path, Pkg};
 use nom::bytes::complete::take_till;
-use rebuilderd_common::{PkgGroup, PkgArtifact};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
+use rebuilderd_common::{PkgArtifact, PkgGroup};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
@@ -52,8 +52,7 @@ impl Pkg for ArchPkg {
     }
 
     fn by_maintainer(&self, maintainers: &[String]) -> bool {
-        maintainers.iter()
-            .any(|m| self.packager.starts_with(m))
+        maintainers.iter().any(|m| self.packager.starts_with(m))
     }
 }
 
@@ -72,12 +71,36 @@ impl TryInto<ArchPkg> for NewPkg {
 
     fn try_into(self: NewPkg) -> Result<ArchPkg> {
         Ok(ArchPkg {
-            name: self.name.first().ok_or_else(|| anyhow!("Missing pkg name field"))?.to_string(),
-            base: self.base.first().ok_or_else(|| anyhow!("Missing pkg base field"))?.to_string(),
-            filename: self.filename.first().ok_or_else(|| anyhow!("Missing filename field"))?.to_string(),
-            version: self.version.first().ok_or_else(|| anyhow!("Missing version field"))?.to_string(),
-            architecture: self.architecture.first().ok_or_else(|| anyhow!("Missing architecture field"))?.to_string(),
-            packager: self.packager.first().ok_or_else(|| anyhow!("Missing packager field"))?.to_string(),
+            name: self
+                .name
+                .first()
+                .ok_or_else(|| anyhow!("Missing pkg name field"))?
+                .to_string(),
+            base: self
+                .base
+                .first()
+                .ok_or_else(|| anyhow!("Missing pkg base field"))?
+                .to_string(),
+            filename: self
+                .filename
+                .first()
+                .ok_or_else(|| anyhow!("Missing filename field"))?
+                .to_string(),
+            version: self
+                .version
+                .first()
+                .ok_or_else(|| anyhow!("Missing version field"))?
+                .to_string(),
+            architecture: self
+                .architecture
+                .first()
+                .ok_or_else(|| anyhow!("Missing architecture field"))?
+                .to_string(),
+            packager: self
+                .packager
+                .first()
+                .ok_or_else(|| anyhow!("Missing packager field"))?
+                .to_string(),
         })
     }
 }
@@ -137,8 +160,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
 
     for arch in &sync.architectures {
         let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
-        let bytes = fetch_url_or_path(http, &db)
-            .await?;
+        let bytes = fetch_url_or_path(http, &db).await?;
 
         info!("Parsing index ({} bytes)...", bytes.len());
         for pkg in extract_pkgs(&bytes)? {
@@ -180,7 +202,16 @@ mod tests {
 
     #[test]
     fn test_mirror_to_url() {
-        let url = mirror_to_url("https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch", "core", "x86_64", "core.db").unwrap();
-        assert_eq!(url, "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db");
+        let url = mirror_to_url(
+            "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch",
+            "core",
+            "x86_64",
+            "core.db",
+        )
+        .unwrap();
+        assert_eq!(
+            url,
+            "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db"
+        );
     }
 }

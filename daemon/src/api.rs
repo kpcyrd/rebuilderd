@@ -1,5 +1,3 @@
-use actix_web::{get, post, HttpRequest, HttpResponse, Responder, http};
-use chrono::prelude::*;
 use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
@@ -7,23 +5,23 @@ use crate::db::Pool;
 use crate::models;
 use crate::sync;
 use crate::web;
+use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
+use chrono::prelude::*;
 use diesel::SqliteConnection;
-use rebuilderd_common::{PkgRelease, Status};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::{PkgRelease, Status};
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
 fn forbidden() -> HttpResponse {
-    HttpResponse::Forbidden()
-        .body("Authentication failed\n")
+    HttpResponse::Forbidden().body("Authentication failed\n")
 }
 
 fn not_found() -> HttpResponse {
-    HttpResponse::NotFound()
-        .body("Not found\n")
+    HttpResponse::NotFound().body("Not found\n")
 }
 
 fn not_modified() -> HttpResponse {
@@ -31,7 +29,9 @@ fn not_modified() -> HttpResponse {
 }
 
 pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
-    let value = req.headers().get(key)
+    let value = req
+        .headers()
+        .get(key)
         .ok_or_else(|| format_err!("Missing header"))?
         .to_str()
         .context("Failed to decode header value")?;
@@ -39,7 +39,8 @@ pub fn header<'a>(req: &'a HttpRequest, key: &str) -> Result<&'a str> {
 }
 
 fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option<chrono::Duration> {
-    header(req, http::header::IF_MODIFIED_SINCE.as_str()).ok()
+    header(req, http::header::IF_MODIFIED_SINCE.as_str())
+        .ok()
         .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
         .map(|value| value.signed_duration_since(datetime))
 }
@@ -144,29 +145,30 @@ pub async fn list_queue(
 
     models::Queued::free_stale_jobs(connection.as_mut())?;
     let queue = models::Queued::list(query.limit, connection.as_mut())?;
-    let queue: Vec<QueueItem> = queue.into_iter()
+    let queue: Vec<QueueItem> = queue
+        .into_iter()
         .map(|x| x.into_api_item(connection.as_mut()))
         .collect::<Result<_>>()?;
 
     let now = Utc::now().naive_utc();
 
-    Ok(HttpResponse::Ok().json(QueueList {
-        now,
-        queue,
-    }))
+    Ok(HttpResponse::Ok().json(QueueList { now, queue }))
 }
 
-fn get_worker_from_request(req: &HttpRequest, cfg: &Config, connection: &mut SqliteConnection) -> web::Result<models::Worker> {
-    let key = header(req, WORKER_KEY_HEADER)
-        .context("Failed to get worker key")?;
+fn get_worker_from_request(
+    req: &HttpRequest,
+    cfg: &Config,
+    connection: &mut SqliteConnection,
+) -> web::Result<models::Worker> {
+    let key = header(req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
 
     let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
-        let ip = header(req, real_ip_header)
-            .context("Failed to locate real ip header")?;
+        let ip = header(req, real_ip_header).context("Failed to locate real ip header")?;
         ip.parse::<IpAddr>()
             .context("Can't parse real ip header as ip address")?
     } else {
-        let ci = req.peer_addr()
+        let ci = req
+            .peer_addr()
             .ok_or_else(|| format_err!("Can't determine client ip"))?;
         ci.ip()
     };
@@ -197,13 +199,20 @@ pub async fn push_queue(
     let mut connection = pool.get().map_err(Error::from)?;
 
     debug!("searching pkg: {:?}", query);
-    let pkgs = models::Package::get_by(&query.name, &query.distro, &query.suite, query.architecture.as_deref(), connection.as_mut())?;
+    let pkgs = models::Package::get_by(
+        &query.name,
+        &query.distro,
+        &query.suite,
+        query.architecture.as_deref(),
+        connection.as_mut(),
+    )?;
 
     for pkg in pkgs {
         debug!("found pkg: {:?}", pkg);
 
         let pkgbase = models::PkgBase::get_id(pkg.pkgbase_id, connection.as_mut())?;
-        let item = models::NewQueued::new(pkgbase.id, pkgbase.version, pkgbase.distro, query.priority);
+        let item =
+            models::NewQueued::new(pkgbase.id, pkgbase.version, pkgbase.distro, query.priority);
 
         debug!("adding to queue: {:?}", item);
         if let Err(err) = item.insert(connection.as_mut()) {
@@ -230,13 +239,15 @@ pub async fn pop_queue(
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
 
     models::Queued::free_stale_jobs(connection.as_mut())?;
-    let (resp, status) = if let Some(item) = models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_mut())? {
-
-
+    let (resp, status) = if let Some(item) =
+        models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_mut())?
+    {
         // TODO: claim item correctly
 
-
-        let status = format!("working hard on {} {}", item.pkgbase.name, item.pkgbase.version);
+        let status = format!(
+            "working hard on {} {}",
+            item.pkgbase.name, item.pkgbase.version
+        );
         (JobAssignment::Rebuild(Box::new(item)), Some(status))
     } else {
         (JobAssignment::Nothing, None)
@@ -262,10 +273,15 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let pkgbases = models::PkgBase::get_by(&query.name, &query.distro, &query.suite, None, query.architecture.as_deref(), connection.as_mut())?;
-    let pkgbases = pkgbases.iter()
-        .map(|p| p.id)
-        .collect::<Vec<_>>();
+    let pkgbases = models::PkgBase::get_by(
+        &query.name,
+        &query.distro,
+        &query.suite,
+        None,
+        query.architecture.as_deref(),
+        connection.as_mut(),
+    )?;
+    let pkgbases = pkgbases.iter().map(|p| p.id).collect::<Vec<_>>();
 
     models::Queued::drop_for_pkgbases(&pkgbases, connection.as_mut())?;
 
@@ -305,7 +321,10 @@ pub async fn requeue_pkgbase(
             continue;
         }
 
-        debug!("Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}", pkg.name, pkg.version, pkg.pkgbase_id);
+        debug!(
+            "Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}",
+            pkg.name, pkg.version, pkg.pkgbase_id
+        );
         pkg_ids.push(pkg.id);
         pkgbase_ids.insert(pkg.pkgbase_id);
     }
@@ -313,12 +332,15 @@ pub async fn requeue_pkgbase(
     let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
     let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_mut())?;
 
-    let to_be_queued = pkgbases.into_iter()
+    let to_be_queued = pkgbases
+        .into_iter()
         .map(|pkgbase| {
-            models::NewQueued::new(pkgbase.id,
-                                   pkgbase.version.to_string(),
-                                   pkgbase.distro,
-                                   query.priority)
+            models::NewQueued::new(
+                pkgbase.id,
+                pkgbase.version.to_string(),
+                pkgbase.distro,
+                query.priority,
+            )
         })
         .collect::<Vec<_>>();
 
@@ -382,11 +404,13 @@ pub async fn report_build(
 
     let mut needs_retry = false;
     for (artifact, rebuild) in &report.rebuilds {
-        let mut packages = models::Package::get_by(&artifact.name,
-                                               &pkgbase.distro,
-                                               &pkgbase.suite,
-                                               None,
-                                               connection.as_mut())?;
+        let mut packages = models::Package::get_by(
+            &artifact.name,
+            &pkgbase.distro,
+            &pkgbase.suite,
+            None,
+            connection.as_mut(),
+        )?;
 
         packages.retain(|x| x.pkgbase_id == pkgbase.id);
         if packages.len() != 1 {

@@ -73,10 +73,4 @@ diesel::joinable!(packages -> pkgbases (pkgbase_id));
 diesel::joinable!(queue -> pkgbases (pkgbase_id));
 diesel::joinable!(queue -> workers (worker_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    builds,
-    packages,
-    pkgbases,
-    queue,
-    workers,
-);
+diesel::allow_tables_to_appear_in_same_query!(builds, packages, pkgbases, queue, workers,);

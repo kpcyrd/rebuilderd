@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::{Command, Child};
+use tokio::process::{Child, Command};
 use tokio::select;
 use tokio::time;
 
@@ -53,7 +53,12 @@ impl Capture<'_> {
             if let Some(size_limit) = &self.size_limit {
                 let n = cmp::min(size_limit - self.output.len(), slice.len());
                 if n < 1 {
-                    warn!("Exceeding output limit: output={}, slice={}, limit={}", self.output.len(), slice.len(), size_limit);
+                    warn!(
+                        "Exceeding output limit: output={}, slice={}, limit={}",
+                        self.output.len(),
+                        slice.len(),
+                        size_limit
+                    );
                     let msg = format!("TRUNCATED DUE TO SIZE LIMIT: {} bytes", size_limit);
                     self.truncate(child, &msg, self.kill_at_size_limit).await?;
                     return Ok(());
@@ -90,12 +95,20 @@ impl Capture<'_> {
         Ok(())
     }
 
-    pub async fn next_wakeup(&mut self, child: &mut Child, stdout_open: &mut bool, stderr_open: &mut bool) -> Result<Duration> {
+    pub async fn next_wakeup(
+        &mut self,
+        child: &mut Child,
+        stdout_open: &mut bool,
+        stderr_open: &mut bool,
+    ) -> Result<Duration> {
         // check if we need to SIGKILL due to SIGTERM timeout
         if let Some(sigterm_sent) = self.sigterm_sent {
             if sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
                 if let Some(pid) = child.id() {
-                    warn!("child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL", pid, SIGKILL_DELAY);
+                    warn!(
+                        "child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL",
+                        pid, SIGKILL_DELAY
+                    );
                     // child.id is going to return None after this
                     Self::kill(pid, Signal::SIGKILL)?;
                     *stdout_open = false;
@@ -110,7 +123,10 @@ impl Capture<'_> {
         } else if self.sigterm_sent.is_none() {
             // the process has timed out, sending SIGTERM
             warn!("child timed out, killing...");
-            let msg = format!("TRUNCATED DUE TO TIMEOUT: {} seconds", self.timeout.as_secs());
+            let msg = format!(
+                "TRUNCATED DUE TO TIMEOUT: {} seconds",
+                self.timeout.as_secs()
+            );
             self.truncate(child, &msg, true).await?;
         }
 
@@ -120,13 +136,13 @@ impl Capture<'_> {
 }
 
 pub async fn run<I, S>(bin: &Path, args: I, opts: Options, log: &mut Vec<u8>) -> Result<bool>
-    where I: IntoIterator<Item = S> + fmt::Debug,
+where
+    I: IntoIterator<Item = S> + fmt::Debug,
     S: AsRef<OsStr>,
 {
     info!("Running {:?} {:?}", bin, args);
     let mut cmd = Command::new(bin);
-    cmd
-        .args(args)
+    cmd.args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -159,7 +175,9 @@ pub async fn run<I, S>(bin: &Path, args: I, opts: Options, log: &mut Vec<u8>) ->
     let mut stderr_open = true;
     let mut cap = capture(log, opts);
     let success = loop {
-        let remaining = cap.next_wakeup(&mut child, &mut stdout_open, &mut stderr_open).await?;
+        let remaining = cap
+            .next_wakeup(&mut child, &mut stdout_open, &mut stderr_open)
+            .await?;
 
         if stdout_open || stderr_open {
             select! {
@@ -220,30 +238,40 @@ mod tests {
 
     #[tokio::test]
     async fn hello_world() {
-        let (success, output, _) = script("/bin/echo hello world", Options {
-            timeout: Duration::from_secs(600),
-            size_limit: None,
-            kill_at_size_limit: false,
-            passthrough: false,
-            envs: HashMap::new(),
-        }).await.unwrap();
+        let (success, output, _) = script(
+            "/bin/echo hello world",
+            Options {
+                timeout: Duration::from_secs(600),
+                size_limit: None,
+                kill_at_size_limit: false,
+                passthrough: false,
+                envs: HashMap::new(),
+            },
+        )
+        .await
+        .unwrap();
         assert!(success);
         assert_eq!(output, "hello world\n");
     }
 
     #[tokio::test]
     async fn size_limit_no_kill() {
-        let (success, output, _) = script("
+        let (success, output, _) = script(
+            "
         for x in `seq 100`; do
             /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
         done
-        ", Options {
-            timeout: Duration::from_secs(600),
-            size_limit: Some(50),
-            kill_at_size_limit: false,
-            passthrough: false,
-            envs: HashMap::new(),
-        }).await.unwrap();
+        ",
+            Options {
+                timeout: Duration::from_secs(600),
+                size_limit: Some(50),
+                kill_at_size_limit: false,
+                passthrough: false,
+                envs: HashMap::new(),
+            },
+        )
+        .await
+        .unwrap();
         assert!(success);
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
@@ -251,18 +279,23 @@ mod tests {
 
     #[tokio::test]
     async fn size_limit_kill() {
-        let (success, output, duration) = script("
+        let (success, output, duration) = script(
+            "
         for x in `seq 100`; do
             /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
             sleep 0.5
         done
-        ", Options {
-            timeout: Duration::from_secs(600),
-            size_limit: Some(50),
-            kill_at_size_limit: true,
-            passthrough: false,
-            envs: HashMap::new(),
-        }).await.unwrap();
+        ",
+            Options {
+                timeout: Duration::from_secs(600),
+                size_limit: Some(50),
+                kill_at_size_limit: true,
+                passthrough: false,
+                envs: HashMap::new(),
+            },
+        )
+        .await
+        .unwrap();
         assert!(!success);
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
@@ -272,18 +305,23 @@ mod tests {
 
     #[tokio::test]
     async fn timeout() {
-        let (success, output, duration) = script("
+        let (success, output, duration) = script(
+            "
         for x in `seq 100`; do
             /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
             sleep 1
         done
-        ", Options {
-            timeout: Duration::from_millis(1500),
-            size_limit: None,
-            kill_at_size_limit: false,
-            passthrough: false,
-            envs: HashMap::new(),
-        }).await.unwrap();
+        ",
+            Options {
+                timeout: Duration::from_millis(1500),
+                size_limit: None,
+                kill_at_size_limit: false,
+                passthrough: false,
+                envs: HashMap::new(),
+            },
+        )
+        .await
+        .unwrap();
         assert!(!success);
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");
@@ -293,18 +331,23 @@ mod tests {
 
     #[tokio::test]
     async fn size_limit_no_kill_but_timeout() {
-        let (success, output, duration) = script("
+        let (success, output, duration) = script(
+            "
         for x in `seq 100`; do
             /bin/echo AAAAAAAAAAAAAAAAAAAAAAAA
             sleep 0.1
         done
-        ", Options {
-            timeout: Duration::from_millis(1500),
-            size_limit: Some(50),
-            kill_at_size_limit: false,
-            passthrough: false,
-            envs: HashMap::new(),
-        }).await.unwrap();
+        ",
+            Options {
+                timeout: Duration::from_millis(1500),
+                size_limit: Some(50),
+                kill_at_size_limit: false,
+                passthrough: false,
+                envs: HashMap::new(),
+            },
+        )
+        .await
+        .unwrap();
         assert!(!success);
         assert_eq!(output,
             "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");

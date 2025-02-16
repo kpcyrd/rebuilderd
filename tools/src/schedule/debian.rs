@@ -1,12 +1,12 @@
 use crate::args::PkgsSync;
-use crate::schedule::{Pkg, fetch_url_or_path};
-use xz2::read::XzDecoder;
-use rebuilderd_common::{PkgGroup, PkgArtifact};
+use crate::schedule::{fetch_url_or_path, Pkg};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
+use rebuilderd_common::{PkgArtifact, PkgGroup};
 use std::collections::HashMap;
-use std::io::BufReader;
 use std::io::prelude::*;
+use std::io::BufReader;
+use xz2::read::XzDecoder;
 
 pub const BIN_NMU_PREFIX: &str = "+b";
 
@@ -78,11 +78,11 @@ pub struct DebianSourcePkg {
 impl DebianSourcePkg {
     // this is necessary because the buildinfo folder structure doesn't align with `Directory:` in Sources.xz
     fn buildinfo_path(&self) -> String {
-        let idx = self.directory.find('/') .unwrap();
-        let (_, directory) = self.directory.split_at(idx+1);
+        let idx = self.directory.find('/').unwrap();
+        let (_, directory) = self.directory.split_at(idx + 1);
 
-        let idx = directory.find('/') .unwrap();
-        let (_, directory) = directory.split_at(idx+1);
+        let idx = directory.find('/').unwrap();
+        let (_, directory) = directory.split_at(idx + 1);
 
         directory.to_string()
     }
@@ -94,11 +94,10 @@ impl DebianSourcePkg {
         } else {
             &self.version
         };
-        let buildinfo_url = format!("https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
-            directory,
-            self.base,
-            version_without_epoch,
-            arch);
+        let buildinfo_url = format!(
+            "https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
+            directory, self.base, version_without_epoch, arch
+        );
         buildinfo_url
     }
 }
@@ -119,9 +118,9 @@ impl Pkg for DebianBinPkg {
     }
 
     fn by_maintainer(&self, maintainers: &[String]) -> bool {
-        self.uploaders.iter()
-            .any(|uploader| maintainers.iter()
-                .any(|m| uploader.starts_with(m)))
+        self.uploaders
+            .iter()
+            .any(|uploader| maintainers.iter().any(|m| uploader.starts_with(m)))
     }
 }
 
@@ -144,11 +143,21 @@ pub trait AnyhowTryFrom<T>: Sized {
 impl AnyhowTryFrom<NewPkg> for DebianSourcePkg {
     fn try_from(new: NewPkg) -> Result<Self> {
         Ok(DebianSourcePkg {
-            base: new.base.ok_or_else(|| format_err!("Missing pkg base field"))?,
-            binary: new.binary.ok_or_else(|| format_err!("Missing binary field"))?,
-            version: new.version.ok_or_else(|| format_err!("Missing version field"))?,
-            directory: new.directory.ok_or_else(|| format_err!("Missing directory field"))?,
-            architecture: new.architecture.ok_or_else(|| format_err!("Missing architecture field"))?,
+            base: new
+                .base
+                .ok_or_else(|| format_err!("Missing pkg base field"))?,
+            binary: new
+                .binary
+                .ok_or_else(|| format_err!("Missing binary field"))?,
+            version: new
+                .version
+                .ok_or_else(|| format_err!("Missing version field"))?,
+            directory: new
+                .directory
+                .ok_or_else(|| format_err!("Missing directory field"))?,
+            architecture: new
+                .architecture
+                .ok_or_else(|| format_err!("Missing architecture field"))?,
             uploaders: new.uploaders,
         })
     }
@@ -156,12 +165,17 @@ impl AnyhowTryFrom<NewPkg> for DebianSourcePkg {
 
 impl AnyhowTryFrom<NewPkg> for DebianBinPkg {
     fn try_from(new: NewPkg) -> Result<Self> {
-        let name = new.base.ok_or_else(|| format_err!("Missing pkg base field"))?;
-        let version = new.version.ok_or_else(|| format_err!("Missing version field"))?;
+        let name = new
+            .base
+            .ok_or_else(|| format_err!("Missing pkg base field"))?;
+        let version = new
+            .version
+            .ok_or_else(|| format_err!("Missing version field"))?;
 
         let source = if let Some(source) = new.source {
             if let Some((name, version)) = source.split_once(' ') {
-                let version = version.strip_prefix('(')
+                let version = version
+                    .strip_prefix('(')
                     .context("Malformed version in Source:")?
                     .strip_suffix(')')
                     .context("Malformed version in Source:")?
@@ -178,8 +192,12 @@ impl AnyhowTryFrom<NewPkg> for DebianBinPkg {
             name,
             version,
             source,
-            architecture: new.architecture.ok_or_else(|| format_err!("Missing architecture field"))?,
-            filename: new.filename.ok_or_else(|| format_err!("Missing filename field"))?,
+            architecture: new
+                .architecture
+                .ok_or_else(|| format_err!("Missing architecture field"))?,
+            filename: new
+                .filename
+                .ok_or_else(|| format_err!("Missing filename field"))?,
             uploaders: new.uploaders,
         })
     }
@@ -221,7 +239,8 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
                             break;
                         }
 
-                        let line = lines.next()
+                        let line = lines
+                            .next()
                             .ok_or_else(|| anyhow!("Found comma on last line of file"))?
                             .context("Failed to read line")?;
                         value.push_str(&line);
@@ -231,7 +250,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
                         binaries.push(binary.to_string());
                     }
                     pkg.binary = Some(binaries);
-                },
+                }
                 "Version" => pkg.version = Some(b.to_string()),
                 "Source" => pkg.source = Some(b.to_string()),
                 "Directory" => pkg.directory = Some(b.to_string()),
@@ -243,7 +262,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
                         uploaders.push(uploader.to_string());
                     }
                     pkg.uploaders = uploaders;
-                },
+                }
                 _ => (),
             }
         }
@@ -262,7 +281,13 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn ensure_group_exists(&mut self, src: &DebianSourcePkg, distro: String, suite: String, arch: &str) {
+    fn ensure_group_exists(
+        &mut self,
+        src: &DebianSourcePkg,
+        distro: String,
+        suite: String,
+        arch: &str,
+    ) {
         // TODO: creating a new group isn't always needed
         let buildinfo_url = src.buildinfo_url(arch);
         let new_group = PkgGroup::new(
@@ -287,7 +312,13 @@ impl SyncState {
         }
     }
 
-    fn get_mut_group(&mut self, src: &DebianSourcePkg, distro: String, suite: String, arch: &str) -> &mut PkgGroup {
+    fn get_mut_group(
+        &mut self,
+        src: &DebianSourcePkg,
+        distro: String,
+        suite: String,
+        arch: &str,
+    ) -> &mut PkgGroup {
         self.ensure_group_exists(src, distro, suite, arch);
 
         // ensure_group_exists ensures the group exists
@@ -303,7 +334,14 @@ impl SyncState {
         unreachable!()
     }
 
-    pub fn push(&mut self, src: &DebianSourcePkg, bin: DebianBinPkg, source: &str, distro: String, suite: String) {
+    pub fn push(
+        &mut self,
+        src: &DebianSourcePkg,
+        bin: DebianBinPkg,
+        source: &str,
+        distro: String,
+        suite: String,
+    ) {
         let group = self.get_mut_group(src, distro, suite, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
         group.add_artifact(PkgArtifact {
@@ -314,12 +352,13 @@ impl SyncState {
     }
 
     pub fn to_vec(self) -> Vec<PkgGroup> {
-        let mut out = self.groups.into_values()
-            .flatten()
-            .collect::<Vec<_>>();
-        out.sort_by(|a, b| a.name.cmp(&b.name)
-            .then_with(|| a.version.cmp(&b.version))
-            .then_with(|| a.architecture.cmp(&b.architecture)));
+        let mut out = self.groups.into_values().flatten().collect::<Vec<_>>();
+        out.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.version.cmp(&b.version))
+                .then_with(|| a.architecture.cmp(&b.architecture))
+        });
         out
     }
 }
@@ -335,10 +374,12 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
         let mut sources = SourcePkgBucket::new();
 
         // Downloading source package index
-        let db_url = format!("{}/dists/{}/{}/source/Sources.xz", sync.source, release, sync.suite);
+        let db_url = format!(
+            "{}/dists/{}/{}/source/Sources.xz",
+            sync.source, release, sync.suite
+        );
 
-        let bytes = fetch_url_or_path(http, &db_url)
-            .await?;
+        let bytes = fetch_url_or_path(http, &db_url).await?;
 
         info!("Building map of all source packages");
         for pkg in extract_pkg::<DebianSourcePkg>(&bytes)? {
@@ -348,10 +389,12 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
 
         for arch in &sync.architectures {
             // Downloading binary package index
-            let db_url = format!("{}/dists/{}/{}/binary-{}/Packages.xz", sync.source, release, sync.suite, arch);
+            let db_url = format!(
+                "{}/dists/{}/{}/binary-{}/Packages.xz",
+                sync.source, release, sync.suite, arch
+            );
 
-            let bytes = fetch_url_or_path(http, &db_url)
-                .await?;
+            let bytes = fetch_url_or_path(http, &db_url).await?;
 
             for pkg in extract_pkg::<DebianBinPkg>(&bytes)? {
                 if !pkg.matches(sync) {
@@ -361,9 +404,18 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
                 debug!("Found binary package: {:?} {:?}", pkg.name, pkg.version);
 
                 let src = sources.get(&pkg)?;
-                debug!("Matched binary package to source package: {:?} {:?}", src.base, src.version);
+                debug!(
+                    "Matched binary package to source package: {:?} {:?}",
+                    src.base, src.version
+                );
 
-                out.push(&src, pkg, &sync.source, sync.distro.clone(), sync.suite.clone());
+                out.push(
+                    &src,
+                    pkg,
+                    &sync.source,
+                    sync.distro.clone(),
+                    sync.suite.clone(),
+                );
             }
         }
     }
@@ -376,7 +428,7 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-#[test]
+    #[test]
     fn test_parse_bin_pkg_simple() {
         let bytes= b"Package: sniffglue
 Source: rust-sniffglue
@@ -400,16 +452,20 @@ SHA256: 448c781a9e594227bc9f0d6c65b8beba2b3add68d3583020de188d4cfa365b40
 ";
         let cursor = Cursor::new(bytes);
         let pkgs = extract_pkgs_uncompressed::<DebianBinPkg, _>(cursor).unwrap();
-        assert_eq!(&pkgs, &[
-            DebianBinPkg {
+        assert_eq!(
+            &pkgs,
+            &[DebianBinPkg {
                 name: "sniffglue".to_string(),
                 version: "0.14.0-2".to_string(),
-                source: ("rust-sniffglue".to_string(), VersionConstraint::Implicit("0.14.0-2".to_string())),
+                source: (
+                    "rust-sniffglue".to_string(),
+                    VersionConstraint::Implicit("0.14.0-2".to_string())
+                ),
                 architecture: "amd64".to_string(),
                 filename: "pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
                 uploaders: vec![],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -438,16 +494,20 @@ SHA256: 0db2ae9db7de7cd88b02741a3fb19cf66f0043d56dcb129d91578f269973b286
 ";
         let cursor = Cursor::new(bytes);
         let pkgs = extract_pkgs_uncompressed::<DebianBinPkg, _>(cursor).unwrap();
-        assert_eq!(&pkgs, &[
-            DebianBinPkg {
+        assert_eq!(
+            &pkgs,
+            &[DebianBinPkg {
                 name: "mariadb-server".to_string(),
                 version: "1:10.5.12-1".to_string(),
-                source: ("mariadb-10.5".to_string(), VersionConstraint::Implicit("1:10.5.12-1".to_string())),
+                source: (
+                    "mariadb-10.5".to_string(),
+                    VersionConstraint::Implicit("1:10.5.12-1".to_string())
+                ),
                 architecture: "all".to_string(),
                 filename: "pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
                 uploaders: vec![],
-            },
-        ]);
+            },]
+        );
     }
 
     #[test]
@@ -508,8 +568,9 @@ Section: misc
 ";
         let cursor = Cursor::new(bytes);
         let pkgs = extract_pkgs_uncompressed::<DebianSourcePkg, _>(cursor).unwrap();
-        assert_eq!(&pkgs, &[
-            DebianSourcePkg {
+        assert_eq!(
+            &pkgs,
+            &[DebianSourcePkg {
                 base: "mariadb-10.5".to_string(),
                 binary: vec![
                     "libmariadb-dev".to_string(),
@@ -541,8 +602,8 @@ Section: misc
                 directory: "pool/main/m/mariadb-10.5".to_string(),
                 architecture: "any all".to_string(),
                 uploaders: vec!["Otto Kekäläinen <otto@debian.org>".to_string()],
-            }
-        ]);
+            }]
+        );
     }
 
     #[test]
@@ -583,13 +644,22 @@ Section: misc
         let bin = DebianBinPkg {
             name: "mariadb-server".to_string(),
             version: "1:10.5.12-1".to_string(),
-            source: ("mariadb-10.5".to_string(), VersionConstraint::Implicit("1:10.5.12-1".to_string())),
+            source: (
+                "mariadb-10.5".to_string(),
+                VersionConstraint::Implicit("1:10.5.12-1".to_string()),
+            ),
             architecture: "all".to_string(),
             filename: "pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
             uploaders: vec![],
         };
         let mut state = SyncState::new();
-        state.push(&src, bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
+        state.push(
+            &src,
+            bin,
+            "https://deb.debian.org/debian",
+            "debian".to_string(),
+            "main".to_string(),
+        );
 
         let mut groups = HashMap::new();
         groups.insert("mariadb-10.5".to_string(), vec![
@@ -610,9 +680,7 @@ Section: misc
             },
         ]);
 
-        assert_eq!(state, SyncState {
-            groups,
-        });
+        assert_eq!(state, SyncState { groups });
     }
 
     #[test]
@@ -692,7 +760,13 @@ Section: misc
 
         let mut state = SyncState::new();
         for bin in bin_pkgs {
-            state.push(&src_pkgs[0], bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
+            state.push(
+                &src_pkgs[0],
+                bin,
+                "https://deb.debian.org/debian",
+                "debian".to_string(),
+                "main".to_string(),
+            );
         }
 
         let mut groups = HashMap::new();
@@ -719,9 +793,7 @@ Section: misc
             },
         ]);
 
-        assert_eq!(state, SyncState {
-            groups,
-        });
+        assert_eq!(state, SyncState { groups });
     }
 
     #[test]
@@ -1020,7 +1092,13 @@ Section: mail
         let mut state = SyncState::new();
         for bin in bin_pkgs {
             let src = sources.get(&bin).unwrap();
-            state.push(&src, bin, "https://deb.debian.org/debian", "debian".to_string(), "main".to_string());
+            state.push(
+                &src,
+                bin,
+                "https://deb.debian.org/debian",
+                "debian".to_string(),
+                "main".to_string(),
+            );
         }
 
         let mut groups = HashMap::new();
@@ -1102,9 +1180,7 @@ Section: mail
             },
         ]);
 
-        assert_eq!(state, SyncState {
-            groups,
-        });
+        assert_eq!(state, SyncState { groups });
     }
 
     #[test]
@@ -1148,7 +1224,7 @@ SHA256: 7dfba1f88be2f8bdf7480085dd018333d0159ac40462daf3679f3757347262c4
 
 ";
 
-    let sources_bytes = "Package: buildlog-consultant
+        let sources_bytes = "Package: buildlog-consultant
 Binary: python3-buildlog-consultant
 Version: 0.0.37-1
 Maintainer: Jelmer Vernooĳ <jelmer@debian.org>
@@ -1235,7 +1311,9 @@ Section: misc
 ";
 
         let mut sources = SourcePkgBucket::new();
-        for pkg in extract_pkgs_uncompressed::<DebianSourcePkg, _>(sources_bytes.as_bytes()).unwrap() {
+        for pkg in
+            extract_pkgs_uncompressed::<DebianSourcePkg, _>(sources_bytes.as_bytes()).unwrap()
+        {
             sources.push(pkg);
         }
 
@@ -1245,31 +1323,35 @@ Section: misc
         // test first package (with Extra-Source-Only)
         let pkg = pkgs.next().unwrap();
         let src = sources.get(&pkg).unwrap();
-        assert_eq!(src, DebianSourcePkg {
-            base: "buildlog-consultant".to_string(),
-            binary: vec![
-                "python3-buildlog-consultant".to_string(),
-            ],
-            version: "0.0.37-1".to_string(),
-            directory: "pool/main/b/buildlog-consultant".to_string(),
-            architecture: "any".to_string(),
-            uploaders: vec![],
-        });
+        assert_eq!(
+            src,
+            DebianSourcePkg {
+                base: "buildlog-consultant".to_string(),
+                binary: vec!["python3-buildlog-consultant".to_string(),],
+                version: "0.0.37-1".to_string(),
+                directory: "pool/main/b/buildlog-consultant".to_string(),
+                architecture: "any".to_string(),
+                uploaders: vec![],
+            }
+        );
 
         // test second package (without Extra-Source-Only)
         let pkg = pkgs.next().unwrap();
         let src = sources.get(&pkg).unwrap();
-        assert_eq!(src, DebianSourcePkg {
-            base: "rust-buildlog-consultant".to_string(),
-            binary: vec![
-                "librust-buildlog-consultant-dev".to_string(),
-                "buildlog-consultant".to_string(),
-            ],
-            version: "0.0.44-1+b1".to_string(),
-            directory: "pool/main/r/rust-buildlog-consultant".to_string(),
-            architecture: "any".to_string(),
-            uploaders: vec!["Jelmer Vernooĳ <jelmer@debian.org>".to_string()],
-        });
+        assert_eq!(
+            src,
+            DebianSourcePkg {
+                base: "rust-buildlog-consultant".to_string(),
+                binary: vec![
+                    "librust-buildlog-consultant-dev".to_string(),
+                    "buildlog-consultant".to_string(),
+                ],
+                version: "0.0.44-1+b1".to_string(),
+                directory: "pool/main/r/rust-buildlog-consultant".to_string(),
+                architecture: "any".to_string(),
+                uploaders: vec!["Jelmer Vernooĳ <jelmer@debian.org>".to_string()],
+            }
+        );
 
         assert_eq!(pkgs.next(), None);
     }

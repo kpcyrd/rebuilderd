@@ -1,9 +1,9 @@
 use crate::models;
 use diesel::Connection;
 use diesel::SqliteConnection;
-use rebuilderd_common::{PkgGroup, Status};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::{PkgGroup, Status};
 use std::collections::HashMap;
 
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;
@@ -16,12 +16,25 @@ pub struct CurrentArtifactNamespace {
 }
 
 impl CurrentArtifactNamespace {
-    pub fn load_current_namespace_from_database(distro: &str, suite: &str, connection: &mut SqliteConnection) -> Result<Self> {
+    pub fn load_current_namespace_from_database(
+        distro: &str,
+        suite: &str,
+        connection: &mut SqliteConnection,
+    ) -> Result<Self> {
         let mut existing_pkgbases = HashMap::new();
         for pkgbase in models::PkgBase::list_distro_suite(distro, suite, connection)? {
             let key = Self::gen_key_for_pkgbase(&pkgbase);
-            debug!("adding known pkgbase with key {:?} for distro={:?}, suite={:?}", key, distro, suite);
-            trace!("adding known pkgbase with key {:?} for distro={:?}, suite={:?} to {:?}", key, distro, suite, pkgbase);
+            debug!(
+                "adding known pkgbase with key {:?} for distro={:?}, suite={:?}",
+                key, distro, suite
+            );
+            trace!(
+                "adding known pkgbase with key {:?} for distro={:?}, suite={:?} to {:?}",
+                key,
+                distro,
+                suite,
+                pkgbase
+            );
             existing_pkgbases.insert(key, pkgbase);
         }
         Ok(CurrentArtifactNamespace {
@@ -234,7 +247,11 @@ fn sync(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
 
 fn retry(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     info!("selecting packages with due retries");
-    let queue = models::PkgBase::list_distro_suite_due_retries(import.distro.as_ref(), &import.suite, connection)?;
+    let queue = models::PkgBase::list_distro_suite_due_retries(
+        import.distro.as_ref(),
+        &import.suite,
+        connection,
+    )?;
 
     info!("queueing new retries");
     for bases in queue.chunks(1_000) {
