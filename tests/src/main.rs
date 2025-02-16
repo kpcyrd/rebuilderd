@@ -3,28 +3,30 @@ use clap::Parser;
 use colored::Colorize;
 use env_logger::Env;
 use rebuilderd::config::Config;
-use rebuilderd_common::{PkgGroup, PkgArtifact, PkgRelease};
-use rebuilderd_common::Status;
 use rebuilderd_common::api::*;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
-use std::thread;
-use std::time::Duration;
+use rebuilderd_common::Status;
+use rebuilderd_common::{PkgArtifact, PkgGroup, PkgRelease};
 use std::io;
 use std::io::prelude::*;
 use std::net::TcpStream;
+use std::thread;
+use std::time::Duration;
 use tempfile::TempDir;
 
 mod args;
 
 async fn list_pkgs(client: &Client) -> Result<Vec<PkgRelease>> {
-    client.list_pkgs(&ListPkgs {
-        name: None,
-        status: None,
-        distro: None,
-        suite: None,
-        architecture: None,
-    }).await
+    client
+        .list_pkgs(&ListPkgs {
+            name: None,
+            status: None,
+            distro: None,
+            suite: None,
+            architecture: None,
+        })
+        .await
 }
 
 async fn initial_import(client: &Client) -> Result<()> {
@@ -32,7 +34,8 @@ async fn initial_import(client: &Client) -> Result<()> {
     let suite = "core".to_string();
     let architecture = "x86_64".to_string();
 
-    let url = "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string();
+    let url = "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst"
+        .to_string();
     let mut group = PkgGroup::new(
         "pkgbase".to_string(),
         "1.4.5-1".to_string(),
@@ -48,17 +51,18 @@ async fn initial_import(client: &Client) -> Result<()> {
     });
     let pkgs = vec![group];
 
-    client.sync_suite(&SuiteImport {
-        distro,
-        suite,
-        groups: pkgs,
-    }).await?;
+    client
+        .sync_suite(&SuiteImport {
+            distro,
+            suite,
+            groups: pkgs,
+        })
+        .await?;
 
     Ok(())
 }
 
-
-async fn test<T: Sized>(label: &str, f: impl futures::Future<Output=Result<T>>) -> Result<T> {
+async fn test<T: Sized>(label: &str, f: impl futures::Future<Output = Result<T>>) -> Result<T> {
     let mut stdout = io::stdout();
     write!(stdout, "{:70}", label)?;
     stdout.flush()?;
@@ -83,7 +87,7 @@ async fn spawn_server(config: Config) {
 fn wait_for_server(addr: &str) -> Result<()> {
     for _ in 0..100 {
         if TcpStream::connect(addr).is_ok() {
-            return Ok(())
+            return Ok(());
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -102,8 +106,7 @@ async fn main() -> Result<()> {
         _ => "trace",
     };
 
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
+    env_logger::init_from_env(Env::default().default_filter_or(logging));
 
     let addr = args.bind_addr;
     let endpoint = args.endpoint.unwrap_or_else(|| format!("http://{}", addr));
@@ -112,9 +115,12 @@ async fn main() -> Result<()> {
 
     config.auth.cookie = Some(args.cookie.clone());
     config.http.bind_addr = Some(addr.clone());
-    config.endpoints.insert(endpoint.clone(), EndpointConfig {
-        cookie: args.cookie.clone(),
-    });
+    config.endpoints.insert(
+        endpoint.clone(),
+        EndpointConfig {
+            cookie: args.cookie.clone(),
+        },
+    );
 
     if !args.no_daemon {
         let config = rebuilderd::config::from_struct(config.clone(), args.cookie)?;
@@ -140,23 +146,28 @@ async fn main() -> Result<()> {
             bail!("Database is not empty");
         }
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Testing there is nothing to do", async {
-        let task = client.pop_queue(&WorkQuery {
-            supported_backends: vec!["archlinux".to_string()],
-        }).await?;
+        let task = client
+            .pop_queue(&WorkQuery {
+                supported_backends: vec!["archlinux".to_string()],
+            })
+            .await?;
 
         if task != JobAssignment::Nothing {
             bail!("Got a job assigned");
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Sending initial import", async {
         initial_import(&client).await
-    }).await?;
+    })
+    .await?;
 
     test("Testing database to contain 1 pkg", async {
         let pkgs = list_pkgs(&client).await?;
@@ -164,17 +175,18 @@ async fn main() -> Result<()> {
             bail!("Not 1");
         }
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Re-sending initial import", async {
         initial_import(&client).await
-    }).await?;
+    })
+    .await?;
 
     test("Testing database to still contain 1 pkg", async {
         let mut pkgs = list_pkgs(&client).await?;
 
-        let pkg = pkgs.pop()
-            .ok_or_else(|| format_err!("No pkgs found"))?;
+        let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
         if pkg.name != "zstd" {
             bail!("Mismatch name");
@@ -193,12 +205,15 @@ async fn main() -> Result<()> {
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Fetching task and reporting BAD rebuild", async {
-        let task = client.pop_queue(&WorkQuery {
-            supported_backends: vec!["archlinux".to_string()],
-        }).await?;
+        let task = client
+            .pop_queue(&WorkQuery {
+                supported_backends: vec!["archlinux".to_string()],
+            })
+            .await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
@@ -207,11 +222,14 @@ async fn main() -> Result<()> {
 
         let mut rebuilds = Vec::new();
         for artifact in queue.pkgbase.artifacts.clone() {
-            rebuilds.push((artifact, Rebuild {
-                diffoscope: None,
-                status: BuildStatus::Bad,
-                attestation: None,
-            }));
+            rebuilds.push((
+                artifact,
+                Rebuild {
+                    diffoscope: None,
+                    status: BuildStatus::Bad,
+                    attestation: None,
+                },
+            ));
         }
 
         let report = BuildReport {
@@ -222,13 +240,13 @@ async fn main() -> Result<()> {
         client.report_build(&report).await?;
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Fetching pkg status", async {
         let mut pkgs = list_pkgs(&client).await?;
 
-        let pkg = pkgs.pop()
-            .ok_or_else(|| format_err!("No pkgs found"))?;
+        let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
         if pkg.status != Status::Bad {
             bail!("Unexpected pkg status");
@@ -239,27 +257,30 @@ async fn main() -> Result<()> {
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Requeueing BAD pkgs", async {
-        client.requeue_pkgs(&RequeueQuery {
-            name: None,
-            status: Some(Status::Bad),
-            priority: 2,
-            distro: None,
-            suite: None,
-            architecture: None,
-            reset: false,
-        }).await?;
+        client
+            .requeue_pkgs(&RequeueQuery {
+                name: None,
+                status: Some(Status::Bad),
+                priority: 2,
+                distro: None,
+                suite: None,
+                architecture: None,
+                reset: false,
+            })
+            .await?;
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Fetching pkg status", async {
         let mut pkgs = list_pkgs(&client).await?;
 
-        let pkg = pkgs.pop()
-            .ok_or_else(|| format_err!("No pkgs found"))?;
+        let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
         if pkg.status != Status::Bad {
             bail!("Unexpected pkg status");
@@ -270,12 +291,15 @@ async fn main() -> Result<()> {
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Fetching task and reporting GOOD rebuild", async {
-        let task = client.pop_queue(&WorkQuery {
-            supported_backends: vec!["archlinux".to_string()],
-        }).await?;
+        let task = client
+            .pop_queue(&WorkQuery {
+                supported_backends: vec!["archlinux".to_string()],
+            })
+            .await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
@@ -284,11 +308,14 @@ async fn main() -> Result<()> {
 
         let mut rebuilds = Vec::new();
         for artifact in queue.pkgbase.artifacts.clone() {
-            rebuilds.push((artifact, Rebuild {
-                diffoscope: None,
-                status: BuildStatus::Good,
-                attestation: None,
-            }));
+            rebuilds.push((
+                artifact,
+                Rebuild {
+                    diffoscope: None,
+                    status: BuildStatus::Good,
+                    attestation: None,
+                },
+            ));
         }
 
         let report = BuildReport {
@@ -299,13 +326,13 @@ async fn main() -> Result<()> {
         client.report_build(&report).await?;
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Fetching pkg status", async {
         let mut pkgs = list_pkgs(&client).await?;
 
-        let pkg = pkgs.pop()
-            .ok_or_else(|| format_err!("No pkgs found"))?;
+        let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
         if pkg.status != Status::Good {
             bail!("Unexpected pkg status");
@@ -316,7 +343,8 @@ async fn main() -> Result<()> {
         }
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Sending import for build group of two artifacts", async {
         let distro = "rebuilderd".to_string();
@@ -342,14 +370,17 @@ async fn main() -> Result<()> {
             url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
         });
 
-        client.sync_suite(&SuiteImport {
-            distro,
-            suite,
-            groups: vec![group],
-        }).await?;
+        client
+            .sync_suite(&SuiteImport {
+                distro,
+                suite,
+                groups: vec![group],
+            })
+            .await?;
 
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     test("Testing database to contain 3 pkgs", async {
         let pkgs = list_pkgs(&client).await?;
@@ -357,7 +388,8 @@ async fn main() -> Result<()> {
             bail!("Not 3");
         }
         Ok(())
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }

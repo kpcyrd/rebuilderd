@@ -1,5 +1,5 @@
 use crate::auth;
-use rebuilderd_common::config::{ConfigFile, WorkerConfig, ScheduleConfig};
+use rebuilderd_common::config::{ConfigFile, ScheduleConfig, WorkerConfig};
 use rebuilderd_common::errors::*;
 use std::env;
 use std::fs;
@@ -31,22 +31,23 @@ pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
         worker: config.worker,
         bind_addr,
         real_ip_header: config.http.real_ip_header,
-        post_body_size_limit: config.http.post_body_size_limit.unwrap_or(DEFAULT_POST_BODY_SIZE_LIMIT),
+        post_body_size_limit: config
+            .http
+            .post_body_size_limit
+            .unwrap_or(DEFAULT_POST_BODY_SIZE_LIMIT),
         schedule: config.schedule,
     })
 }
 
 pub fn load(path: Option<&Path>) -> Result<Config> {
     let config = if let Some(path) = path {
-        let buf = fs::read_to_string(path)
-            .context("Failed to read config file")?;
+        let buf = fs::read_to_string(path).context("Failed to read config file")?;
         toml::from_str(&buf)?
     } else {
         ConfigFile::default()
     };
 
-    let auth_cookie = auth::setup_auth_cookie()
-        .context("Failed to setup auth cookie")?;
+    let auth_cookie = auth::setup_auth_cookie().context("Failed to setup auth cookie")?;
 
     from_struct(config, auth_cookie)
 }

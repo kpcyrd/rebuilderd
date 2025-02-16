@@ -1,8 +1,8 @@
-use clap::{Parser, ArgAction};
+use clap::{ArgAction, Parser};
 use env_logger::Env;
-use std::path::PathBuf;
 use rebuilderd::config;
 use rebuilderd_common::errors::*;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -30,8 +30,7 @@ async fn main() -> Result<()> {
         _ => "trace",
     };
 
-    env_logger::init_from_env(Env::default()
-        .default_filter_or(logging));
+    env_logger::init_from_env(Env::default().default_filter_or(logging));
 
     dotenvy::dotenv().ok();
     let config = config::load(args.config.as_deref())?;

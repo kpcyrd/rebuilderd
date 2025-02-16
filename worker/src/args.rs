@@ -1,4 +1,4 @@
-use clap::{Parser, ArgAction};
+use clap::{ArgAction, Parser};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]

@@ -1,7 +1,7 @@
+use bzip2::read::BzDecoder;
+use flate2::read::GzDecoder;
 use rebuilderd_common::errors::*;
 use std::io::Read;
-use flate2::read::GzDecoder;
-use bzip2::read::BzDecoder;
 use xz2::read::XzDecoder;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -63,14 +63,18 @@ mod tests {
 
     #[test]
     fn detect_gzip_compression() {
-        let bytes = BASE64.decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
+        let bytes = BASE64
+            .decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==")
+            .unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Gzip);
     }
 
     #[test]
     fn decompress_gzip_compression() {
-        let bytes = BASE64.decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==").unwrap();
+        let bytes = BASE64
+            .decode(b"H4sIAAAAAAAAA8vPSMzkAgCKUC0+BQAAAA==")
+            .unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Gzip);
 
@@ -81,14 +85,18 @@ mod tests {
 
     #[test]
     fn detect_bzip2_compression() {
-        let bytes = BASE64.decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
+        let bytes = BASE64
+            .decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw")
+            .unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Bzip2);
     }
 
     #[test]
     fn decompress_bzip2_compression() {
-        let bytes = BASE64.decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw").unwrap();
+        let bytes = BASE64
+            .decode(b"QlpoOTFBWSZTWZ+CN7sAAAJBAAAQIGCgADDNAMGmwHF3JFOFCQn4I3uw")
+            .unwrap();
         let comp = detect_compression(&bytes);
         assert_eq!(comp, CompressedWith::Bzip2);
 

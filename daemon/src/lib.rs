@@ -1,12 +1,12 @@
 extern crate diesel;
 extern crate diesel_migrations;
 
-use actix_web::middleware::Logger;
-use actix_web::{App, HttpServer};
-use actix_web::web::Data;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
 use crate::models::Build;
+use actix_web::middleware::Logger;
+use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use diesel::SqliteConnection;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
@@ -18,9 +18,9 @@ pub mod auth;
 pub mod config;
 pub mod dashboard;
 pub mod db;
+pub mod models;
 pub mod schema;
 pub mod sync;
-pub mod models;
 pub mod web;
 
 fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
@@ -29,8 +29,7 @@ fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
     if !orphaned.is_empty() {
         info!("Deleting {} orphaned builds...", orphaned.len());
         for ids in orphaned.chunks(500) {
-            Build::delete_multiple(ids, connection)
-                .context("Failed to delete builds")?;
+            Build::delete_multiple(ids, connection).context("Failed to delete builds")?;
             debug!("Deleted chunk of {} builds", ids.len());
         }
         info!("Finished removing orphaned builds");
@@ -80,15 +79,18 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::get_diffoscope)
             .service(api::get_attestation)
             .service(api::get_dashboard)
-            .service(web::resource("/api/v0/build/report")
-                .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                .route(web::post().to(api::report_build))
+            .service(
+                web::resource("/api/v0/build/report")
+                    .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
+                    .route(web::post().to(api::report_build)),
             )
-            .service(web::resource("/api/v0/pkgs/sync")
-                .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                .route(web::post().to(api::sync_work))
+            .service(
+                web::resource("/api/v0/pkgs/sync")
+                    .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
+                    .route(web::post().to(api::sync_work)),
             )
-    }).bind(&bind_addr)?
+    })
+    .bind(&bind_addr)?
     .run()
     .await?;
     Ok(())

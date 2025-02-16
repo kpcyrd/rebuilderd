@@ -5,10 +5,10 @@ use crate::heartbeat::HeartBeat;
 use crate::proc;
 use in_toto::crypto::PrivateKey;
 use in_toto::runlib::in_toto_run;
-use rebuilderd_common::PkgArtifact;
 use rebuilderd_common::api::{BuildStatus, Rebuild};
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::PkgArtifact;
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
@@ -29,7 +29,8 @@ pub struct Context<'a> {
 }
 
 fn path_to_string(path: &Path) -> Result<String> {
-    let s = path.to_str()
+    let s = path
+        .to_str()
         .with_context(|| anyhow!("Path contains invalid characters: {:?}", path))?;
     Ok(s.to_string())
 }
@@ -39,9 +40,11 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     let mut buf2 = [0u8; 4096];
 
     info!("Comparing {:?} with {:?}", a, b);
-    let mut f1 = File::open(a).await
+    let mut f1 = File::open(a)
+        .await
         .with_context(|| anyhow!("Failed to open {:?}", a))?;
-    let mut f2 = File::open(b).await
+    let mut f2 = File::open(b)
+        .await
         .with_context(|| anyhow!("Failed to open {:?}", b))?;
 
     let mut pos = 0;
@@ -69,16 +72,19 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
             Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
                 info!("Files are not identical, {:?} is shorter", b);
                 return Ok(false);
-            },
+            }
             err => err?,
         };
 
         if buf1[..n] != buf2[..n] {
             // get the exact position
             // this can't panic because we've already checked the slices are not equal
-            let pos = pos + buf1[..n].iter().zip(
-                buf2[..n].iter()
-            ).position(|(a,b)|a != b).unwrap();
+            let pos = pos
+                + buf1[..n]
+                    .iter()
+                    .zip(buf2[..n].iter())
+                    .position(|(a, b)| a != b)
+                    .unwrap();
             info!("Files {:?} and {:?} differ at position {}", a, b, pos);
 
             return Ok(false);
@@ -89,7 +95,11 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
     }
 }
 
-pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, log: &mut Vec<u8>, hb: &dyn HeartBeat) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+pub async fn rebuild_with_heartbeat(
+    ctx: &Context<'_>,
+    log: &mut Vec<u8>,
+    hb: &dyn HeartBeat,
+) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     let mut rebuild = Box::pin(rebuild(ctx, log));
     loop {
         select! {
@@ -101,24 +111,27 @@ pub async fn rebuild_with_heartbeat(ctx: &Context<'_>, log: &mut Vec<u8>, hb: &d
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
     let inputs_dir = tmp.path().join("inputs");
-    fs::create_dir(&inputs_dir)
-        .context("Failed to create inputs/ temp dir")?;
+    fs::create_dir(&inputs_dir).context("Failed to create inputs/ temp dir")?;
 
     let out_dir = tmp.path().join("out");
-    fs::create_dir(&out_dir)
-        .context("Failed to create out/ temp dir")?;
+    fs::create_dir(&out_dir).context("Failed to create out/ temp dir")?;
 
     // download
     let mut artifacts = Vec::new();
     for artifact in &ctx.artifacts {
         let artifact_filename = download(&artifact.url, &inputs_dir)
             .await
-            .with_context(|| anyhow!("Failed to download original package from {:?}", artifact.url))?;
+            .with_context(|| {
+                anyhow!(
+                    "Failed to download original package from {:?}",
+                    artifact.url
+                )
+            })?;
         let artifact_path = inputs_dir.join(&artifact_filename);
         artifacts.push((artifact.clone(), artifact_filename, artifact_path));
     }
@@ -128,9 +141,11 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
             .await
             .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?
     } else {
-        artifacts.first()
+        artifacts
+            .first()
             .context("Failed to use first artifact as build input")?
-            .1.to_owned()
+            .1
+            .to_owned()
     };
     let input_path = inputs_dir.join(&input_filename);
 
@@ -143,18 +158,28 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
         let output_path = out_dir.join(&artifact_filename);
 
         let result = if !output_path.exists() {
-            info!("No output artifact found, marking as BAD: {:?}", output_path);
+            info!(
+                "No output artifact found, marking as BAD: {:?}",
+                output_path
+            );
             Rebuild::new(BuildStatus::Bad)
         } else if compare_files(&artifact_path, &output_path).await? {
-            info!("Output artifacts is identical, marking as GOOD: {:?}", output_path);
+            info!(
+                "Output artifacts is identical, marking as GOOD: {:?}",
+                output_path
+            );
             let mut res = Rebuild::new(BuildStatus::Good);
 
             info!("Generating signed link");
             match in_toto_run(
                 &format!("rebuild {}", artifact_filename.to_str().unwrap()),
                 None,
-                &[input_path.to_str().ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
-                &[output_path.to_str().ok_or_else(|| anyhow!("Output path contains invalid characters"))?],
+                &[input_path
+                    .to_str()
+                    .ok_or_else(|| anyhow!("Input path contains invalid characters"))?],
+                &[output_path
+                    .to_str()
+                    .ok_or_else(|| anyhow!("Output path contains invalid characters"))?],
                 &[],
                 Some(ctx.privkey),
                 Some(&["sha512", "sha256"]),
@@ -166,7 +191,8 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
                 Ok(signed_link) => {
                     info!("Signed link generated");
 
-                    let attestation = serde_json::to_string(&signed_link).context("Failed to serialize attestation")?;
+                    let attestation = serde_json::to_string(&signed_link)
+                        .context("Failed to serialize attestation")?;
                     res.attestation = Some(attestation);
                 }
                 Err(err) => warn!("Failed to generate in-toto attestation: {:#?}", err),
@@ -194,7 +220,12 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>,) -> Result<Vec<(PkgAr
     Ok(results)
 }
 
-async fn verify(ctx: &Context<'_>, log: &mut Vec<u8>, out_dir: &Path, input_path: &Path) -> Result<()> {
+async fn verify(
+    ctx: &Context<'_>,
+    log: &mut Vec<u8>,
+    out_dir: &Path,
+    input_path: &Path,
+) -> Result<()> {
     let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
 
@@ -220,19 +251,25 @@ mod tests {
 
     #[tokio::test]
     async fn compare_files_equal() {
-        let equal = compare_files(Path::new("src/main.rs"), Path::new("src/main.rs")).await.unwrap();
+        let equal = compare_files(Path::new("src/main.rs"), Path::new("src/main.rs"))
+            .await
+            .unwrap();
         assert!(equal);
     }
 
     #[tokio::test]
     async fn compare_files_not_equal1() {
-        let equal = compare_files(Path::new("src/main.rs"), Path::new("Cargo.toml")).await.unwrap();
+        let equal = compare_files(Path::new("src/main.rs"), Path::new("Cargo.toml"))
+            .await
+            .unwrap();
         assert!(!equal);
     }
 
     #[tokio::test]
     async fn compare_files_not_equal2() {
-        let equal = compare_files(Path::new("Cargo.toml"), Path::new("src/main.rs")).await.unwrap();
+        let equal = compare_files(Path::new("Cargo.toml"), Path::new("src/main.rs"))
+            .await
+            .unwrap();
         assert!(!equal);
     }
 
@@ -241,7 +278,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
         fs::write(dir.path().join("b"), [0u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
+        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
+            .await
+            .unwrap();
         assert!(equal);
     }
 
@@ -250,7 +289,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
         fs::write(dir.path().join("b"), [1u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b")).await.unwrap();
+        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
+            .await
+            .unwrap();
         assert!(!equal);
     }
 }

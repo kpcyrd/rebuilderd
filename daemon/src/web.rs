@@ -1,4 +1,4 @@
-pub use actix_web::web::{post, Json, JsonConfig, Data, Query, Path, resource};
+pub use actix_web::web::{post, resource, Data, Json, JsonConfig, Path, Query};
 use rebuilderd_common::errors;
 use std::fmt;
 
@@ -15,8 +15,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl actix_web::error::ResponseError for Error {
-}
+impl actix_web::error::ResponseError for Error {}
 
 impl From<errors::Error> for Error {
     fn from(err: errors::Error) -> Error {
