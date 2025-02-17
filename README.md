@@ -46,6 +46,7 @@ afford to.
 | **Debian** | ✔️ supported | ✔️ (not working yet) | ❌ | ✔️ | [debrebuild](https://salsa.debian.org/debian/devscripts/-/blob/main/scripts/debrebuild.pl) |
 | **Tails** | 🚀 experimental | ❌ | - | ❌ | [docs](https://tails.boum.org/contribute/build/) ([script](worker/rebuilder-tails.sh)) |
 | **Alpine** | ✨ planned | - | - | - | - |
+| **Fedora** | 🚀 experimental | ❌ | ❌ | ✔️ | [fedora-repro-build](https://github.com/keszybz/fedora-repro-build/) |
 
 **Docker**: There's a docker-compose example setup in this repository, but not
 all rebuilder backends support running inside of a docker container (for
