@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
+use crate::decompress;
 use crate::schedule::{fetch_url_or_path, Pkg};
-use flate2::read::GzDecoder;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::{PkgArtifact, PkgGroup};
@@ -23,7 +23,10 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
 
             let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
             info!("Parsing index ({} bytes)...", bytes.len());
-            let packages = parse_package_index(GzDecoder::new(&bytes[..]))?;
+
+            let comp = decompress::detect_compression(&bytes);
+            let data = decompress::stream(comp, &bytes)?;
+            let packages = parse_package_index(data)?;
 
             for pkg in packages {
                 if !pkg.matches(sync) {
