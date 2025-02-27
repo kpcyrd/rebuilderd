@@ -1,6 +1,6 @@
 [package]
 name = "rebuildctl"
-version = "0.21.0"
+version = "0.22.0"
 description = "rebuilderd - rebuildctl client"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0-or-later"
@@ -26,7 +26,7 @@ env_logger = "0.11"
 flate2 = "1.0.24"
 glob = "0.3.0"
 nom = "7.1.1"
-rebuilderd-common = { version= "=0.21.0", path="../common" }
+rebuilderd-common = { version= "=0.22.0", path="../common" }
 regex = "1.5.6"
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
