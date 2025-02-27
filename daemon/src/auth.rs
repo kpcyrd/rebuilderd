@@ -1,8 +1,7 @@
 use crate::api;
 use crate::config::Config;
 use actix_web::HttpRequest;
-use rand::distributions::Alphanumeric;
-use rand::prelude::*;
+use rand::distr::{Alphanumeric, SampleString};
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use std::env;
@@ -69,11 +68,7 @@ pub fn setup_auth_cookie() -> Result<String> {
         cookie
     } else {
         debug!("Generating random cookie");
-        thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect()
+        Alphanumeric.sample_string(&mut rand::rng(), 32)
     };
 
     let cookie_path = if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {

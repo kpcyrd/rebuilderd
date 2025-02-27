@@ -10,7 +10,7 @@ publish = false
 [dependencies]
 actix-web = "4.1.0"
 clap = { version = "4", features = ["derive"] }
-colored = "2.0.0"
+colored = "3"
 env_logger = "0.11"
 futures = "0.3.21"
 rebuilderd = { version= "=0.21.0", path="../daemon" }
