@@ -46,6 +46,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     let mut pkgs = match method {
         "archlinux" => schedule::archlinux::sync(&http, &sync).await?,
         "debian" => schedule::debian::sync(&http, &sync).await?,
+        "fedora" => schedule::fedora::sync(&http, &sync).await?,
         "tails" => schedule::tails::sync(&http, &sync).await?,
         unknown => bail!(
             "No integrated sync for {:?}, use --sync-method or `pkgs sync-stdin` instead",

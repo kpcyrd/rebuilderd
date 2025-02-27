@@ -40,6 +40,7 @@ pub trait Pkg {
 
 pub mod archlinux;
 pub mod debian;
+pub mod fedora;
 pub mod tails;
 
 #[cfg(test)]

@@ -25,6 +25,8 @@ jobs:
           file: worker/Dockerfile.archlinux
         - name: worker-debian
           file: worker/Dockerfile.debian
+        - name: worker-fedora
+          file: worker/Dockerfile.fedora
         - name: worker-tails
           file: worker/Dockerfile.tails
     steps:
