@@ -1489,7 +1489,231 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                         name: "repro-env".to_string(),
                         version: "0.4.3-2".to_string(),
                         url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
-                    }
+                    },
+                ]
+            }
+        ]);
+    }
+
+    #[test]
+    fn test_novnc_partially_pending_decruft() {
+        let mut out = SyncState::new();
+
+        let sync = PkgsSync {
+            distro: "debian".to_string(),
+            suite: "main".to_string(),
+            source: "http://deb.debian.org/debian".to_string(),
+            architectures: vec!["amd64".to_string(), "all".to_string()],
+            print_json: true,
+            maintainers: vec![],
+            releases: vec!["sid".to_string(), "testing".to_string()],
+            pkgs: vec![],
+            excludes: vec![],
+            sync_method: None,
+        };
+
+        for (source, binary) in [
+            // sid
+            (&b"Package: novnc
+Binary: novnc, python3-novnc
+Version: 1:1.6.0-1
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Uploaders: Thomas Goirand <zigo@debian.org>, Michal Arbet <michal.arbet@ultimum.io>,
+Build-Depends: debhelper-compat (= 11), dh-python, openstack-pkg-tools, python3-all:any, python3-setuptools
+Build-Depends-Indep: gettext, node-commander, node-po2json, python3-greenlet
+Architecture: all
+Standards-Version: 4.6.0
+Format: 3.0 (quilt)
+Files:
+ 602d3ac601a5b8a86fdee458db309ffe 2138 novnc_1.6.0-1.dsc
+ 776338137022afc9f7017e92713def0a 622076 novnc_1.6.0.orig.tar.xz
+ a231e8f85a415ae25aed045b443ac79d 37840 novnc_1.6.0-1.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/openstack-team/third-party/novnc
+Vcs-Git: https://salsa.debian.org/openstack-team/third-party/novnc.git
+Checksums-Sha256:
+ 47de3f653e63123770c1c45b34b7da476fd6c2aa0e258dffbac60eb307859b97 2138 novnc_1.6.0-1.dsc
+ 136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
+ df38150ece65f2c726edcfe56d65d70c30d313450a2ef84b735be82b196ef768 37840 novnc_1.6.0-1.debian.tar.xz
+Homepage: https://github.com/novnc/noVNC
+Package-List: 
+ novnc deb web optional arch=all
+ python3-novnc deb python optional arch=all
+Directory: pool/main/n/novnc
+Priority: source
+Section: web
+
+Package: novnc
+Binary: novnc
+Version: 1:1.6.0-2
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Uploaders: Thomas Goirand <zigo@debian.org>, Michal Arbet <michal.arbet@ultimum.io>,
+Build-Depends: debhelper-compat (= 11), dh-python, openstack-pkg-tools
+Build-Depends-Indep: gettext, node-commander, node-po2json
+Architecture: all
+Standards-Version: 4.6.0
+Format: 3.0 (quilt)
+Files:
+ fd3c71dc3356432dfd98d71e7f873ff6 2024 novnc_1.6.0-2.dsc
+ 776338137022afc9f7017e92713def0a 622076 novnc_1.6.0.orig.tar.xz
+ 250801b18122eb4bb139477a95adb887 37728 novnc_1.6.0-2.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/openstack-team/third-party/novnc
+Vcs-Git: https://salsa.debian.org/openstack-team/third-party/novnc.git
+Checksums-Sha256:
+ 15e5606aa4f05d0d6c721b18e96e1d5fab4853cb8fbd28e0d0b4687e5a6f81b7 2024 novnc_1.6.0-2.dsc
+ 136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
+ 6bcfffafd44a02344d25f16adb367a9f65d9d2105564ef2356284485a84e98a0 37728 novnc_1.6.0-2.debian.tar.xz
+Homepage: https://github.com/novnc/noVNC
+Package-List: 
+ novnc deb web optional arch=all
+Directory: pool/main/n/novnc
+Priority: source
+Section: web
+
+"[..], &b"Package: novnc
+Version: 1:1.6.0-2
+Installed-Size: 1444
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Architecture: all
+Depends: adduser, nodejs, net-tools, websockify
+Suggests: python-nova
+Description: HTML5 VNC client - daemon and programs
+Homepage: https://github.com/novnc/noVNC
+Description-md5: 3ea408da6df8fcf109db7d2cceeba20a
+Section: web
+Priority: optional
+Filename: pool/main/n/novnc/novnc_1.6.0-2_all.deb
+Size: 280152
+MD5sum: 4feccfc563133e7345f02382fc5534d9
+SHA256: 7943751137815b9b98c7b424413de78aefa8a1045129ac06c001e9e68e0de98e
+
+Package: python3-novnc
+Source: novnc
+Version: 1:1.6.0-1
+Installed-Size: 49
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Architecture: all
+Depends: python3-oslo.config, python3-pil, python3:any
+Suggests: python3-nova
+Description: HTML5 VNC client - Python 3.x libraries
+Homepage: https://github.com/novnc/noVNC
+Description-md5: b0c6a6afac84b7f718cfbd184ca21a58
+Section: python
+Priority: optional
+Filename: pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb
+Size: 12664
+MD5sum: e088e49616de39f4cfa162959335340e
+SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
+
+"[..]),
+            // testing
+            (b"Package: novnc
+Binary: novnc, python3-novnc
+Version: 1:1.6.0-1
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Uploaders: Thomas Goirand <zigo@debian.org>, Michal Arbet <michal.arbet@ultimum.io>,
+Build-Depends: debhelper-compat (= 11), dh-python, openstack-pkg-tools, python3-all:any, python3-setuptools
+Build-Depends-Indep: gettext, node-commander, node-po2json, python3-greenlet
+Architecture: all
+Standards-Version: 4.6.0
+Format: 3.0 (quilt)
+Files:
+ 602d3ac601a5b8a86fdee458db309ffe 2138 novnc_1.6.0-1.dsc
+ 776338137022afc9f7017e92713def0a 622076 novnc_1.6.0.orig.tar.xz
+ a231e8f85a415ae25aed045b443ac79d 37840 novnc_1.6.0-1.debian.tar.xz
+Vcs-Browser: https://salsa.debian.org/openstack-team/third-party/novnc
+Vcs-Git: https://salsa.debian.org/openstack-team/third-party/novnc.git
+Checksums-Sha256:
+ 47de3f653e63123770c1c45b34b7da476fd6c2aa0e258dffbac60eb307859b97 2138 novnc_1.6.0-1.dsc
+ 136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
+ df38150ece65f2c726edcfe56d65d70c30d313450a2ef84b735be82b196ef768 37840 novnc_1.6.0-1.debian.tar.xz
+Homepage: https://github.com/novnc/noVNC
+Package-List: 
+ novnc deb web optional arch=all
+ python3-novnc deb python optional arch=all
+Directory: pool/main/n/novnc
+Priority: source
+Section: web
+
+", b"Package: novnc
+Version: 1:1.6.0-1
+Installed-Size: 1444
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Architecture: all
+Depends: adduser, nodejs, net-tools, python3-novnc, python3-numpy, websockify
+Suggests: python-nova
+Description: HTML5 VNC client - daemon and programs
+Homepage: https://github.com/novnc/noVNC
+Description-md5: 3ea408da6df8fcf109db7d2cceeba20a
+Section: web
+Priority: optional
+Filename: pool/main/n/novnc/novnc_1.6.0-1_all.deb
+Size: 280008
+MD5sum: e5dfdf48658a966ed211a5acbbf30cc2
+SHA256: 8fe336a27f2054d4763969395de893406bf06b5c34a46b72cb1de1928511ad02
+
+Package: python3-novnc
+Source: novnc
+Version: 1:1.6.0-1
+Installed-Size: 49
+Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
+Architecture: all
+Depends: python3-oslo.config, python3-pil, python3:any
+Suggests: python3-nova
+Description: HTML5 VNC client - Python 3.x libraries
+Homepage: https://github.com/novnc/noVNC
+Description-md5: b0c6a6afac84b7f718cfbd184ca21a58
+Section: python
+Priority: optional
+Filename: pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb
+Size: 12664
+MD5sum: e088e49616de39f4cfa162959335340e
+SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
+
+")
+        ] {
+            let mut sources = SourcePkgBucket::new();
+            sources
+                .import_uncompressed_source_package_file(&source[..])
+                .unwrap();
+            out.import_uncompressed_binary_package_file(&binary[..], &sources, &sync)
+                .unwrap();
+        }
+
+        let pkgs = out.to_vec();
+        assert_eq!(pkgs, vec![
+            PkgGroup {
+                name: "novnc".to_string(),
+                version: "1:1.6.0-1".to_string(),
+                distro: "debian".to_string(),
+                suite: "main".to_string(),
+                architecture: "all".to_string(),
+                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string()),
+                artifacts: vec![
+                    PkgArtifact {
+                        name: "python3-novnc".to_string(),
+                        version: "1:1.6.0-1".to_string(),
+                        url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                    },
+                    PkgArtifact {
+                        name: "novnc".to_string(),
+                        version: "1:1.6.0-1".to_string(),
+                        url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                    },
+                ]
+            },
+            PkgGroup {
+                name: "novnc".to_string(),
+                version: "1:1.6.0-2".to_string(),
+                distro: "debian".to_string(),
+                suite: "main".to_string(),
+                architecture: "all".to_string(),
+                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string()),
+                artifacts: vec![
+                    PkgArtifact {
+                        name: "novnc".to_string(),
+                        version: "1:1.6.0-2".to_string(),
+                        url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                    },
                 ]
             }
         ]);
