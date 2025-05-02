@@ -94,7 +94,10 @@ impl PkgGroup {
     }
 
     pub fn add_artifact(&mut self, artifact: PkgArtifact) {
-        self.artifacts.push(artifact);
+        // this list is always fairly short, so using contains should be fine
+        if !self.artifacts.contains(&artifact) {
+            self.artifacts.push(artifact);
+        }
     }
 
     pub fn input_url(&self) -> Result<&str> {
