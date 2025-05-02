@@ -1,4 +1,4 @@
-FROM rust:bullseye
+FROM rust:bookworm
 WORKDIR /usr/src/rebuilderd
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
@@ -7,7 +7,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cargo build --release --locked -p rebuilderd-worker && \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
-FROM debian:bullseye
+FROM debian:bookworm
 RUN apt-get update && apt-get install -y dpkg-dev sudo \
     psmisc git rake libvirt-daemon-system dnsmasq-base ebtables faketime pigz qemu-system-x86 qemu-utils vagrant vagrant-libvirt vmdb2
 COPY --from=0 \
