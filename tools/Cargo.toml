@@ -25,12 +25,12 @@ dirs-next = "2.0.0"
 env_logger = "0.11"
 flate2 = "1.0.24"
 glob = "0.3.0"
-nom = "7.1.1"
+nom = "8"
 rebuilderd-common = { version= "=0.22.1", path="../common" }
 regex = "1.5.6"
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
-serde-xml-rs = "0.6.0"
+serde-xml-rs = "0.7"
 tar = "0.4.38"
 tokio = { version="1.19.2", features=["macros", "rt-multi-thread", "io-std", "io-util"] }
 toml = "0.8"
