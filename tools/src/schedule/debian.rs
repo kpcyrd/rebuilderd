@@ -397,7 +397,9 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
             let bytes = fetch_url_or_path(http, &db_url).await?;
 
             for pkg in extract_pkg::<DebianBinPkg>(&bytes)? {
-                if !pkg.matches(sync) {
+                // Debian combines arch:all and arch:any packages.
+                // Import only what was actually specified.
+                if !pkg.matches(sync) || !sync.architectures.contains(&pkg.architecture) {
                     continue;
                 }
 
