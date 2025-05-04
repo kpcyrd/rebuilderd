@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd"
-version = "0.23.0"
+version = "0.23.1"
 description = "rebuilderd - independent build verification daemon"
 authors = ["kpcyrd <git@rxv.cc>"]
 license = "GPL-3.0-or-later"
