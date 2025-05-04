@@ -6,7 +6,7 @@ use crate::dashboard::DashboardState;
 use crate::models::Build;
 use actix_web::middleware::Logger;
 use actix_web::web::Data;
-use actix_web::{App, HttpServer};
+use actix_web::{middleware, App, HttpServer};
 use diesel::SqliteConnection;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
@@ -64,6 +64,7 @@ pub async fn run_config(config: Config) -> Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .wrap(middleware::Compress::default())
             .app_data(Data::new(pool.clone()))
             .app_data(Data::new(config.clone()))
             .app_data(Data::new(dashboard_cache.clone()))
