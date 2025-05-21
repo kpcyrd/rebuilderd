@@ -15,6 +15,7 @@ use std::time::Duration;
 
 pub mod api;
 pub mod auth;
+pub mod code_migrations;
 pub mod config;
 pub mod dashboard;
 pub mod db;
