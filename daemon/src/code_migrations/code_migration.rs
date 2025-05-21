@@ -1,3 +1,4 @@
+use crate::code_migrations::compress_logs::CompressLogsMigration;
 use diesel::migration::Result;
 use diesel::migration::{Migration, MigrationVersion};
 use diesel::sqlite::Sqlite;
@@ -51,7 +52,8 @@ impl CodeMigration for UnitCodeMigration {}
 
 fn get_code_migration(migration: &dyn Migration<Sqlite>) -> Box<dyn CodeMigration> {
     match migration.name().to_string().as_str() {
-        _ => Box::new(UnitCodeMigration)
+        "2025-05-20-210543_compress-logs" => Box::new(CompressLogsMigration),
+        _ => Box::new(UnitCodeMigration),
     }
 }
 
