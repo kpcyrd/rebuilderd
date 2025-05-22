@@ -476,13 +476,6 @@ pub async fn get_build_log(
         Err(_) => return Ok(not_found()),
     };
 
-    let client_supports_zstd = AcceptEncoding::parse(&req)
-        .ok()
-        .map(|a| a.negotiate(vec![Encoding::zstd()].iter()))
-        .flatten()
-        .map(|e| e == Encoding::zstd())
-        .unwrap_or(false);
-
     let mut builder = HttpResponse::Ok();
 
     builder
@@ -490,21 +483,28 @@ pub async fn get_build_log(
         .append_header(("X-Content-Type-Options", "nosniff"))
         .append_header(("Content-Security-Policy", "default-src 'none'"));
 
-    if client_supports_zstd && is_zstd_compressed(&build.build_log) {
-        builder.insert_header(ContentEncoding::Zstd);
+    if is_zstd_compressed(&build.build_log) {
+        let client_supports_zstd = AcceptEncoding::parse(&req)
+            .ok()
+            .and_then(|a| a.negotiate([Encoding::zstd()].iter()))
+            .map(|e| e == Encoding::zstd())
+            .unwrap_or(false);
 
-        let resp = builder.body(build.build_log);
-        Ok(resp)
-    } else {
-        let decoded_log = if is_zstd_compressed(&build.build_log) {
-            zstd_decompress(&build.build_log[..])
-                .await
-                .map_err(Error::from)?
+        if client_supports_zstd {
+            builder.insert_header(ContentEncoding::Zstd);
+
+            let resp = builder.body(build.build_log);
+            Ok(resp)
         } else {
-            build.build_log
-        };
+            let decoded_log = zstd_decompress(&build.build_log[..])
+                .await
+                .map_err(Error::from)?;
 
-        let resp = builder.body(decoded_log);
+            let resp = builder.body(decoded_log);
+            Ok(resp)
+        }
+    } else {
+        let resp = builder.body(build.build_log);
         Ok(resp)
     }
 }
