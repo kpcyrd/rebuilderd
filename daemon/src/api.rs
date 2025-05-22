@@ -4,6 +4,7 @@ use crate::dashboard::DashboardState;
 use crate::db::Pool;
 use crate::models;
 use crate::sync;
+use crate::util::{is_zstd_compressed, zstd_compress, zstd_decompress};
 use crate::web;
 use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header};
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
@@ -16,8 +17,6 @@ use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
-
-const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
 
 fn forbidden() -> HttpResponse {
     HttpResponse::Forbidden().body("Authentication failed\n")
@@ -423,7 +422,9 @@ pub async fn report_build(
         let mut pkg = packages.remove(0);
 
         // adding build to package
-        let encoded_log = zstd::encode_all(report.build_log.as_bytes(), 11).map_err(Error::from)?;
+        let encoded_log = zstd_compress(report.build_log.as_bytes())
+            .await
+            .map_err(Error::from)?;
 
         let build = models::NewBuild::from_api(rebuild, encoded_log);
         let build_id = build.insert(connection.as_mut())?;
@@ -489,14 +490,16 @@ pub async fn get_build_log(
         .append_header(("X-Content-Type-Options", "nosniff"))
         .append_header(("Content-Security-Policy", "default-src 'none'"));
 
-    if client_supports_zstd && build.build_log.starts_with(&ZSTD_MAGIC) {
+    if client_supports_zstd && is_zstd_compressed(&build.build_log) {
         builder.insert_header(ContentEncoding::Zstd);
 
         let resp = builder.body(build.build_log);
         Ok(resp)
     } else {
-        let decoded_log = if build.build_log.starts_with(&ZSTD_MAGIC) {
-            zstd::decode_all(&build.build_log[..]).map_err(Error::from)?
+        let decoded_log = if is_zstd_compressed(&build.build_log) {
+            zstd_decompress(&build.build_log[..])
+                .await
+                .map_err(Error::from)?
         } else {
             build.build_log
         };
