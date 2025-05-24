@@ -47,6 +47,44 @@ fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option
         .map(|value| value.signed_duration_since(datetime))
 }
 
+async fn forward_compressed_data(
+    request: HttpRequest,
+    content_type: &str,
+    data: Vec<u8>,
+) -> web::Result<HttpResponse> {
+    let mut builder = HttpResponse::Ok();
+
+    builder
+        .content_type(content_type)
+        .append_header(("X-Content-Type-Options", "nosniff"))
+        .append_header(("Content-Security-Policy", "default-src 'none'"));
+
+    if is_zstd_compressed(data.as_slice()) {
+        let client_supports_zstd = AcceptEncoding::parse(&request)
+            .ok()
+            .and_then(|a| a.negotiate([Encoding::zstd()].iter()))
+            .map(|e| e == Encoding::zstd())
+            .unwrap_or(false);
+
+        if client_supports_zstd {
+            builder.insert_header(ContentEncoding::Zstd);
+
+            let resp = builder.body(data);
+            Ok(resp)
+        } else {
+            let decoded_log = zstd_decompress(data.as_slice())
+                .await
+                .map_err(Error::from)?;
+
+            let resp = builder.body(decoded_log);
+            Ok(resp)
+        }
+    } else {
+        let resp = builder.body(data);
+        Ok(resp)
+    }
+}
+
 #[get("/api/v0/workers")]
 pub async fn list_workers(
     req: HttpRequest,
@@ -426,7 +464,27 @@ pub async fn report_build(
             .await
             .map_err(Error::from)?;
 
-        let build = models::NewBuild::from_api(rebuild, encoded_log);
+        let encoded_diffoscope = match &rebuild.diffoscope {
+            Some(diffoscope) => Some(
+                zstd_compress(diffoscope.as_bytes())
+                    .await
+                    .map_err(Error::from)?,
+            ),
+            _ => None,
+        };
+
+        let encoded_attestation = match &rebuild.attestation {
+            Some(attestation) => Some(
+                zstd_compress(attestation.as_bytes())
+                    .await
+                    .map_err(Error::from)?,
+            ),
+            _ => None,
+        };
+
+        let build =
+            models::NewBuild::from_api(encoded_diffoscope, encoded_log, encoded_attestation);
+
         let build_id = build.insert(connection.as_mut())?;
         pkg.build_id = Some(build_id);
 
@@ -476,41 +534,12 @@ pub async fn get_build_log(
         Err(_) => return Ok(not_found()),
     };
 
-    let mut builder = HttpResponse::Ok();
-
-    builder
-        .content_type("text/plain; charset=utf-8")
-        .append_header(("X-Content-Type-Options", "nosniff"))
-        .append_header(("Content-Security-Policy", "default-src 'none'"));
-
-    if is_zstd_compressed(&build.build_log) {
-        let client_supports_zstd = AcceptEncoding::parse(&req)
-            .ok()
-            .and_then(|a| a.negotiate([Encoding::zstd()].iter()))
-            .map(|e| e == Encoding::zstd())
-            .unwrap_or(false);
-
-        if client_supports_zstd {
-            builder.insert_header(ContentEncoding::Zstd);
-
-            let resp = builder.body(build.build_log);
-            Ok(resp)
-        } else {
-            let decoded_log = zstd_decompress(&build.build_log[..])
-                .await
-                .map_err(Error::from)?;
-
-            let resp = builder.body(decoded_log);
-            Ok(resp)
-        }
-    } else {
-        let resp = builder.body(build.build_log);
-        Ok(resp)
-    }
+    forward_compressed_data(req, "text/plain; charset=utf-8", build.build_log).await
 }
 
 #[get("/api/v0/builds/{id}/attestation")]
 pub async fn get_attestation(
+    req: HttpRequest,
     id: web::Path<i32>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
@@ -522,12 +551,7 @@ pub async fn get_attestation(
     };
 
     if let Some(attestation) = build.attestation {
-        let resp = HttpResponse::Ok()
-            .content_type("application/json; charset=utf-8")
-            .append_header(("X-Content-Type-Options", "nosniff"))
-            .append_header(("Content-Security-Policy", "default-src 'none'"))
-            .body(attestation);
-        Ok(resp)
+        forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
     } else {
         Ok(not_found())
     }
@@ -535,6 +559,7 @@ pub async fn get_attestation(
 
 #[get("/api/v0/builds/{id}/diffoscope")]
 pub async fn get_diffoscope(
+    req: HttpRequest,
     id: web::Path<i32>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
@@ -546,12 +571,7 @@ pub async fn get_diffoscope(
     };
 
     if let Some(diffoscope) = build.diffoscope {
-        let resp = HttpResponse::Ok()
-            .content_type("text/plain; charset=utf-8")
-            .append_header(("X-Content-Type-Options", "nosniff"))
-            .append_header(("Content-Security-Policy", "default-src 'none'"))
-            .body(diffoscope);
-        Ok(resp)
+        forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await
     } else {
         Ok(not_found())
     }

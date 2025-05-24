@@ -38,17 +38,25 @@ impl CodeMigration for CompressLogsMigration {
     ) -> diesel::migration::Result<()> {
         info!("compressing build logs (this might take a while)");
         sql_query("UPDATE builds SET build_log = zstd_compress(build_log);").execute(connection)?;
+        sql_query("UPDATE builds SET diffoscope = zstd_compress(diffoscope) WHERE diffoscope IS NOT NULL;")
+            .execute(connection)?;
+        sql_query("UPDATE builds SET attestation = zstd_compress(attestation) WHERE attestation IS NOT NULL;")
+            .execute(connection)?;
 
         Ok(())
     }
 
-    fn post_down(
+    fn pre_down(
         &self,
         connection: &mut SqliteConnection,
         _: &dyn Migration<Sqlite>,
     ) -> diesel::migration::Result<()> {
         info!("decompressing build logs (this might take a while)");
         sql_query("UPDATE builds SET build_log = zstd_decompress(build_log);")
+            .execute(connection)?;
+        sql_query("UPDATE builds SET diffoscope = zstd_decompress(diffoscope) WHERE diffoscope IS NOT NULL;")
+            .execute(connection)?;
+        sql_query("UPDATE builds SET attestation = zstd_decompress(attestation) WHERE attestation IS NOT NULL;")
             .execute(connection)?;
 
         Ok(())

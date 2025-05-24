@@ -28,6 +28,7 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
         info!("Applied database migration: {version}");
     }
 
+    info!("reclaiming disk space (this might take a while)");
     sql_query("VACUUM;").execute(&mut connection)?;
 
     Ok(connection)
