@@ -1,0 +1,644 @@
+openapi: 3.1.0
+info:
+  title: Rebuilderd
+  description: |-
+    This specification describes the JSON REST API of the rebuilderd server. The
+    API can be used to query information about rebuilt packages, status of 
+    workers, enqueue work, claim packages for building, and more.
+
+    Work is ongoing to redesign the API to operate better with a new database
+    schema. This version of the specification describes the current API surface
+    for use as a reference when designing the new API and interfacing with 
+    existing deployments.
+  version: 0.0.0
+servers:
+  - url: 'https://reproduce.algiz.nu/api/v0'
+tags:
+  - name: worker
+    description: Queries related to or used by workers
+  - name: job
+    description: Queries related to rebuild jobs
+paths:
+  /workers:
+    get:
+      tags:
+        - worker
+      summary: Gets information about registered workers
+      description: |-
+        This endpoint gets general information about registered workers and
+        their current claimed work. It's mostly used for dashboards or build
+        queue monitoring.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Worker'
+      security:
+        - rebuilderd_auth:
+            - read:workers
+  /job/sync:
+    post:
+      tags:
+        - job
+      summary: Submits new work items synchronized from an external source
+      description: |-
+        This endpoint is used by rebuilderd-sync to submit work items it's
+        synchronized from external sources. Typically, work comes from a 
+        distribution's repository servers and is in a distro-specific format
+        that needs transforming before it is submitted to this endpoint.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuiteImport'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAssignment'
+      security:
+        - rebuilderd_auth:
+            - write:jobs
+  /pkgs/list:
+    get:
+      tags:
+        - pkg
+      summary: Gets information about known packages
+      description: |-
+        This endpoint gets metadata about packages known to rebuilderd. The
+        packages can be filtered via some query parameters to reduce the set to
+        whatever is of interest.
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: distro
+          schema:
+            type: string
+        - in: query
+          name: suite
+          schema:
+            type: string
+        - in: query
+          name: architecture
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PkgRelease'
+  /queue/list:
+    post:
+      tags:
+        - queue
+      summary: Gets information about the current build queue
+      description: |-
+        This endpoint gets detailed information about packages currently in the
+        build queue. The number of packages retrieved can be limited by a
+        parameter in the request body.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListQueue'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QueueList'
+  /queue/push:
+    post:
+      tags:
+        - queue
+      summary: Pushes a package to be built onto the queue
+      description: |-
+        This endpoint allows for individual packages to be pushed onto the build
+        queue unconditionally. The package must be known to rebuilderd.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushQueue'
+      responses:
+        '200':
+          description: Success
+      security:
+        - rebuilderd_auth:
+            - write:queue
+  /queue/pop:
+    post:
+      tags:
+        - queue
+      summary: Pops available work from the queue
+      description: |-
+        This endpoint allows workers to claim work from the build queue, popping
+        work items compatible with the advertised backends by the worker.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkQuery'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAssignment'
+      security:
+        - rebuilderd_auth:
+            - write:queue
+  /queue/drop:
+    post:
+      tags:
+        - queue
+      summary: Drops enqueued work from the queue
+      description: |-
+        This endpoint allows for already-enqueued work to be unconditionally
+        dropped from the queue.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DropQueueItem'
+      security:
+        - rebuilderd_auth:
+            - write:queue
+  /pkg/requeue:
+    post:
+      tags:
+        - queue
+        - pkg
+      summary: Requeues packages unconditionally
+      description: |-
+        This endpoint allows for already-attempted packages to be
+        unconditionally readded to the queue, regardless of their status or last
+        retry time.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequeueQuery'
+      responses:
+        '200':
+          description: Success
+      security:
+        - rebuilderd_auth:
+            - write:queue
+  /build/ping:
+    post:
+      tags:
+        - build
+      summary: Pings the worker for a specified job
+      description: |-
+        This endpoint allows you to request a ping from a worker associated with
+        a job, validating that the worker is still running and working on the
+        build.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PingRequest'
+      responses:
+        '200':
+          description: Success
+      security:
+        - rebuilderd_auth:
+            - write:build
+  /build/report:
+    post:
+      tags:
+        - build
+      summary: Reports a completed build job
+      description: |-
+        This endpoint is used by workers to report a completed build job with
+        the associated results (GOOD or BAD).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildReport'
+      responses:
+        '200':
+          description: Success
+      security:
+        - rebuilderd_auth:
+            - write:build
+  /builds/{id}/log:
+    get:
+      tags:
+        - build
+      summary: Gets the build log for the given build
+      description: |-
+        This endpoint fetches the full build log for the given build. The
+        content may be provided in zstd-compressed format if support for zstd
+        is advertised by the client.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+  /builds/{id}/attestation:
+    get:
+      tags:
+        - build
+      summary: Gets the attestation for the given build
+      description: |-
+        This endpoint fetches the cryptographic attestation for the given build.
+        The content may be provided in zstd-compressed format if support for 
+        zstd is advertised by the client.
+        
+        The attestation data is an in-toto signature bundle.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /builds/{id}/diffoscope:
+    get:
+      tags:
+        - build
+      summary: Gets the diffoscope log for the given build
+      description: |-
+        This endpoint fetches the full diffoscope log for the given build. The
+        content may be provided in zstd-compressed format if support for zstd
+        is advertised by the client.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+  /dashboard:
+    get:
+      tags:
+        - dashboard
+      summary: Gets precomputed data useful for a dashboard
+      description: |-
+        This endpoint is a convenience function for a collection of precomputed
+        statistics, quick numbers, and useful information for presentation on a
+        dashboard.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+components:
+  schemas:
+    DashboardResponse:
+      type: object
+      properties:
+        suites:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SuiteStats'
+        active_builds:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueItem'
+        queue_length:
+          type: integer
+        now:
+          type: string
+          format: date-time
+      required:
+        - suites
+        - active_builds
+        - queue_length
+        - now
+      additionalProperties: false
+    SuiteStats:
+      type: object
+      properties:
+        good:
+          type: integer
+        unknown:
+          type: integer
+        bad:
+          type: integer
+      required:
+        - good
+        - unknown
+        - bad
+      additionalProperties: false
+    BuildReport:
+      type: object
+      properties:
+        queue:
+          $ref: '#/components/schemas/QueueItem'
+        build_log:
+          type: string
+        rebuilds:
+          type: array
+          items:
+            $ref: '#/components/schemas/???'
+    PingRequest:
+      type: object
+      properties:
+        queue_id:
+          type: integer
+      required:
+        - queue_id
+      additionalProperties: false
+    RequeueQuery:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status'
+        priority:
+          type: integer
+        distro:
+          type: string
+          nullable: true
+        suite:
+          type: string
+          nullable: true
+        architecture:
+          type: string
+          nullable: true
+        reset:
+          type: boolean
+      required:
+        - priority
+        - reset
+      additionalProperties: false
+    DropQueueItem:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+          nullable: true
+        distro:
+          type: string
+        suite:
+          type: string
+        architecture:
+          type: string
+          nullable: true
+      required:
+        - name
+        - distro
+        - suite
+      additionalProperties: false
+    WorkQuery:
+      type: object
+      properties:
+        supported_backends:
+          type: array
+          items:
+            type: string
+      required:
+        - supported_backends
+      additionalProperties: false
+    PushQueue:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+          nullable: true
+        priority:
+          type: integer
+        distro:
+          type: string
+        suite:
+          type: string
+        architecture:
+          type: string
+          nullable: true
+      required:
+        - name
+        - priority
+        - distro
+        - suite
+      additionalProperties: false
+    QueueList:
+      type: object
+      properties:
+        now:
+          type: string
+          format: date-time
+        queue:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueueItem'
+    ListQueue:
+      type: object
+      properties:
+        limit:
+          type: integer
+          nullable: true
+      additionalProperties: false
+    Status:
+      type: string
+      enum:
+        - GOOD
+        - BAD
+        - UNKWN
+    PkgRelease:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        distro:
+          type: string
+        suite:
+          type: string
+        architecture:
+          type: string
+        artifact_url:
+          type: string
+        build_id:
+          type: integer
+          nullable: true
+        built_at:
+          type: string
+          format: date-time
+          nullable: true
+        has_diffoscope:
+          type: boolean
+        has_attestation:
+          type: boolean
+      required:
+        - name
+        - version
+        - status
+        - distro
+        - suite
+        - architecture
+        - artifact_url
+        - has_diffoscope
+        - has_attestation
+      additionalProperties: false
+    JobAssignment:
+      oneOf:
+        - type: object
+          additionalProperties: false
+        - $ref: '#/components/schemas/QueueItem'
+    QueueItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        pkgbase:
+          $ref: '#/components/schemas/PkgGroup'
+        version:
+          type: string
+        queued_at:
+          type: string
+          format: date-time
+        worker_id:
+          type: integer
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_ping:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - pkgbase
+        - version
+        - queued_at
+      additionalProperties: false
+    PkgGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        distro:
+          type: string
+        suite:
+          type: string
+        architecture:
+          type: string
+        input_url:
+          type: string
+          nullable: true
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PkgArtifact'
+      required:
+        - name
+        - version
+        - distro
+        - suite
+        - architecture
+        - artifacts
+      additionalProperties: false
+    PkgArtifact:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        url:
+          type: string
+      required:
+        - name
+        - version
+        - url
+      additionalProperties: false
+    SuiteImport:
+      type: object
+      properties:
+        distro:
+          type: string
+        suite:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/PkgGroup'
+      required:
+        - distro
+        - suite
+        - groups
+      additionalProperties: false
+    Worker:
+      type: object
+      properties:
+        key:
+          type: string
+        addr:
+          type: string
+        status:
+          type: string
+          nullable: true
+        last_ping:
+          type: string
+          format: date-time
+        online:
+          type: boolean
+      required:
+        - key
+        - addr
+        - last_ping
+        - online
+      additionalProperties: false
