@@ -1,8 +1,10 @@
 use crate::errors::*;
 use std::fs::{self, OpenOptions};
-use std::io::prelude::*;
+use std::io;
+use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
+use zstd::{Decoder, Encoder};
 
 pub fn secs_to_human(duration: i64) -> String {
     let secs = duration % 60;

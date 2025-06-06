@@ -1,7 +1,7 @@
 use crate::args::PkgsSync;
+use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use rebuilderd_common::{PkgArtifact, PkgGroup};
 use regex::Regex;
 use url::Url;
 

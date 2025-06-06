@@ -1,8 +1,8 @@
 use crate::args::PkgsSync;
 use crate::schedule::{fetch_url_or_path, Pkg};
+use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use rebuilderd_common::{PkgArtifact, PkgGroup};
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -482,7 +482,7 @@ Description: Secure multithreaded packet sniffer
 Multi-Arch: allowed
 Built-Using: rust-nix (= 0.23.0-1), rust-pktparse (= 0.5.0-1), rust-seccomp-sys (= 0.1.3-1), rustc (= 1.56.0+dfsg1-2)
 Description-md5: e7f1183e49341488d3bd8fbe63b63f37
-X-Cargo-Built-Using: rust-aho-corasick (= 0.7.10-1), rust-ansi-term (= 0.12.1-1), rust-anyhow (= 1.0.44-2), rust-arrayvec (= 0.5.1-1), rust-atty (= 0.2.14-2), rust-base64 (= 0.13.0-1), rust-bitflags (= 1.2.1-1), rust-block-buffer (= 0.9.0-4), rust-block-padding (= 0.2.1-1), rust-bstr (= 0.2.17-1), rust-byteorder (= 1.4.3-2), rust-cfg-if-0.1 (= 0.1.10-2), rust-cfg-if (= 1.0.0-1), rust-clap (= 2.33.3-1), rust-cpuid-bool (= 0.1.2-4), rust-dhcp4r (= 0.2.0-1), rust-digest (= 0.9.0-1), rust-dirs-next (= 2.0.0-1), rust-dirs-sys-next (= 0.1.1-1), rust-dns-parser (= 0.8.0-1), rust-enum-primitive (= 0.1.1-1), rust-env-logger (= 0.9.0-1), rust-generic-array (= 0.14.4-1), rust-humantime (= 2.1.0-1), rust-itoa (= 0.4.3-1), rust-lazy-static (= 1.4.0-1), rust-lexical-core (= 0.4.8-3), rust-libc (= 0.2.103-1), rust-log (= 0.4.11-2), rust-memchr (= 2.4.1-1), rust-memoffset (= 0.6.4-1), rust-nix (= 0.23.0-1), rust-nom (= 5.0.1-4), rust-num-cpus (= 1.13.0-1), rust-num-traits (= 0.2.14-1), rust-opaque-debug (= 0.3.0-1), rust-pcap-sys (= 0.1.3-2), rust-phf (= 0.8.0-2), rust-phf-shared (= 0.8.0-1), rust-pktparse (= 0.5.0-1), rust-quick-error (= 1.2.3-1), rust-reduce (= 0.1.1-1), rust-regex-automata (= 0.1.8-2), rust-regex (= 1.5.4-1), rust-regex-syntax (= 0.6.25-1), rust-rusticata-macros (= 2.0.4-1), rust-ryu (= 1.0.2-1), rust-seccomp-sys (= 0.1.3-1), rust-serde (= 1.0.130-2), rust-serde-json (= 1.0.41-1), rust-sha2 (= 0.9.2-2), rust-siphasher (= 0.3.1-1), rust-static-assertions (= 1.1.0-1), rust-strsim (= 0.9.3-1), rust-structopt (= 0.3.20-1), rust-strum (= 0.19.2-1), rust-syscallz (= 0.15.0-1), rust-termcolor (= 1.1.0-1), rust-textwrap (= 0.11.0-1), rust-time (= 0.1.42-1), rust-tls-parser (= 0.9.2-3), rust-toml (= 0.5.8-1), rust-typenum (= 1.12.0-1), rust-unicode-width (= 0.1.8-1), rust-users (= 0.11.0-1), rust-vec-map (= 0.8.1-2), rustc (= 1.56.0+dfsg1-2) 
+X-Cargo-Built-Using: rust-aho-corasick (= 0.7.10-1), rust-ansi-term (= 0.12.1-1), rust-anyhow (= 1.0.44-2), rust-arrayvec (= 0.5.1-1), rust-atty (= 0.2.14-2), rust-base64 (= 0.13.0-1), rust-bitflags (= 1.2.1-1), rust-block-buffer (= 0.9.0-4), rust-block-padding (= 0.2.1-1), rust-bstr (= 0.2.17-1), rust-byteorder (= 1.4.3-2), rust-cfg-if-0.1 (= 0.1.10-2), rust-cfg-if (= 1.0.0-1), rust-clap (= 2.33.3-1), rust-cpuid-bool (= 0.1.2-4), rust-dhcp4r (= 0.2.0-1), rust-digest (= 0.9.0-1), rust-dirs-next (= 2.0.0-1), rust-dirs-sys-next (= 0.1.1-1), rust-dns-parser (= 0.8.0-1), rust-enum-primitive (= 0.1.1-1), rust-env-logger (= 0.9.0-1), rust-generic-array (= 0.14.4-1), rust-humantime (= 2.1.0-1), rust-itoa (= 0.4.3-1), rust-lazy-static (= 1.4.0-1), rust-lexical-core (= 0.4.8-3), rust-libc (= 0.2.103-1), rust-log (= 0.4.11-2), rust-memchr (= 2.4.1-1), rust-memoffset (= 0.6.4-1), rust-nix (= 0.23.0-1), rust-nom (= 5.0.1-4), rust-num-cpus (= 1.13.0-1), rust-num-traits (= 0.2.14-1), rust-opaque-debug (= 0.3.0-1), rust-pcap-sys (= 0.1.3-2), rust-phf (= 0.8.0-2), rust-phf-shared (= 0.8.0-1), rust-pktparse (= 0.5.0-1), rust-quick-error (= 1.2.3-1), rust-reduce (= 0.1.1-1), rust-regex-automata (= 0.1.8-2), rust-regex (= 1.5.4-1), rust-regex-syntax (= 0.6.25-1), rust-rusticata-macros (= 2.0.4-1), rust-ryu (= 1.0.2-1), rust-seccomp-sys (= 0.1.3-1), rust-serde (= 1.0.130-2), rust-serde-json (= 1.0.41-1), rust-sha2 (= 0.9.2-2), rust-siphasher (= 0.3.1-1), rust-static-assertions (= 1.1.0-1), rust-strsim (= 0.9.3-1), rust-structopt (= 0.3.20-1), rust-strum (= 0.19.2-1), rust-syscallz (= 0.15.0-1), rust-termcolor (= 1.1.0-1), rust-textwrap (= 0.11.0-1), rust-time (= 0.1.42-1), rust-tls-parser (= 0.9.2-3), rust-toml (= 0.5.8-1), rust-typenum (= 1.12.0-1), rust-unicode-width (= 0.1.8-1), rust-users (= 0.11.0-1), rust-vec-map (= 0.8.1-2), rustc (= 1.56.0+dfsg1-2)
 Section: net
 Priority: optional
 Filename: pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb
@@ -575,7 +575,7 @@ Checksums-Sha256:
  0d3b97cfb7998fd0a62cbc6e6d8ae1340d52b616ac12e9eb8f2773a9775f82c6 195 mariadb-10.5_10.5.12.orig.tar.gz.asc
  451dbbdaaedb6cf087ba38dd2708de6a31fa88a5333295be90c2323a414dc53c 222380 mariadb-10.5_10.5.12-1.debian.tar.xz
 Homepage: https://mariadb.org/
-Package-List: 
+Package-List:
  libmariadb-dev deb libdevel optional arch=any
  libmariadb-dev-compat deb libdevel optional arch=any
  libmariadb3 deb libs optional arch=any
@@ -786,7 +786,7 @@ Checksums-Sha256:
  b9a77f9f918769ecded338c07a344257b17d1112918b1597a8c939a719444ea4 3079 rust-sniffglue_0.14.0-2.dsc
  f056bfa09e8fae5f4cc0e1d4e8ae3619050644b321800d0d6a8cc778eb80aaf3 134805 rust-sniffglue_0.14.0.orig.tar.gz
  cb3498dd85e18e7b2c7ad5cbef2ac56e4c598df0a0ac5024aa480f97de79b096 7816 rust-sniffglue_0.14.0-2.debian.tar.xz
-Package-List: 
+Package-List:
  librust-sniffglue-dev deb net optional arch=any
  sniffglue deb net optional arch=any
 Testsuite: autopkgtest
@@ -1103,7 +1103,7 @@ Checksums-Sha256:
  e2d574353654d2a3e473d481a1354f2d8eb6412e77277a489d6545ef41e6122d 866 courier_1.0.16.orig.tar.bz2.asc
  565912449f530457892ccee787585184d644bac76f7055698d7f41600308519f 108396 courier_1.0.16-3.debian.tar.xz
 Homepage: http://www.courier-mta.org/
-Package-List: 
+Package-List:
  courier-base deb mail optional arch=any
  courier-doc deb doc optional arch=all
  courier-faxmail deb mail optional arch=any
@@ -1417,7 +1417,7 @@ Checksums-Sha256:
  fdea8a698b0228a4787a7a1c59347d25ae367e46e320bffe302095a888d6fbea 4588 rust-repro-env_0.4.3-2.debian.tar.xz
 Homepage: https://github.com/kpcyrd/repro-env
 Build-Depends-Arch: cargo:native, rustc:native, libstd-rust-dev, librust-anyhow-1+default-dev (>= 1.0.71-~~), librust-ar-0.9+default-dev, librust-bytes-1+default-dev (>= 1.4.0-~~), librust-clap-4+default-dev, librust-clap-4+derive-dev, librust-clap-complete-4+default-dev, librust-clone-file-0.1+default-dev, librust-data-encoding-2+default-dev (>= 2.4.0-~~), librust-dirs-5+default-dev, librust-env-logger-0.11+default-dev, librust-fd-lock-3+default-dev, librust-flate2-1+default-dev (>= 1.0.26-~~), librust-hex-0.4+default-dev (>= 0.4.3-~~), librust-indexmap-2+default-dev (>= 2.1.0-~~), librust-indexmap-2+serde-dev (>= 2.1.0-~~), librust-log-0.4+default-dev (>= 0.4.19-~~), librust-lz4-flex-0.11+default-dev (>= 0.11.1-~~), librust-lzma-rs-0.3+default-dev, librust-memchr-2+default-dev (>= 2.5.0-~~), librust-nix-0.29+sched-dev, librust-peekread-0.1+default-dev (>= 0.1.1-~~), librust-reqwest-0.12+rustls-tls-native-roots-dev (>= 0.12.12-~~), librust-reqwest-0.12+socks-dev (>= 0.12.12-~~), librust-reqwest-0.12+stream-dev (>= 0.12.12-~~), librust-ruzstd-0.7+default-dev, librust-sequoia-openpgp-2+default-dev, librust-serde-1+default-dev, librust-serde-1+derive-dev, librust-serde-json-1+default-dev, librust-sha1-0.10+default-dev (>= 0.10.5-~~), librust-sha2-0.10+default-dev (>= 0.10.7-~~), librust-tar-0.4+default-dev (>= 0.4.38-~~), librust-tempfile-3+default-dev (>= 3.6.0-~~), librust-time-0.3+default-dev, librust-time-0.3+formatting-dev, librust-tokio-1+default-dev, librust-tokio-1+fs-dev, librust-tokio-1+macros-dev, librust-tokio-1+process-dev, librust-tokio-1+rt-multi-thread-dev, librust-tokio-1+signal-dev, librust-toml-0.8+default-dev, librust-urlencoding-2+default-dev (>= 2.1.2-~~)
-Package-List: 
+Package-List:
  librust-repro-env-dev deb utils optional arch=any
  repro-env deb utils optional arch=any
 Testsuite: autopkgtest
@@ -1535,7 +1535,7 @@ Checksums-Sha256:
  136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
  df38150ece65f2c726edcfe56d65d70c30d313450a2ef84b735be82b196ef768 37840 novnc_1.6.0-1.debian.tar.xz
 Homepage: https://github.com/novnc/noVNC
-Package-List: 
+Package-List:
  novnc deb web optional arch=all
  python3-novnc deb python optional arch=all
 Directory: pool/main/n/novnc
@@ -1563,7 +1563,7 @@ Checksums-Sha256:
  136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
  6bcfffafd44a02344d25f16adb367a9f65d9d2105564ef2356284485a84e98a0 37728 novnc_1.6.0-2.debian.tar.xz
 Homepage: https://github.com/novnc/noVNC
-Package-List: 
+Package-List:
  novnc deb web optional arch=all
 Directory: pool/main/n/novnc
 Priority: source
@@ -1627,7 +1627,7 @@ Checksums-Sha256:
  136fb59977cdc7eab902097a16ccd94669b32d5c34dc035c52eae9b4ab8d77f6 622076 novnc_1.6.0.orig.tar.xz
  df38150ece65f2c726edcfe56d65d70c30d313450a2ef84b735be82b196ef768 37840 novnc_1.6.0-1.debian.tar.xz
 Homepage: https://github.com/novnc/noVNC
-Package-List: 
+Package-List:
  novnc deb web optional arch=all
  python3-novnc deb python optional arch=all
 Directory: pool/main/n/novnc

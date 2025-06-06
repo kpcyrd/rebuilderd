@@ -1,9 +1,9 @@
 use crate::args::PkgsSync;
 use crate::decompress;
 use crate::schedule::{fetch_url_or_path, Pkg};
+use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use rebuilderd_common::{PkgArtifact, PkgGroup};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;

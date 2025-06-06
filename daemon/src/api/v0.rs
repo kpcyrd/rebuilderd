@@ -3,19 +3,23 @@ use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
 use crate::db::Pool;
+use crate::diesel::ExpressionMethods;
+use crate::diesel::QueryDsl;
 use crate::models;
+use crate::models::{BinaryPackage, BuildInput, Queued, SourcePackage};
+use crate::schema::*;
 use crate::sync;
 use crate::util::{is_zstd_compressed, zstd_compress, zstd_decompress};
 use crate::web;
 use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header};
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
 use chrono::prelude::*;
-use diesel::SqliteConnection;
+use chrono::Duration;
+use diesel::{OptionalExtension, RunQueryDsl, SelectableHelper, SqliteConnection};
 use in_toto::crypto::PrivateKey;
-use rebuilderd_common::api::*;
+use rebuilderd_common::api::v0::*;
+use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::{PkgRelease, PublicKeys, Status};
-use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
@@ -98,13 +102,30 @@ pub async fn list_workers(
     }
 
     let mut connection = pool.get().map_err(Error::from)?;
-    models::Worker::mark_stale_workers_offline(connection.as_mut())?;
-    let workers = models::Worker::list(connection.as_mut())?;
+
+    // mark stale workers as offline before returning any results
+    let now = Utc::now().naive_utc();
+    let deadline = now - Duration::seconds(PING_DEADLINE);
+
+    diesel::update(workers::table.filter(workers::last_ping.lt(deadline)))
+        .set((
+            workers::online.eq(false),
+            workers::status.eq(None as Option<String>),
+        ))
+        .execute(connection.as_mut())
+        .map_err(Error::from)?;
+
+    // grab online workers
+    let workers = workers::table
+        .filter(workers::online.eq(true))
+        .load::<models::Worker>(connection.as_mut())
+        .map_err(Error::from)?;
+
     Ok(HttpResponse::Ok().json(workers))
 }
 
 // this route is configured in src/main.rs so we can reconfigure the json extractor
-// #[post("/api/v0/job/sync")]
+// #[post("/api/v0/pkgs/sync")]
 pub async fn sync_work(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -118,18 +139,10 @@ pub async fn sync_work(
     let import = import.into_inner();
     let mut connection = pool.get().map_err(Error::from)?;
 
+    // TODO: querify
     sync::run(import, connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(JobAssignment::Nothing))
-}
-
-fn opt_filter(this: &str, filter: Option<&str>) -> bool {
-    if let Some(filter) = filter {
-        if this != filter {
-            return true;
-        }
-    }
-    false
 }
 
 #[get("/api/v0/pkgs/list")]
@@ -143,39 +156,40 @@ pub async fn list_pkgs(
 
     // Set Last-Modified header to the most recent build package time
     // If If-Modified-Since header is set, compare it to the latest built time.
-    if let Some(latest_built_at) = models::Package::most_recent_built_at(connection.as_mut())? {
+    if let Some(latest_built_at) = rebuilds::table
+        .select(diesel::dsl::max(rebuilds::built_at))
+        .first(connection.as_mut())
+        .map_err(Error::from)?
+    {
         let latest_built_at = DateTime::from_naive_utc_and_offset(latest_built_at, Utc);
         if let Some(duration) = modified_since_duration(&req, latest_built_at) {
             if duration.num_seconds() >= 0 {
                 return Ok(not_modified());
             }
         }
+
         let latest_built_at = SystemTime::from(latest_built_at);
         builder.insert_header(http::header::LastModified(latest_built_at.into()));
     }
 
-    let mut pkgs = Vec::<PkgRelease>::new();
-    for pkg in models::Package::list(connection.as_mut())? {
-        if opt_filter(&pkg.name, query.name.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.status, query.status.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.distro, query.distro.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.suite, query.suite.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.architecture, query.architecture.as_deref()) {
-            continue;
-        }
+    let packages = BinaryPackage::filter_by(
+        query.name.as_deref(),
+        query.distro.as_deref(),
+        None,
+        query.suite.as_deref(),
+        query.architecture.as_deref(),
+        query.status.map(|s| s.to_string()).as_deref(),
+    )
+    .select(BinaryPackage::as_select())
+    .load::<BinaryPackage>(connection.as_mut())
+    .map_err(Error::from)?;
 
-        pkgs.push(pkg.into_api_item()?);
-    }
+    let mapped = packages
+        .into_iter()
+        .map(|p| p.into_api_item(connection.as_mut()))
+        .collect::<Result<Vec<PkgRelease>>>()?;
 
-    Ok(builder.json(pkgs))
+    Ok(builder.json(mapped))
 }
 
 #[post("/api/v0/queue/list")]
@@ -186,14 +200,23 @@ pub async fn list_queue(
     let mut connection = pool.get().map_err(Error::from)?;
 
     models::Queued::free_stale_jobs(connection.as_mut())?;
-    let queue = models::Queued::list(query.limit, connection.as_mut())?;
-    let queue: Vec<QueueItem> = queue
+
+    let mut sql = queue::table
+        .order_by((queue::priority, queue::queued_at, queue::id))
+        .into_boxed();
+
+    if let Some(limit) = &query.limit {
+        sql = sql.limit(*limit);
+    }
+
+    let queue = sql
+        .load::<models::Queued>(connection.as_mut())
+        .map_err(Error::from)?
         .into_iter()
         .map(|x| x.into_api_item(connection.as_mut()))
-        .collect::<Result<_>>()?;
+        .collect::<Result<Vec<QueueItem>>>()?;
 
     let now = Utc::now().naive_utc();
-
     Ok(HttpResponse::Ok().json(QueueList { now, queue }))
 }
 
@@ -241,20 +264,21 @@ pub async fn push_queue(
     let mut connection = pool.get().map_err(Error::from)?;
 
     debug!("searching pkg: {:?}", query);
-    let pkgs = models::Package::get_by(
-        &query.name,
-        &query.distro,
-        &query.suite,
+    let build_input_ids = models::BinaryPackage::filter_by(
+        Some(&query.name),
+        Some(&query.distro),
+        None,
+        Some(&query.suite),
         query.architecture.as_deref(),
-        connection.as_mut(),
-    )?;
+        None,
+    )
+    .select(binary_packages::build_input_id)
+    .distinct()
+    .load::<i32>(connection.as_mut())
+    .map_err(Error::from)?;
 
-    for pkg in pkgs {
-        debug!("found pkg: {:?}", pkg);
-
-        let pkgbase = models::PkgBase::get_id(pkg.pkgbase_id, connection.as_mut())?;
-        let item =
-            models::NewQueued::new(pkgbase.id, pkgbase.version, pkgbase.distro, query.priority);
+    for build_input_id in build_input_ids {
+        let item = models::NewQueued::new(build_input_id, query.priority);
 
         debug!("adding to queue: {:?}", item);
         if let Err(err) = item.insert(connection.as_mut()) {
@@ -280,17 +304,39 @@ pub async fn pop_queue(
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
 
-    models::Queued::free_stale_jobs(connection.as_mut())?;
-    let (resp, status) = if let Some(item) =
-        models::Queued::pop_next(worker.id, &query.supported_backends, connection.as_mut())?
-    {
-        // TODO: claim item correctly
+    Queued::free_stale_jobs(connection.as_mut())?;
 
+    let mut sql = queue::table
+        .inner_join(build_inputs::table)
+        .filter(queue::worker.is_null())
+        .into_boxed();
+
+    if !query.supported_backends.is_empty() {
+        sql = sql.filter(build_inputs::backend.eq_any(&query.supported_backends));
+    }
+
+    let item = sql
+        .order_by((queue::priority, queue::queued_at, queue::id))
+        .select(Queued::as_select())
+        .first::<Queued>(connection.as_mut())
+        .optional()
+        .map_err(Error::from)?;
+
+    let (resp, status) = if let Some(mut item) = item {
+        let now: DateTime<Utc> = Utc::now();
+
+        item.worker = Some(worker.id);
+        item.started_at = Some(now.naive_utc());
+        item.last_ping = Some(now.naive_utc());
+        item.update(connection.as_mut())?;
+
+        let api_item = item.into_api_item(connection.as_mut())?;
         let status = format!(
             "working hard on {} {}",
-            item.pkgbase.name, item.pkgbase.version
+            api_item.pkgbase.name, api_item.pkgbase.version
         );
-        (JobAssignment::Rebuild(Box::new(item)), Some(status))
+
+        (JobAssignment::Rebuild(Box::new(api_item)), Some(status))
     } else {
         (JobAssignment::Nothing, None)
     };
@@ -315,17 +361,19 @@ pub async fn drop_from_queue(
     let query = query.into_inner();
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let pkgbases = models::PkgBase::get_by(
-        &query.name,
-        &query.distro,
-        &query.suite,
+    let source_packages = models::SourcePackage::filter_by(
+        Some(&query.name),
+        Some(&query.distro),
         None,
+        Some(&query.suite),
         query.architecture.as_deref(),
-        connection.as_mut(),
-    )?;
-    let pkgbases = pkgbases.iter().map(|p| p.id).collect::<Vec<_>>();
+    )
+    .select(source_packages::id)
+    .distinct()
+    .load::<i32>(connection.as_mut())
+    .map_err(Error::from)?;
 
-    models::Queued::drop_for_pkgbases(&pkgbases, connection.as_mut())?;
+    Queued::drop_for_source_packages(&source_packages, connection.as_mut())?;
 
     Ok(HttpResponse::Ok().json(()))
 }
@@ -343,53 +391,48 @@ pub async fn requeue_pkgbase(
 
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut pkg_ids = Vec::new();
-    let mut pkgbase_ids = HashSet::new();
-    for pkg in models::Package::list(connection.as_mut())? {
-        // TODO: this should be filtered in the database
-        if opt_filter(&pkg.name, query.name.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.status, query.status.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.distro, query.distro.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.suite, query.suite.as_deref()) {
-            continue;
-        }
-        if opt_filter(&pkg.architecture, query.architecture.as_deref()) {
-            continue;
-        }
+    let build_input_ids = BinaryPackage::filter_by(
+        query.name.as_deref(),
+        query.distro.as_deref(),
+        None,
+        query.suite.as_deref(),
+        query.architecture.as_deref(),
+        query.status.map(|q| q.to_string()).as_deref(),
+    )
+    .select(build_inputs::id)
+    .distinct()
+    .load::<i32>(connection.as_mut())
+    .map_err(Error::from)?;
 
-        debug!(
-            "Adding pkgbase to be requeued for {:?} {:?}: pkgbase={:?}",
-            pkg.name, pkg.version, pkg.pkgbase_id
-        );
-        pkg_ids.push(pkg.id);
-        pkgbase_ids.insert(pkg.pkgbase_id);
-    }
+    let rebuild_ids = rebuilds::table
+        .filter(rebuilds::build_input_id.eq_any(&build_input_ids))
+        .select(rebuilds::id)
+        .load::<i32>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    let pkgbase_ids = pkgbase_ids.into_iter().collect::<Vec<_>>();
-    let pkgbases = models::PkgBase::get_id_list(&pkgbase_ids, connection.as_mut())?;
-
-    let to_be_queued = pkgbases
+    let to_be_queued = build_input_ids
         .into_iter()
-        .map(|pkgbase| {
-            models::NewQueued::new(
-                pkgbase.id,
-                pkgbase.version.to_string(),
-                pkgbase.distro,
-                query.priority,
-            )
-        })
+        .map(|id| models::NewQueued::new(id, query.priority))
         .collect::<Vec<_>>();
 
-    models::Queued::insert_batch(&to_be_queued, connection.as_mut())?;
+    diesel::insert_into(queue::table)
+        .values(to_be_queued)
+        //.on_conflict_do_nothing()
+        .execute(connection.as_mut())
+        .map_err(Error::from)?;
 
     if query.reset {
-        models::Package::reset_status_for_requeued_list(&pkg_ids, connection.as_mut())?;
+        diesel::update(rebuilds::table)
+            .set(rebuilds::status.eq("UNKWN"))
+            .filter(rebuilds::id.eq_any(&rebuild_ids))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
+
+        diesel::update(rebuild_artifacts::table)
+            .set(rebuild_artifacts::status.eq("UNKWN"))
+            .filter(rebuild_artifacts::rebuild_id.eq_any(&rebuild_ids))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
     }
 
     Ok(HttpResponse::Ok().json(()))
@@ -413,7 +456,7 @@ pub async fn ping_build(
     let mut item = models::Queued::get_id(item.queue_id, connection.as_mut())?;
     debug!("trying to ping item: {:?}", item);
 
-    if item.worker_id != Some(worker.id) {
+    if item.worker != Some(worker.id) {
         return Err(anyhow!("Trying to write to item we didn't assign").into());
     }
 
@@ -442,30 +485,57 @@ pub async fn report_build(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let mut worker = get_worker_from_request(&req, &cfg, connection.as_mut())?;
-    let queue_item = models::Queued::get_id(report.queue.id, connection.as_mut())?;
-    let mut pkgbase = models::PkgBase::get_id(queue_item.pkgbase_id, connection.as_mut())?;
+
+    let joined = source_packages::table
+        .inner_join(build_inputs::table.inner_join(queue::table))
+        .filter(queue::id.eq(report.queue.id))
+        .select((
+            SourcePackage::as_select(),
+            BuildInput::as_select(),
+            Queued::as_select(),
+        ))
+        .first::<(SourcePackage, BuildInput, Queued)>(connection.as_mut())
+        .map_err(Error::from)?;
+
+    let encoded_log = zstd_compress(report.build_log.as_bytes())
+        .await
+        .map_err(Error::from)?;
+
+    let overall_status = if report
+        .rebuilds
+        .iter()
+        .all(|s| s.1.status == BuildStatus::Good)
+    {
+        Status::Good
+    } else {
+        Status::Bad
+    };
+
+    let rebuild = models::NewRebuild {
+        build_input_id: joined.1.id,
+        started_at: joined.2.started_at,
+        built_at: Some(Utc::now().naive_utc()),
+        build_log: encoded_log,
+        status: Some(overall_status.to_string()),
+    };
+
+    let rebuild_id = rebuild.insert(connection.as_mut())?;
 
     let mut needs_retry = false;
     for (artifact, rebuild) in &report.rebuilds {
-        let mut packages = models::Package::get_by(
-            &artifact.name,
-            &pkgbase.distro,
-            &pkgbase.suite,
-            None,
-            connection.as_mut(),
-        )?;
+        let package_count = binary_packages::table
+            .filter(binary_packages::name.eq(&artifact.name))
+            .filter(binary_packages::version.eq(&artifact.version))
+            .filter(binary_packages::source_package_id.eq(joined.0.id))
+            .filter(binary_packages::build_input_id.eq(joined.1.id))
+            .select(diesel::dsl::count(binary_packages::id))
+            .first::<i64>(connection.as_mut())
+            .map_err(Error::from)?;
 
-        packages.retain(|x| x.pkgbase_id == pkgbase.id);
-        if packages.len() != 1 {
-            error!("rebuilt artifact didn't match a unique package in database. matches={:?} instead of 1", packages.len());
+        if package_count != 1 {
+            error!("rebuilt artifact didn't match a unique package in database. matches={:?} instead of 1", package_count);
             continue;
         }
-        let mut pkg = packages.remove(0);
-
-        // adding build to package
-        let encoded_log = zstd_compress(report.build_log.as_bytes())
-            .await
-            .map_err(Error::from)?;
 
         let encoded_diffoscope = match &rebuild.diffoscope {
             Some(diffoscope) => Some(
@@ -491,39 +561,38 @@ pub async fn report_build(
             _ => None,
         };
 
-        let build =
-            models::NewBuild::from_api(encoded_diffoscope, encoded_log, encoded_attestation);
-
-        let build_id = build.insert(connection.as_mut())?;
-        pkg.build_id = Some(build_id);
-
-        pkg.status = match rebuild.status {
+        let status = match rebuild.status {
             BuildStatus::Good => Status::Good.to_string(),
             _ => Status::Bad.to_string(),
         };
-        pkg.built_at = Some(Utc::now().naive_utc());
 
-        pkg.has_diffoscope = rebuild.diffoscope.is_some();
-        pkg.has_attestation = rebuild.attestation.is_some();
+        let rebuild_artifact = models::NewRebuildArtifact {
+            rebuild_id,
+            diffoscope: encoded_diffoscope,
+            attestation: encoded_attestation,
+            status: Some(status),
+        };
+
+        rebuild_artifact.insert(connection.as_mut())?;
 
         if rebuild.status != BuildStatus::Good {
             needs_retry = true;
         }
-
-        pkg.update(connection.as_mut())?;
     }
 
-    // update pkgbase
+    // update build_inputs
+    let mut new_build_input = joined.1;
     if needs_retry {
-        pkgbase.retries += 1;
-        pkgbase.schedule_retry(cfg.schedule.retry_delay_base());
+        new_build_input.retries += 1;
+        new_build_input.schedule_retry(cfg.schedule.retry_delay_base(), connection.as_mut())?;
     } else {
-        pkgbase.clear_retry(connection.as_mut())?;
+        new_build_input.clear_retry(connection.as_mut())?;
     }
-    pkgbase.update(connection.as_mut())?;
 
     // cleanup queue item and worker status
-    queue_item.delete(connection.as_mut())?;
+    let queued = joined.2;
+    queued.delete(connection.as_mut())?;
+
     worker.status = None;
     worker.update(connection.as_mut())?;
 
@@ -538,12 +607,14 @@ pub async fn get_build_log(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_mut()) {
-        Ok(build) => build,
-        Err(_) => return Ok(not_found()),
-    };
+    let build_log = rebuild_artifacts::table
+        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+        .inner_join(rebuilds::table)
+        .select(rebuilds::build_log)
+        .first::<Vec<u8>>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    forward_compressed_data(req, "text/plain; charset=utf-8", build.build_log).await
+    forward_compressed_data(req, "text/plain; charset=utf-8", build_log).await
 }
 
 #[get("/api/v0/builds/{id}/attestation")]
@@ -556,27 +627,30 @@ pub async fn get_attestation(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let Ok(mut build) = models::Build::get_id(*id, connection.as_mut()) else {
-        return Ok(not_found());
-    };
+    let attestation = rebuild_artifacts::table
+        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+        .select(rebuild_artifacts::attestation)
+        .first::<Option<Vec<u8>>>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    let Some(mut attestation) = build.attestation else {
-        return Ok(not_found());
-    };
+    if let Some(attestation) = attestation {
+        if cfg.transparently_sign_attestations {
+            let (bytes, has_new_signature) =
+                attestation::compressed_attestation_sign_if_necessary(attestation, &privkey)
+                    .await?;
 
-    if cfg.transparently_sign_attestations {
-        let (bytes, has_new_signature) =
-            attestation::compressed_attestation_sign_if_necessary(attestation, &privkey).await?;
+            if has_new_signature {
+                build.attestation = Some(bytes.clone());
+                build.update(connection.as_mut())?;
+            }
 
-        if has_new_signature {
-            build.attestation = Some(bytes.clone());
-            build.update(connection.as_mut())?;
+            attestation = bytes;
         }
 
-        attestation = bytes;
+        forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
+    } else {
+        Ok(not_found())
     }
-
-    forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
 }
 
 #[get("/api/v0/builds/{id}/diffoscope")]
@@ -587,12 +661,13 @@ pub async fn get_diffoscope(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_mut()) {
-        Ok(build) => build,
-        Err(_) => return Ok(not_found()),
-    };
+    let diffoscope = rebuild_artifacts::table
+        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+        .select(rebuild_artifacts::diffoscope)
+        .first::<Option<Vec<u8>>>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    if let Some(diffoscope) = build.diffoscope {
+    if let Some(diffoscope) = diffoscope {
         forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await
     } else {
         Ok(not_found())
@@ -605,16 +680,20 @@ pub async fn get_dashboard(
     lock: web::Data<Arc<RwLock<DashboardState>>>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+
     let stale = {
         let state = lock.read().unwrap();
         !state.is_fresh()
     };
+
     if stale {
         let mut state = lock.write().unwrap();
         debug!("Updating cached dashboard");
         state.update(connection.as_mut())?;
     }
+
     let state = lock.read().unwrap();
+
     let resp = state.get_response()?;
     Ok(HttpResponse::Ok().json(resp))
 }

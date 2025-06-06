@@ -73,28 +73,28 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
             .app_data(Data::new(config.clone()))
             .app_data(Data::new(privkey.clone()))
             .app_data(Data::new(dashboard_cache.clone()))
-            .service(api::list_workers)
-            .service(api::list_pkgs)
-            .service(api::list_queue)
-            .service(api::push_queue)
-            .service(api::pop_queue)
-            .service(api::drop_from_queue)
-            .service(api::requeue_pkgbase)
-            .service(api::ping_build)
-            .service(api::get_build_log)
-            .service(api::get_diffoscope)
-            .service(api::get_attestation)
-            .service(api::get_dashboard)
-            .service(api::get_public_key)
+            .service(api::v0::list_workers)
+            .service(api::v0::list_pkgs)
+            .service(api::v0::list_queue)
+            .service(api::v0::push_queue)
+            .service(api::v0::pop_queue)
+            .service(api::v0::drop_from_queue)
+            .service(api::v0::requeue_pkgbase)
+            .service(api::v0::ping_build)
+            .service(api::v0::get_build_log)
+            .service(api::v0::get_diffoscope)
+            .service(api::v0::get_attestation)
+            .service(api::v0::get_dashboard)
+            .service(api::v0::get_public_key)
             .service(
                 web::resource("/api/v0/build/report")
                     .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                    .route(web::post().to(api::report_build)),
+                    .route(web::post().to(api::v0::report_build)),
             )
             .service(
                 web::resource("/api/v0/pkgs/sync")
                     .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                    .route(web::post().to(api::sync_work)),
+                    .route(web::post().to(api::v0::sync_work)),
             )
     })
     .bind(&bind_addr)?
