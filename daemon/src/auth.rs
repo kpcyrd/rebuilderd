@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::Config;
 use actix_web::HttpRequest;
 use rand::distr::{Alphanumeric, SampleString};
-use rebuilderd_common::api::*;
+use rebuilderd_common::api::v0::*;
 use rebuilderd_common::errors::*;
 use std::env;
 use std::fs::{self, OpenOptions};
@@ -11,7 +11,8 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
 pub fn admin(cfg: &Config, req: &HttpRequest) -> Result<()> {
-    let auth_cookie = api::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
+    let auth_cookie =
+        api::v0::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
 
     if cfg.auth_cookie != auth_cookie {
         bail!("Wrong auth cookie")
@@ -21,7 +22,7 @@ pub fn admin(cfg: &Config, req: &HttpRequest) -> Result<()> {
 }
 
 pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
-    let worker_key = api::header(req, WORKER_KEY_HEADER);
+    let worker_key = api::v0::header(req, WORKER_KEY_HEADER);
     if worker_key.is_err() {
         debug!("Failed to get worker key");
     }
@@ -42,7 +43,7 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
 
     if let Some(expected_signup_secret) = &cfg.worker.signup_secret {
         let signup_secret =
-            api::header(req, SIGNUP_SECRET_HEADER).context("Failed to get worker key")?;
+            api::v0::header(req, SIGNUP_SECRET_HEADER).context("Failed to get worker key")?;
 
         if signup_secret == expected_signup_secret {
             debug!("worker authenticated with signup secret");
@@ -52,7 +53,7 @@ pub fn worker(cfg: &Config, req: &HttpRequest) -> Result<()> {
         }
     } else {
         let auth_cookie =
-            api::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
+            api::v0::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;
 
         if cfg.auth_cookie == auth_cookie {
             Ok(())
