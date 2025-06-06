@@ -1,8 +1,8 @@
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::Shell;
 use glob::Pattern;
+use rebuilderd_common::api::v0::Status;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
 use std::io;
 use std::path::PathBuf;
 

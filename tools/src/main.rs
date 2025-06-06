@@ -4,7 +4,7 @@ use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use glob::Pattern;
-use rebuilderd_common::api::*;
+use rebuilderd_common::api::v0::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::utils;
