@@ -1,243 +1,110 @@
-use crate::models;
-use diesel::Connection;
-use diesel::SqliteConnection;
-use rebuilderd_common::api::*;
+use crate::diesel::ExpressionMethods;
+use crate::models::{NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
+use crate::schema::{build_inputs, rebuilds, source_packages};
+use chrono::{DateTime, Utc};
+use diesel::{Connection, OptionalExtension, QueryDsl};
+use diesel::{RunQueryDsl, SqliteConnection};
+use rebuilderd_common::api::v0::SuiteImport;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::{PkgGroup, Status};
-use std::collections::HashMap;
 
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
-// this holds all pkgsbases we know about
-// when syncing we remove all pkgbases that are still in the import
-// the remaining pkgbases are not referenced in the new import that was submitted and groing to be deleted
-pub struct CurrentArtifactNamespace {
-    pkgbases: HashMap<String, models::PkgBase>,
-}
-
-impl CurrentArtifactNamespace {
-    pub fn load_current_namespace_from_database(
-        distro: &str,
-        suite: &str,
-        connection: &mut SqliteConnection,
-    ) -> Result<Self> {
-        let mut existing_pkgbases = HashMap::new();
-        for pkgbase in models::PkgBase::list_distro_suite(distro, suite, connection)? {
-            let key = Self::gen_key_for_pkgbase(&pkgbase);
-            debug!(
-                "adding known pkgbase with key {:?} for distro={:?}, suite={:?}",
-                key, distro, suite
-            );
-            trace!(
-                "adding known pkgbase with key {:?} for distro={:?}, suite={:?} to {:?}",
-                key,
-                distro,
-                suite,
-                pkgbase
-            );
-            existing_pkgbases.insert(key, pkgbase);
-        }
-        Ok(CurrentArtifactNamespace {
-            pkgbases: existing_pkgbases,
-        })
-    }
-
-    fn gen_key(name: &str, version: &str, architecture: &str) -> String {
-        format!("{:?}-{:?}-{:?}", name, version, architecture)
-    }
-
-    #[inline]
-    fn gen_key_for_pkgbase(pkgbase: &models::PkgBase) -> String {
-        Self::gen_key(&pkgbase.name, &pkgbase.version, &pkgbase.architecture)
-    }
-
-    #[inline]
-    fn gen_key_for_pkggroup(pkggroup: &PkgGroup) -> String {
-        Self::gen_key(&pkggroup.name, &pkggroup.version, &pkggroup.architecture)
-    }
-
-    // returns Some(()) if the group was already known and remove
-    // returns None if the group wasn't known and nothing changed
-    pub fn mark_pkggroup_still_present(&mut self, group: &PkgGroup) -> Option<()> {
-        let key = Self::gen_key_for_pkggroup(group);
-        if self.pkgbases.remove_entry(&key).is_some() {
-            debug!("pkgbase is already present: {:?}", key);
-            Some(())
-        } else {
-            debug!("pkgbase is not yet present: {:?}", key);
-            None
-        }
-    }
-}
-
-// this holds all pkgbases from the import that we didn't know about yet
-// all of them are going to be added to the database at the end
-// builds also need to be scheduled afterwards
-#[derive(Debug, Default)]
-pub struct NewArtifactNamespace {
-    groups: Vec<PkgGroup>,
-}
-
-impl NewArtifactNamespace {
-    pub fn new() -> Self {
-        NewArtifactNamespace::default()
-    }
-
-    pub fn add(&mut self, group: PkgGroup) {
-        self.groups.push(group);
-    }
-}
-
-// TODO: this should be into_api_item
-fn pkggroup_to_newpkgbase(group: &PkgGroup) -> Result<models::NewPkgBase> {
-    let artifacts = serde_json::to_string(&group.artifacts)?;
-    Ok(models::NewPkgBase {
-        name: group.name.clone(),
-        version: group.version.clone(),
-        distro: group.distro.clone(),
-        suite: group.suite.clone(),
-        architecture: group.architecture.clone(),
-        input_url: group.input_url.clone(),
-        artifacts,
-        retries: 0,
-        next_retry: None,
-    })
-}
-
 fn sync(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     connection.transaction::<(), _, _>(|connection| {
-        let distro = &import.distro;
-        let suite = &import.suite;
+        info!(
+            "received submitted artifact groups {:?}",
+            import.groups.len()
+        );
 
-        info!("received submitted artifact groups {:?}", import.groups.len());
-        let mut new_namespace = NewArtifactNamespace::new();
+        let artifact_count: usize = import.groups.iter().map(|g| g.artifacts.len()).sum();
 
-        info!("loading existing artifact groups from database...");
-        let mut current_namespace = CurrentArtifactNamespace::load_current_namespace_from_database(distro, suite, connection)?;
-        info!("found existing artifact groups: len={}", current_namespace.pkgbases.len());
-
-        info!("checking groups already in the database...");
-        let mut num_already_in_database = 0;
-        for group in &import.groups {
-            trace!("received group during import: {:?}", group);
-            if current_namespace.mark_pkggroup_still_present(group).is_some() {
-                num_already_in_database += 1;
-            } else {
-                new_namespace.add(group.clone());
-            }
-        }
-        info!("found groups already in database: len={}", num_already_in_database);
-        info!("found groups that need to be added to database: len={}", new_namespace.groups.len());
-        info!("found groups no longer present: len={}", current_namespace.pkgbases.len());
-
-        let pkgbase_delete_queue = current_namespace.pkgbases.values().map(|x| x.id).collect::<Vec<_>>();
-
-        // deleting groups no longer present
-        let mut progress_group_delete = 0;
-        for delete_batch in pkgbase_delete_queue.chunks(1_000) {
-            progress_group_delete += delete_batch.len();
-            info!("deleting groups in batch: {}/{}", progress_group_delete, pkgbase_delete_queue.len());
-
-            if log::log_enabled!(log::Level::Trace) {
-                for pkgbase in delete_batch {
-                    trace!("pkgbase in this batch: {:?}", pkgbase);
-                }
-            }
-
-            models::PkgBase::delete_batch(delete_batch, connection)
-                .with_context(|| anyhow!("Failed to delete pkgbases"))?;
-        }
-
-        // inserting new groups
         let mut progress_group_insert = 0;
-        for group_batch in new_namespace.groups.chunks(1_000) {
+        let mut progress_pkg_inserts = 0;
+
+        for group_batch in import.groups.chunks(1_000) {
             progress_group_insert += group_batch.len();
-            info!("inserting new groups in batch: {}/{}", progress_group_insert, new_namespace.groups.len());
-            let group_batch = group_batch.iter()
-                .map(pkggroup_to_newpkgbase)
-                .collect::<Result<Vec<_>>>()?;
-            if log::log_enabled!(log::Level::Trace) {
-                for group in &group_batch {
+            info!(
+                "inserting new groups in batch: {}/{}",
+                progress_group_insert,
+                import.groups.len()
+            );
+
+            for group in group_batch {
+                if log::log_enabled!(log::Level::Trace) {
                     trace!("group in this batch: {:?}", group);
                 }
-            }
-            models::NewPkgBase::insert_batch(&group_batch, connection)?;
-        }
 
-        // detecting pkgbase ids for new artifacts
-        let mut progress_pkgbase_detect = 0;
-        let mut backlog_insert_pkgs = Vec::new();
-        let mut backlog_insert_queue = Vec::new();
-        for group_batch in new_namespace.groups.chunks(1_000) {
-            progress_pkgbase_detect += group_batch.len();
-            info!("detecting pkgbase ids for new artifacts: {}/{}", progress_pkgbase_detect, new_namespace.groups.len());
-            for group in group_batch {
-                debug!("searching for pkgbases {:?} {:?} {:?} {:?} {:?}", group.name, group.version, distro, suite, group.architecture);
-                let pkgbases = models::PkgBase::get_by(&group.name,
-                                                      distro,
-                                                      suite,
-                                                      Some(&group.version),
-                                                      Some(&group.architecture),
-                                                      connection)?;
+                let source_package_to_import = NewSourcePackage {
+                    name: group.name.clone(),
+                    version: group.version.clone(),
+                    distribution: group.distro.clone(),
+                    release: None,
+                    component: Some(group.suite.clone()),
+                };
 
-                if pkgbases.len() != 1 {
-                    bail!("Failed to determine pkgbase in database for grouop (expected=1, found={}): {:?}", pkgbases.len(), group);
-                }
-                let pkgbase_id = pkgbases[0].id;
+                let source_package = source_package_to_import.upsert(connection)?;
+
+                let build_input_to_import = NewBuildInput {
+                    source_package_id: source_package.id,
+                    url: group.input_url.clone().unwrap_or_default(), // TODO: behaviour change: is this guaranteed to exist?
+                    backend: group.distro.clone(),
+                    architecture: group.architecture.clone(),
+                    retries: 0, // only used for new entries, old ones are kept by upsert
+                };
+
+                let build_input = build_input_to_import.upsert(connection)?;
 
                 for artifact in &group.artifacts {
-                    backlog_insert_pkgs.push(models::NewPackage {
-                        pkgbase_id,
+                    progress_pkg_inserts += 1;
+                    info!(
+                        "inserting new packages in batch: {}/{}",
+                        progress_pkg_inserts, artifact_count
+                    );
+                    if log::log_enabled!(log::Level::Trace) {
+                        trace!("pkg in this batch: {:?}", artifact);
+                    }
+
+                    let binary_package_to_import = NewBinaryPackage {
+                        source_package_id: source_package.id,
+                        build_input_id: build_input.id,
                         name: artifact.name.clone(),
                         version: artifact.version.clone(),
-                        status: Status::Unknown.to_string(),
-                        distro: distro.clone(),
-                        suite: suite.clone(),
-                        architecture: group.architecture.clone(),
+                        architecture: group.architecture.clone(), // TODO: behaviour change: source packages generating multiple architectures
                         artifact_url: artifact.url.clone(),
-                        build_id: None,
-                        built_at: None,
-                        has_diffoscope: false,
-                        has_attestation: false,
-                        checksum: None,
-                    });
+                    };
+
+                    binary_package_to_import.upsert(connection)?;
                 }
 
-                backlog_insert_queue.push(models::NewQueued::new(pkgbase_id,
-                                                                 group.version.clone(),
-                                                                 distro.to_string(),
-                                                                 DEFAULT_QUEUE_PRIORITY));
+                let needs_rebuild = match rebuilds::table
+                    .filter(rebuilds::build_input_id.eq(build_input.id))
+                    .select(rebuilds::status)
+                    .get_result::<Option<String>>(connection)
+                    .optional()?
+                    .flatten()
+                {
+                    None => true,
+                    Some(value) => value != "GOOD",
+                };
+
+                if needs_rebuild {
+                    let now: DateTime<Utc> = Utc::now();
+                    let queued_to_import = NewQueued {
+                        build_input_id: build_input.id,
+                        priority: DEFAULT_QUEUE_PRIORITY,
+                        queued_at: now.naive_utc(),
+                    };
+
+                    let queued = queued_to_import.upsert(connection)?;
+
+                    if log::log_enabled!(log::Level::Trace) {
+                        trace!("queued in this batch: {:?}", queued);
+                    }
+                }
             }
         }
 
-        // inserting new packages
-        let mut progress_pkg_inserts = 0;
-        for pkg_batch in backlog_insert_pkgs.chunks(1_000) {
-            progress_pkg_inserts += pkg_batch.len();
-            info!("inserting new packages in batch: {}/{}", progress_pkg_inserts, backlog_insert_pkgs.len());
-            if log::log_enabled!(log::Level::Trace) {
-                for pkg in pkg_batch {
-                    trace!("pkg in this batch: {:?}", pkg);
-                }
-            }
-            models::NewPackage::insert_batch(pkg_batch, connection)?;
-        }
-
-        // inserting to queue
-        // TODO: check if queueing has been disabled in the request, eg. to initially fill the database
-        let mut progress_queue_inserts = 0;
-        for queue_batch in backlog_insert_queue.chunks(1_000) {
-            progress_queue_inserts += queue_batch.len();
-            info!("inserting to queue in batch: {}/{}", progress_queue_inserts, backlog_insert_queue.len());
-            if log::log_enabled!(log::Level::Trace) {
-                for queued in queue_batch {
-                    trace!("queued in this batch: {:?}", queued);
-                }
-            }
-            models::Queued::insert_batch(queue_batch, connection)?;
-        }
-
-        Ok(())
+        Ok::<(), Error>(())
     })?;
 
     info!("successfully synced import to database");
@@ -247,16 +114,26 @@ fn sync(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
 
 fn retry(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     info!("selecting packages with due retries");
-    let queue = models::PkgBase::list_distro_suite_due_retries(
-        import.distro.as_ref(),
-        &import.suite,
-        connection,
-    )?;
+
+    let queue = build_inputs::table
+        .inner_join(source_packages::table)
+        .filter(source_packages::distribution.eq(&import.distro))
+        .filter(source_packages::component.eq(&import.suite))
+        .select(build_inputs::id)
+        .load::<i32>(connection)?;
 
     info!("queueing new retries");
-    for bases in queue.chunks(1_000) {
-        debug!("queue: {:?}", bases.len());
-        models::Queued::queue_batch(bases, import.distro.to_string(), 2, connection)?;
+    for build_input_ids in queue.chunks(1_000) {
+        debug!("queue: {:?}", build_input_ids.len());
+
+        let queue_items = build_input_ids
+            .iter()
+            .map(|id| NewQueued::new(*id, 2))
+            .collect::<Vec<_>>();
+
+        for queue_item in queue_items {
+            queue_item.upsert(connection)?;
+        }
     }
     info!("successfully triggered {} retries", queue.len());
 
@@ -266,5 +143,6 @@ fn retry(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> 
 pub fn run(import: SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
     sync(&import, connection)?;
     retry(&import, connection)?;
+
     Ok(())
 }

@@ -4,9 +4,10 @@ use crate::config::Config;
 use crate::dashboard::DashboardState;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
+use crate::diesel::NullableExpressionMethods;
 use crate::diesel::QueryDsl;
 use crate::models;
-use crate::models::{BinaryPackage, BuildInput, Queued, SourcePackage};
+use crate::models::{r1, BinaryPackage, BuildInput, Queued, SourcePackage};
 use crate::schema::*;
 use crate::sync;
 use crate::util::{is_zstd_compressed, zstd_compress, zstd_decompress};
@@ -172,7 +173,7 @@ pub async fn list_pkgs(
         builder.insert_header(http::header::LastModified(latest_built_at.into()));
     }
 
-    let packages = BinaryPackage::filter_by(
+    let data = BinaryPackage::filter_by(
         query.name.as_deref(),
         query.distro.as_deref(),
         None,
@@ -180,13 +181,53 @@ pub async fn list_pkgs(
         query.architecture.as_deref(),
         query.status.map(|s| s.to_string()).as_deref(),
     )
-    .select(BinaryPackage::as_select())
-    .load::<BinaryPackage>(connection.as_mut())
+    .select((
+        binary_packages::name,
+        source_packages::distribution,
+        binary_packages::architecture,
+        binary_packages::version,
+        r1.field(rebuilds::status).nullable(),
+        source_packages::component,
+        binary_packages::artifact_url,
+        r1.field(rebuilds::id).nullable(),
+        r1.field(rebuilds::built_at).nullable(),
+        rebuild_artifacts::diffoscope.is_not_null().nullable(),
+        rebuild_artifacts::attestation.is_not_null().nullable(),
+    ))
+    .get_results::<(
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        Option<i32>,
+        Option<NaiveDateTime>,
+        Option<bool>,
+        Option<bool>,
+    )>(connection.as_mut())
     .map_err(Error::from)?;
 
-    let mapped = packages
+    let mapped = data
         .into_iter()
-        .map(|p| p.into_api_item(connection.as_mut()))
+        .map(|d| {
+            let release = PkgRelease {
+                name: d.0,
+                distro: d.1,
+                architecture: d.2,
+                version: d.3,
+                status: d.4.unwrap_or("UNKWN".to_string()).parse()?,
+                suite: d.5.unwrap_or_default(), // TODO: behaviour change, was always present, may not be now
+                artifact_url: d.6,
+                build_id: d.7,
+                built_at: d.8,
+                has_diffoscope: d.9.unwrap_or_default(),
+                has_attestation: d.10.unwrap_or_default(),
+            };
+
+            Ok(release)
+        })
         .collect::<Result<Vec<PkgRelease>>>()?;
 
     Ok(builder.json(mapped))
@@ -281,7 +322,7 @@ pub async fn push_queue(
         let item = models::NewQueued::new(build_input_id, query.priority);
 
         debug!("adding to queue: {:?}", item);
-        if let Err(err) = item.insert(connection.as_mut()) {
+        if let Err(err) = item.upsert(connection.as_mut()) {
             error!("failed to queue item: {:#?}", err);
         }
     }
@@ -568,6 +609,7 @@ pub async fn report_build(
 
         let rebuild_artifact = models::NewRebuildArtifact {
             rebuild_id,
+            name: artifact.name.clone(),
             diffoscope: encoded_diffoscope,
             attestation: encoded_attestation,
             status: Some(status),

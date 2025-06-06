@@ -3,16 +3,12 @@ extern crate diesel_migrations;
 
 use crate::config::Config;
 use crate::dashboard::DashboardState;
-use crate::models::Build;
 use actix_web::middleware::Logger;
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
-use diesel::SqliteConnection;
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
 
 pub mod api;
 pub mod attestation;
@@ -27,43 +23,11 @@ pub mod sync;
 pub mod util;
 pub mod web;
 
-fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
-    let orphaned = Build::find_orphaned(connection)?;
-
-    if !orphaned.is_empty() {
-        info!("Deleting {} orphaned builds...", orphaned.len());
-        for ids in orphaned.chunks(500) {
-            Build::delete_multiple(ids, connection).context("Failed to delete builds")?;
-            debug!("Deleted chunk of {} builds", ids.len());
-        }
-        info!("Finished removing orphaned builds");
-    }
-
-    Ok(())
-}
-
 pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
     let bind_addr = config.bind_addr.clone();
 
     let privkey = Arc::new(privkey);
     let dashboard_cache = Arc::new(RwLock::new(DashboardState::new()));
-
-    {
-        let pool = pool.clone();
-        thread::spawn(move || {
-            let mut connection = pool.get().expect("Failed to get connection from pool");
-            loop {
-                debug!("Checking for orphaned builds...");
-
-                if let Err(err) = db_collect_garbage(connection.as_mut()) {
-                    error!("Failed to delete orphaned builds: {:#}", err);
-                }
-
-                debug!("Sleeping until next garbage collection cycle...");
-                thread::sleep(Duration::from_secs(24 * 3600));
-            }
-        });
-    }
 
     HttpServer::new(move || {
         App::new()

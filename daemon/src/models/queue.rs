@@ -1,73 +1,42 @@
+use crate::models::{BinaryPackage, BuildInput, SourcePackage};
 use crate::schema::*;
-use rebuilderd_common::errors::*;
-use rebuilderd_common::config::*;
-use diesel::prelude::*;
 use chrono::prelude::*;
 use chrono::Duration;
-use serde::{Serialize, Deserialize};
-use rebuilderd_common::api::QueueItem;
-use crate::models::PkgBase;
+use diesel::prelude::*;
+use diesel::upsert::excluded;
+use rebuilderd_common::api::v0::{PkgArtifact, QueueItem};
+use rebuilderd_common::config::*;
+use rebuilderd_common::errors::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Eq, Debug)]
+#[derive(Identifiable, Queryable, Selectable, AsChangeset, Serialize, PartialEq, Eq, Debug)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[diesel(treat_none_as_null = true)]
 #[diesel(table_name = queue)]
 pub struct Queued {
     pub id: i32,
-    pub pkgbase_id: i32,
-    pub version: String,
-    pub required_backend: String,
+    pub build_input_id: i32,
     pub priority: i32,
     pub queued_at: NaiveDateTime,
-    pub worker_id: Option<i32>,
     pub started_at: Option<NaiveDateTime>,
+    pub worker: Option<i32>,
     pub last_ping: Option<NaiveDateTime>,
 }
 
 impl Queued {
     pub fn get_id(my_id: i32, connection: &mut SqliteConnection) -> Result<Queued> {
         use crate::schema::queue::dsl::*;
-        let item = queue
-            .filter(id.eq(my_id))
-            .first::<Queued>(connection)?;
+        let item = queue.filter(id.eq(my_id)).first::<Queued>(connection)?;
         Ok(item)
     }
 
-    pub fn get(pkg: i32, my_version: &str, connection: &mut SqliteConnection) -> Result<Option<Queued>> {
+    pub fn get(build_input: i32, connection: &mut SqliteConnection) -> Result<Option<Queued>> {
         use crate::schema::queue::dsl::*;
         let job = queue
-            .filter(pkgbase_id.eq(pkg))
-            .filter(version.eq(my_version))
+            .filter(build_input_id.eq(build_input))
             .first::<Queued>(connection)
             .optional()?;
         Ok(job)
-    }
-
-    pub fn pop_next(my_worker_id: i32, supported_backends: &[String], connection: &mut SqliteConnection) -> Result<Option<QueueItem>> {
-        use crate::schema::queue::dsl::*;
-        let mut query = queue
-            .filter(worker_id.is_null())
-            .into_boxed();
-
-        if !supported_backends.is_empty() {
-            query = query
-                .filter(required_backend.eq_any(supported_backends));
-        }
-
-        let item = query
-            .order_by((priority, queued_at, id))
-            .first::<Queued>(connection)
-            .optional()?;
-        if let Some(mut item) = item {
-            let now: DateTime<Utc> = Utc::now();
-
-            item.worker_id = Some(my_worker_id);
-            item.started_at = Some(now.naive_utc());
-            item.last_ping = Some(now.naive_utc());
-            item.update(connection)?;
-
-            Ok(Some(item.into_api_item(connection)?))
-        } else {
-            Ok(None)
-        }
     }
 
     pub fn ping_job(&mut self, connection: &mut SqliteConnection) -> Result<()> {
@@ -78,28 +47,8 @@ impl Queued {
 
     pub fn delete(&self, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::queue::columns::*;
-        diesel::delete(queue::table
-            .filter(id.eq(self.id))
-        ).execute(connection)?;
+        diesel::delete(queue::table.filter(id.eq(self.id))).execute(connection)?;
         Ok(())
-    }
-
-    pub fn list(limit: Option<i64>, connection: &mut SqliteConnection) -> Result<Vec<Queued>> {
-        use crate::schema::queue::dsl::*;
-
-        let query = Box::new(queue
-            .order_by((priority, queued_at, id)));
-
-        let results = if let Some(limit) = limit {
-            query
-                .limit(limit)
-                .load::<Queued>(connection)?
-        } else {
-            query
-                .load::<Queued>(connection)?
-        };
-
-        Ok(results)
     }
 
     pub fn update(&self, connection: &mut SqliteConnection) -> Result<()> {
@@ -110,44 +59,17 @@ impl Queued {
         Ok(())
     }
 
-    // TODO: is this still needed
-    pub fn queue_batch(pkgbases: &[(i32, String)], required_backend: String, priority: i32, connection: &mut SqliteConnection) -> Result<()> {
-        let pkgbases = pkgbases.iter()
-            .map(|(id, version)| NewQueued::new(*id, version.to_string(), required_backend.clone(), priority))
-            .collect::<Vec<_>>();
+    pub fn drop_for_source_packages(
+        source_package_ids: &[i32],
+        connection: &mut SqliteConnection,
+    ) -> Result<()> {
+        let ids = queue::table
+            .inner_join(build_inputs::table)
+            .select(queue::id)
+            .filter(build_inputs::source_package_id.eq_any(source_package_ids))
+            .load::<i32>(connection)?;
 
-        diesel::insert_into(queue::table)
-            .values(pkgbases)
-            // TODO: not supported by diesel yet
-            // .on_conflict_do_nothing()
-            .execute(connection)?;
-
-        Ok(())
-    }
-
-    pub fn insert_batch(queued: &[NewQueued], connection: &mut SqliteConnection) -> Result<()> {
-        diesel::insert_into(queue::table)
-            .values(queued)
-            .execute(connection)?;
-        Ok(())
-    }
-
-    pub fn drop_for_pkgbases(pkgbases: &[i32], connection: &mut SqliteConnection) -> Result<()> {
-        diesel::delete(queue::table.filter(queue::pkgbase_id.eq_any(pkgbases)))
-            .execute(connection)?;
-        Ok(())
-    }
-
-    pub fn requeue(&self, connection: &mut SqliteConnection) -> Result<()> {
-        diesel::update(queue::table)
-            .filter(queue::id.eq(self.id))
-            .set((
-                queue::worker_id.eq(Option::<i32>::None),
-                queue::started_at.eq(Option::<NaiveDateTime>::None),
-                queue::last_ping.eq(Option::<NaiveDateTime>::None),
-            ))
-            .execute(connection)?;
-
+        diesel::delete(queue::table.filter(queue::id.eq_any(ids))).execute(connection)?;
         Ok(())
     }
 
@@ -157,7 +79,7 @@ impl Queued {
 
         diesel::update(queue::table.filter(queue::last_ping.lt(deadline)))
             .set((
-                queue::worker_id.eq(Option::<i32>::None),
+                queue::worker.eq(Option::<i32>::None),
                 queue::started_at.eq(Option::<NaiveDateTime>::None),
                 queue::last_ping.eq(Option::<NaiveDateTime>::None),
             ))
@@ -167,14 +89,37 @@ impl Queued {
     }
 
     pub fn into_api_item(self, connection: &mut SqliteConnection) -> Result<QueueItem> {
-        let pkgbase = PkgBase::get_id(self.pkgbase_id, connection)?;
+        let build_input = build_inputs::table
+            .filter(build_inputs::id.eq(self.build_input_id))
+            .get_result::<BuildInput>(connection)?;
+
+        let source_package = SourcePackage::get_id(build_input.source_package_id, connection)?;
+        let binary_packages = binary_packages::table
+            .filter(binary_packages::source_package_id.eq(source_package.id))
+            .load::<BinaryPackage>(connection)?;
+
+        let version = source_package.version.clone();
+        let artifacts = binary_packages
+            .iter()
+            .map(|b| PkgArtifact {
+                name: b.name.clone(),
+                version: b.version.clone(),
+                url: b.artifact_url.clone(),
+            })
+            .collect();
+
+        let pkgbase = source_package.into_api_item(
+            build_input.architecture,
+            Some(build_input.url),
+            artifacts,
+        )?;
 
         Ok(QueueItem {
             id: self.id,
-            pkgbase: pkgbase.into_api_item()?,
-            version: self.version,
+            pkgbase,
+            version,
             queued_at: self.queued_at,
-            worker_id: self.worker_id,
+            worker_id: self.worker,
             started_at: self.started_at,
             last_ping: self.last_ping,
         })
@@ -184,32 +129,35 @@ impl Queued {
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[diesel(table_name = queue)]
 pub struct NewQueued {
-    pub pkgbase_id: i32,
-    pub version: String,
-    pub required_backend: String,
+    pub build_input_id: i32,
     pub priority: i32,
     pub queued_at: NaiveDateTime,
 }
 
 impl NewQueued {
-    pub fn new(pkgbase_id: i32, version: String, required_backend: String, priority: i32) -> NewQueued {
+    pub fn new(build_input_id: i32, priority: i32) -> NewQueued {
         let now: DateTime<Utc> = Utc::now();
         NewQueued {
-            pkgbase_id,
-            version,
-            required_backend,
+            build_input_id,
             priority,
             queued_at: now.naive_utc(),
         }
     }
 
-    pub fn insert(&self, connection: &mut SqliteConnection) -> Result<()> {
-        // TODO: on conflict do nothing after it landed in diesel sqlite
-        if Queued::get(self.pkgbase_id, &self.version, connection)?.is_none() {
-            diesel::insert_into(queue::table)
-                .values(self)
-                .execute(connection)?;
-        }
-        Ok(())
+    pub fn upsert(&self, connection: &mut SqliteConnection) -> Result<Queued> {
+        use crate::schema::queue::*;
+
+        let result = diesel::insert_into(table)
+            .values(self)
+            .on_conflict(build_input_id)
+            .do_update()
+            .set((
+                build_input_id.eq(excluded(build_input_id)),
+                priority.eq(excluded(priority)),
+            ))
+            .returning(Queued::as_select())
+            .get_result::<Queued>(connection)?;
+
+        Ok(result)
     }
 }

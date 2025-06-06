@@ -5,8 +5,10 @@ macro_rules! import_models {
     };
 }
 
-import_models!(build);
-import_models!(package);
-import_models!(pkgbase);
+import_models!(rebuild);
+import_models!(rebuild_artifact);
+import_models!(binary_package);
+import_models!(build_input);
+import_models!(source_package);
 import_models!(worker);
 import_models!(queue);

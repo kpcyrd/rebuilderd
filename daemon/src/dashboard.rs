@@ -1,8 +1,14 @@
+use crate::diesel::ExpressionMethods;
+use crate::diesel::NullableExpressionMethods;
 use crate::models;
+use crate::models::Queued;
+use crate::schema::{build_inputs, queue, rebuilds, source_packages};
 use chrono::prelude::*;
-use rebuilderd_common::api::*;
+use diesel::dsl::{case_when, sum};
+use diesel::sql_types::Integer;
+use diesel::{BoolExpressionMethods, QueryDsl, RunQueryDsl};
+use rebuilderd_common::api::v0::*;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -38,24 +44,48 @@ impl DashboardState {
 
     pub fn update(&mut self, connection: &mut diesel::SqliteConnection) -> Result<()> {
         models::Queued::free_stale_jobs(connection)?;
-        let pkgs = models::Package::list(connection)?;
-        let queue = models::Queued::list(None, connection)?;
+
+        let queue = queue::table
+            .filter(queue::started_at.is_not_null())
+            .load::<Queued>(connection)?;
+
         let queue_length = queue.len();
 
+        let components = build_inputs::table
+            .left_join(rebuilds::table)
+            .inner_join(source_packages::table)
+            .group_by(source_packages::component)
+            .select((
+                source_packages::component,
+                sum(
+                    case_when::<_, _, Integer>(rebuilds::status.nullable().eq("GOOD"), 1)
+                        .otherwise(0),
+                ),
+                sum(
+                    case_when::<_, _, Integer>(rebuilds::status.nullable().eq("BAD"), 1)
+                        .otherwise(0),
+                ),
+                sum(case_when::<_, _, Integer>(
+                    rebuilds::status
+                        .nullable()
+                        .eq("UNKWN")
+                        .or(rebuilds::status.nullable().is_null()),
+                    1,
+                )
+                .otherwise(0)),
+            ))
+            .get_results::<(Option<String>, Option<i64>, Option<i64>, Option<i64>)>(connection)?;
+
         let mut suites = HashMap::new();
-        for pkg in pkgs {
-            if !suites.contains_key(&pkg.suite) {
-                suites.insert(pkg.suite.clone(), SuiteStats::default());
-            }
-            if let Some(stats) = suites.get_mut(&pkg.suite) {
-                if let Ok(status) = pkg.status.parse() {
-                    match status {
-                        Status::Good => stats.good += 1,
-                        Status::Unknown => stats.unknown += 1,
-                        Status::Bad => stats.bad += 1,
-                    }
-                }
-            }
+        for (component, good, bad, unknown) in components {
+            suites.insert(
+                component.unwrap_or_default(), // TODO: behaviour change
+                SuiteStats {
+                    good: good.unwrap_or_default() as usize,
+                    bad: bad.unwrap_or_default() as usize,
+                    unknown: unknown.unwrap_or_default() as usize,
+                },
+            );
         }
 
         let mut active_builds = Vec::new();
