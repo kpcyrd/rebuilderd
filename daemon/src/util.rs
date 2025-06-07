@@ -1,5 +1,5 @@
+use std::io;
 use std::io::{Read, Write};
-use std::{cmp, io};
 use zstd::{Decoder, Encoder};
 
 pub const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
@@ -36,14 +36,9 @@ pub const ZSTD_CHUNK_SIZE: usize = 1024 * 128;
 pub async fn zstd_compress(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut encoder = Encoder::new(Vec::new(), 11)?;
 
-    let mut position = 0;
-    while position < data.len() {
+    for slice in data.chunks(ZSTD_CHUNK_SIZE) {
         tokio::task::yield_now().await;
-
-        let slice = &data[position..cmp::min(position + ZSTD_CHUNK_SIZE, data.len())];
         encoder.write_all(slice)?;
-
-        position += slice.len();
     }
 
     encoder.finish()
