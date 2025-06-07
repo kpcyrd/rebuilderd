@@ -19,8 +19,13 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
         .has_pending_migration(MIGRATIONS)
         .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?
     {
-        let pending_migrations = connection.pending_migrations(MIGRATIONS).unwrap();
-        let next_migration = pending_migrations.first().unwrap();
+        let pending_migrations = connection
+            .pending_migrations(MIGRATIONS)
+            .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?;
+
+        let Some(next_migration) = pending_migrations.first() else {
+            break;
+        };
 
         let version = code_migration::run_code_backed_migration(&mut connection, next_migration)
             .map_err(|err| anyhow!("Failed to run pending migration: {err:#}"))?;
