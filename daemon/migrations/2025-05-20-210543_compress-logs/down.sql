@@ -1,4 +1,4 @@
-PRAGMA foreign_keys= off;
+PRAGMA foreign_keys=off;
 
 CREATE TABLE _builds_new
 (
@@ -17,4 +17,4 @@ DROP TABLE builds;
 ALTER TABLE _builds_new
     RENAME TO builds;
 
-PRAGMA foreign_keys= on;
+PRAGMA foreign_keys=on;
