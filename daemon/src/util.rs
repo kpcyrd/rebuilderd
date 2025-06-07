@@ -56,10 +56,10 @@ pub async fn zstd_decompress(data: &[u8]) -> io::Result<Vec<u8>> {
     let mut decoder = Decoder::new(data)?;
     let mut data = vec![];
 
+    let mut buf = vec![0u8; ZSTD_CHUNK_SIZE];
     loop {
         tokio::task::yield_now().await;
 
-        let mut buf = vec![0u8; ZSTD_CHUNK_SIZE];
         let read_bytes = decoder.read(&mut buf)?;
         if read_bytes == 0 {
             break;
