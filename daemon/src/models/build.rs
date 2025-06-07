@@ -1,25 +1,21 @@
 use crate::schema::*;
-use diesel::sql_types;
 use diesel::prelude::*;
 use diesel::sql_types::Integer;
-use rebuilderd_common::api::Rebuild;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, AsChangeset, Clone, PartialEq, Eq, Debug)]
 #[diesel(table_name = builds)]
 pub struct Build {
     pub id: i32,
-    pub diffoscope: Option<String>,
+    pub diffoscope: Option<Vec<u8>>,
     pub build_log: Vec<u8>,
-    pub attestation: Option<String>,
+    pub attestation: Option<Vec<u8>>,
 }
 
 impl Build {
     pub fn get_id(my_id: i32, connection: &mut SqliteConnection) -> Result<Build> {
         use crate::schema::builds::dsl::*;
-        let build = builds
-            .filter(id.eq(my_id))
-            .first::<Build>(connection)?;
+        let build = builds.filter(id.eq(my_id)).first::<Build>(connection)?;
         Ok(build)
     }
 
@@ -46,38 +42,44 @@ struct IdRow {
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
 #[diesel(table_name = builds)]
 pub struct NewBuild {
-    pub diffoscope: Option<String>,
+    pub diffoscope: Option<Vec<u8>>,
     pub build_log: Vec<u8>,
-    pub attestation: Option<String>,
+    pub attestation: Option<Vec<u8>>,
 }
 
 impl NewBuild {
     pub fn insert(&self, connection: &mut SqliteConnection) -> Result<i32> {
-        let id = connection.transaction::<_, Error, _>(|connection| {
-            diesel::insert_into(builds::table)
-                .values(self)
-                .execute(connection)?;
+        let id = connection
+            .transaction::<_, Error, _>(|connection| {
+                diesel::insert_into(builds::table)
+                    .values(self)
+                    .execute(connection)?;
 
-            define_sql_function!{
-                fn last_insert_rowid() -> sql_types::Integer;
-            }
-            let rows = diesel::select(last_insert_rowid()).load::<i32>(connection)?;
+                define_sql_function! {
+                    fn last_insert_rowid() -> Integer;
+                }
+                let rows = diesel::select(last_insert_rowid()).load::<i32>(connection)?;
 
-            if let Some(id) = rows.first() {
-                Ok(*id)
-            } else {
-                bail!("Failed to get last_insert_id")
-            }
-        }).context("Failed to insert build to db")?;
+                if let Some(id) = rows.first() {
+                    Ok(*id)
+                } else {
+                    bail!("Failed to get last_insert_id")
+                }
+            })
+            .context("Failed to insert build to db")?;
 
         Ok(id)
     }
 
-    pub fn from_api(rebuild: &Rebuild, build_log: Vec<u8>) -> NewBuild {
+    pub fn from_api(
+        diffoscope: Option<Vec<u8>>,
+        build_log: Vec<u8>,
+        attestation: Option<Vec<u8>>,
+    ) -> NewBuild {
         NewBuild {
-            diffoscope: rebuild.diffoscope.clone(),
-            attestation: rebuild.attestation.clone(),
+            diffoscope,
             build_log,
+            attestation,
         }
     }
 }
