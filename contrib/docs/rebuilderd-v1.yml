@@ -1,0 +1,1486 @@
+openapi: 3.1.0
+info:
+  title: Rebuilderd
+  description: |-
+    This specification describes the JSON REST API of the rebuilderd server. The
+    API can be used to query information about rebuilt packages, status of 
+    workers, enqueue work, claim packages for building, and more.
+  version: 1.0.0
+servers:
+  - url: 'https://reproduce.algiz.nu/api/v1'
+tags:
+  - name: worker
+    description: Queries related to or used by workers
+  - name: build
+    description: Queries related to rebuild jobs
+  - name: package
+    description: Queries related to packages
+  - name: queue
+    description: Queries related to the build queue
+  - name: miscellaneous
+    description: Miscellaneous endpoints
+  - name: meta
+    description: Queries related to metadata about the database as a whole
+paths:
+  /builds:
+    get:
+      summary: Gets information about attempted rebuilds
+      tags:
+        - build
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/before'
+        - $ref: '#/components/parameters/after'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/direction'
+
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/architecture'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    description: The total number of records in the whole filtered set
+                    type: integer
+                  records:
+                    description: The records in the requested slice of the set
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rebuild'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+    post:
+      summary: Submits a report on an attempted rebuild
+      tags:
+        - build
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RebuildReport'
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+        - WorkerKey: [ ]
+  /builds/{id}:
+    get:
+      summary: Gets information about a specific attempted rebuild
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rebuild'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /builds/{id}/log:
+    get:
+      summary: Gets the full build log of an attempted rebuild
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /builds/{id}/artifacts:
+    get:
+      summary: Gets information about artifacts produced by an attempted rebuild
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RebuildArtifact'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /builds/{id}/artifacts/{artifact_id}:
+    get:
+      summary: Gets information about a specific artifact produced by an attempted rebuild
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: artifact_id
+          description: The ID of the artifact
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RebuildArtifact'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /builds/{id}/artifacts/{artifact_id}/diffoscope:
+    get:
+      summary: Gets the diffoscope output from a non-reproducible artifact
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: artifact_id
+          description: The ID of the artifact
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /builds/{id}/artifacts/{artifact_id}/attestation:
+    get:
+      summary: Gets the attestation on a reproducible artifact
+      tags:
+        - build
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the rebuild
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: artifact_id
+          description: The ID of the artifact
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /packages:
+    post:
+      summary: Submits information about source and binary package to rebuild
+      tags:
+        - package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackageReport'
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+  /packages/source:
+    get:
+      summary: Gets information about known source packages
+      tags:
+        - package
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/before'
+        - $ref: '#/components/parameters/after'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/direction'
+
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    description: The total number of records in the whole filtered set
+                    type: integer
+                  records:
+                    description: The records in the requested slice of the set
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SourcePackage'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+  /packages/source/{id}:
+    get:
+      summary: Gets information about a specific source package
+      tags:
+        - package
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the source package
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcePackage'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /packages/binary:
+    get:
+      summary: Gets information about known binary packages
+      tags:
+        - package
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/before'
+        - $ref: '#/components/parameters/after'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/direction'
+
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/architecture'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    description: The total number of records in the whole filtered set
+                    type: integer
+                  records:
+                    description: The records in the requested slice of the set
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BinaryPackage'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+  /packages/binary/{id}:
+    get:
+      summary: Gets information about a specific binary package
+      tags:
+        - package
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the binary package
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BinaryPackage'
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /queue:
+    get:
+      summary: Gets information about enqueued rebuilds
+      tags:
+        - queue
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/before'
+        - $ref: '#/components/parameters/after'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/direction'
+
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/architecture'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    description: The total number of records in the whole filtered set
+                    type: integer
+                  records:
+                    description: The records in the requested slice of the set
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QueuedJob'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+    post:
+      summary: Submits a request to rebuild specific packages
+      tags:
+        - queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RebuildRequest'
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+    delete:
+      summary: Drop multiple enqueued rebuilds
+      tags:
+        - queue
+      parameters:
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/architecture'
+      responses:
+        "204":
+          $ref: '#/components/responses/Deleted'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+  /queue/{id}:
+    get:
+      summary: Gets information about a specific enqueued rebuild
+      tags:
+        - queue
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the enqueued job
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueuedJob'
+        "404":
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Drops an enqueued rebuild
+      tags:
+        - queue
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the enqueued job
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          $ref: '#/components/responses/Deleted'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+      security:
+        - AuthCookie: [ ]
+  /queue/{id}/ping:
+    post:
+      summary: Pings the build, notifying rebuilderd that the worker is actively working on the job
+      tags:
+        - queue
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the enqueued job
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+      security:
+        - WorkerKey: [ ]
+  /queue/pop:
+    post:
+      summary: Requests work from the queue
+      tags:
+        - queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PopQueuedJobRequest'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAssignment'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+        - WorkerKey: [ ]
+  /dashboard:
+    get:
+      summary: Gets precomputed information useful for dashboards and data presentations
+      tags:
+        - miscellaneous
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardState'
+  /workers:
+    get:
+      summary: Gets information about registered workers
+      tags:
+        - worker
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/before'
+        - $ref: '#/components/parameters/after'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/direction'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    description: The total number of records in the whole filtered set
+                    type: integer
+                  records:
+                    description: The records in the requested slice of the set
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Worker'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+    post:
+      summary: Registers a new worker
+      tags:
+        - worker
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterWorkerRequest'
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
+        - SignupSecret: [ ]
+  /workers/{id}:
+    get:
+      summary: Gets information about a specific registered worker
+      tags:
+        - worker
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the worker
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Worker'
+        "404":
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Unregister an existing worker
+      tags:
+        - worker
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the worker
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          $ref: '#/components/responses/Deleted'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+      security:
+        - AuthCookie: [ ]
+        - WorkerKey: [ ]
+  /meta/distributions:
+    get:
+      description: Gets known distributions in the database
+      tags:
+        - meta
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /meta/distributions/{distribution}/releases:
+    get:
+      description: Gets known releases for the given distribution in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/distributions/{distribution}/architectures:
+    get:
+      description: Gets known architectures for the given distribution in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/distributions/{distribution}/components:
+    get:
+      description: Gets known components for the given distribution in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/distributions/{distribution}/{release}/architectures:
+    get:
+      description: Gets known architectures for the given distribution and release in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: release
+          description: The distribution release
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/distributions/{distribution}/{release}/components:
+    get:
+      description: Gets known components for the given distribution and release in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: release
+          description: The distribution release
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/distributions/{distribution}/{release}/components/{component}/architectures:
+    get:
+      description: Gets known architectures for the given distribution, release, and component in the database
+      tags:
+        - meta
+      parameters:
+        - in: path
+          name: distribution
+          description: The distribution
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: release
+          description: The distribution release
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: component
+          description: The distribution component
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "404":
+          $ref: '#/components/responses/NotFound'
+  /meta/public-keys:
+    get:
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicKey"
+
+components:
+  schemas:
+    PublicKey:
+      type: object
+      properties:
+        current:
+          type: string
+      additionalProperties: false
+      required:
+        - current
+    JobAssignment:
+      oneOf:
+        - type: object
+          description: Nothing
+          additionalProperties: false
+        - $ref: '#/components/schemas/QueuedJobWithArtifacts'
+    QueuedJobWithArtifacts:
+      type: object
+      properties:
+        job:
+          $ref: '#/components/schemas/QueuedJob'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedJobArtifact'
+      additionalProperties: false
+      required:
+        - job
+        - artifacts
+    QueuedJobArtifact:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        architecture:
+          type: string
+        url:
+          type: string
+          format: uri
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - architecture
+        - url
+    DashboardState:
+      type: object
+      properties:
+        distributions:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              $ref: '#/components/schemas/DistributionStatistics'
+        active_builds:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedJob'
+    DistributionStatistics:
+      type: object
+      properties:
+        good:
+          type: integer
+        bad:
+          type: integer
+        unknown:
+          type: integer
+      additionalProperties: false
+      required:
+        - good
+        - bad
+        - unknown
+    RebuildRequest:
+      type: object
+      properties:
+        distribution:
+          description: The name of the distribution the package(s) to rebuild belong
+          type: string
+          nullable: true
+        release:
+          description: The name of the release the package(s) to rebuild belong
+          type: string
+          nullable: true
+        component:
+          description: The name of the release the package(s) to rebuild belong
+          type: string
+          nullable: true
+        name:
+          description: The name of the package(s) to rebuild
+          type: string
+          nullable: true
+        version:
+          description: The version of the package(s) to rebuild
+          type: string
+          nullable: true
+        architecture:
+          description: The architecture of the package(s) to rebuild
+          type: string
+          nullable: true
+      additionalProperties: false
+    PopQueuedJobRequest:
+      type: object
+      properties:
+        supported_backends:
+          description: The backends this worker supports
+          type: array
+          items:
+            type: string
+        architecture:
+          description: The native architecture of this worker
+          type: string
+        supported_architectures:
+          description: Additional architectures the worker supports building for
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+      required:
+        - supported_backends
+        - architecture
+        - supported_architectures
+    QueuedJob:
+      type: object
+      properties:
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        architecture:
+          description: The architecture the queue item should be built for
+          type: string
+        backend:
+          description: The backend the queue item should be built with
+          type: string
+        url:
+          description: The URL of the build input to use
+          type: string
+          format: uri
+      additionalProperties: false
+      required:
+        - id
+        - architecture
+        - backend
+        - url
+    RegisterWorkerRequest:
+      type: object
+      properties:
+        name:
+          description: A user-friendly name for the worker
+          type: string
+        key:
+          description: The worker's authentication key
+          type: string
+          format: base64
+      additionalProperties: false
+      required:
+        - name
+        - key
+    Worker:
+      type: object
+      properties:
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        name:
+          description: The name of the worker
+          type: string
+        address:
+          description: The IP address of the worker
+          type: string
+        status:
+          description: A free-form string describing the worker's current status
+          type: string
+        last_ping:
+          description: The time at which we last heard from the worker
+          type: string
+          format: date-time
+        is_online:
+          description: Indicates whether the worker is considered online
+          type: boolean
+      additionalProperties: false
+      required:
+        - name
+        - address
+        - status
+        - last_ping
+        - is_online
+    BuildStatus:
+      description: |-
+        The end state of the build attempt. 
+        
+        `GOOD` means the package built successfully, produced the expected artifacts, and that all artifacts were
+        bit-for-bit reproduced. 
+        
+        `BAD` means the build produced at least one non-reproducible artifact (missing, different, or extra).
+        
+        `FAIL` means the build did not complete for whatever reason.
+        
+        `UNKNOWN` means we have no conclusive data on the status of the rebuild.
+      type: string
+      enum:
+        - GOOD
+        - BAD
+        - FAIL
+        - UNKNOWN
+    ArtifactStatus:
+      description: |-
+        The status of an individual artifact. 
+
+        `GOOD` means the artifact was expected and bit-for-bit reproduced. 
+
+        `BAD` means the artifact was not reproducible (missing, extra, different).
+
+        `UNKNOWN` means we have no conclusive data on the status of the artifact.
+      type: string
+      enum:
+        - GOOD
+        - BAD
+        - UNKNOWN
+    SourcePackage:
+      type: object
+      properties:
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        name:
+          description: The name of the source package
+          type: string
+        version:
+          description: The version of the source package
+          type: string
+        distribution:
+          description: The distribution the package belong to
+          type: string
+        release:
+          description: The release the package belong to
+          type: string
+        component:
+          description: The component the package belong to
+          type: string
+        architectures:
+          description: The architectures the package appears in
+          type: array
+          items:
+            type: string
+        build_id:
+          description: The ID of the latest build of this package
+          type: integer
+          nullable: true
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - distribution
+        - release
+        - component
+        - architectures
+    BinaryPackage:
+      type: object
+      properties:
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        name:
+          description: The name of the binary package
+          type: string
+        version:
+          description: The version of the binary package
+          type: string
+        distribution:
+          description: The distribution the artifact belong to
+          type: string
+        release:
+          description: The release the artifact belong to
+          type: string
+        component:
+          description: The component the artifact belong to
+          type: string
+        architecture:
+          description: The architecture of the artifact
+          type: string
+        url:
+          description: The URL where the artifact can be fetched
+          type: string
+          format: uri
+        build_id:
+          description: The ID of the latest build of this package
+          type: integer
+          nullable: true
+        artifact_id:
+          description: The ID of the latest artifact of this package
+          type: integer
+          nullable: true
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - distribution
+        - release
+        - component
+        - architecture
+        - url
+    PackageReport:
+      type: object
+      properties:
+        distribution:
+          description: The distribution the packages belong to
+          type: string
+        release:
+          description: The release the packages belong to
+          type: string
+        component:
+          description: The component the packages belong to
+          type: string
+        architecture:
+          description: The architecture the packages belong to
+          type: string
+        packages:
+          description: The source packages to include in the database
+          type: array
+          items:
+            $ref: '#/components/schemas/SourcePackageReport'
+      additionalProperties: false
+      required:
+        - distribution
+        - release
+        - component
+        - architecture
+        - packages
+    SourcePackageReport:
+      type: object
+      properties:
+        name:
+          description: The name of the source package
+          type: string
+        version:
+          description: The version of the source package
+          type: string
+        url:
+          description: The URL to use as an input for rebuild attempts
+          type: string
+          format: uri
+        artifacts:
+          description: The artifacts associated with the source package
+          type: array
+          items:
+            $ref: '#/components/schemas/BinaryPackageReport'
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - url
+        - artifacts
+    BinaryPackageReport:
+      type: object
+      properties:
+        name:
+          description: The name of the artifact
+          type: string
+        version:
+          description: The version of the artifact
+          type: string
+        architecture:
+          description: The architecture of the artifact
+          type: string
+        url:
+          description: The URL where the artifact can be fetched
+          type: string
+          format: uri
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - architecture
+        - url
+    Rebuild:
+      type: object
+      properties:
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        name:
+          description: The name of the rebuilt source package
+          type: string
+        version:
+          description: The version of the rebuilt source package
+          type: string
+        distribution:
+          description: The distribution the rebuilt source package belongs to
+          type: string
+        release:
+          description: The release the rebuilt source package belongs to
+          type: string
+          nullable: true
+        component:
+          description: The component the rebuilt source package belongs to
+          type: string
+          nullable: true
+        architecture:
+          description: The architecture source package was rebuilt on
+          type: string
+        backend:
+          description: The build backend used
+          type: string
+        retries:
+          description: The number of times the package had been attempted to be built before this attempt
+          type: integer
+          minimum: 0
+        started_at:
+          description: The time at which the build attempt started
+          type: string
+          format: date-time
+        built_at:
+          description: The time at which the build attempt ended
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/BuildStatus'
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - distribution
+        - architecture
+        - backend
+        - retries
+        - started_at
+        - built_at
+        - status
+    RebuildArtifact:
+      type: object
+      properties: # TODO: checksums?
+        id:
+          description: The ID of the record
+          type: integer
+          minimum: 1
+        name: # TODO: name mapping? filename or "smart" name? link to binary_package instead?
+          description: The name of the rebuilt artifact
+          type: string
+        has_diffoscope:
+          description: Indicates whether the artifact has a diffoscope log
+          type: boolean
+        has_attestation:
+          description: Indicates whether the artifact has an attestation
+          type: boolean
+        status:
+          $ref: '#/components/schemas/ArtifactStatus'
+      additionalProperties: false
+      required:
+        - name
+        - has_diffoscope
+        - has_attestation
+        - status
+    RebuildReport:
+      type: object
+      properties:
+        queue_id:
+          description: The ID of the queue job
+          type: integer
+        built_at:
+          description: The time at which the worker completed the build attempt
+          type: string
+          format: date-time
+        build_log:
+          description: The zstd-encoded build log
+          type: string
+          format: base64
+        status:
+          $ref: '#/components/schemas/BuildStatus'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/RebuildArtifactReport'
+      additionalProperties: false
+      required:
+        - queue_id
+        - built_at
+        - build_log
+        - status
+        - artifacts
+    RebuildArtifactReport:
+      oneOf:
+        - type: object
+          properties:
+            name:
+              description: The name of the built artifact. This must match the name of a known binary package
+              type: string
+            diffoscope:
+              description: The zstd-encoded diffoscope output, if any
+              type: string
+              format: base64
+              nullable: true
+            attestation:
+              description: The zstd-encoded attestation, if any
+              type: string
+              format: base64
+              nullable: true
+            status:
+              $ref: '#/components/schemas/ArtifactStatus'
+          additionalProperties: false
+          required:
+            - name
+            - status
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        code:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+      required:
+        - message
+        - code
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found
+    NoContent:
+      description: No Content
+    Unauthorized:
+      description: Unauthorized
+    Deleted:
+      description: Deleted
+  parameters:
+    limit:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: |-
+        Limits the number of records returned by the query. The number of records returned may be smaller than the
+        requested number if there aren't enough records to satisfy the applied filters.
+        
+        Defaults to 1000 if unset.
+    before:
+      in: query
+      name: before
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: |-
+        Selects a page of results before the given ID. This is typically used when iterating backwards through a set of
+        results. The actual order of the results are selected by using the `sort` parameter, and the selection slice is
+        relative to this ordering, not necessarily the order of the IDs themselves.
+    after:
+      in: query
+      name: after
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: |-
+        Selects a page of results after the given ID. This is typically used when iterating through a set of results. 
+        The actual order of the results are selected by using the `sort` parameter, and the selection slice is relative 
+        to this ordering, not necessarily the order of the IDs themselves.
+    sort:
+      in: query
+      name: sort
+      required: false
+      schema:
+        type: string
+      description: |-
+        The field of the record to sort the results by. The available fields vary by endpoint.
+    direction:
+      in: query
+      name: direction
+      required: false
+      schema:
+        type: string
+        enum:
+          - ascending
+          - descending
+        default: ascending
+      description: |-
+        The sorting order to use.
+    name:
+      in: query
+      name: name
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the name of the package.
+    version:
+      in: query
+      name: version
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the version of the package.
+    distribution:
+      in: query
+      name: distribution
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the distribution the package is associated with.
+    release:
+      in: query
+      name: release
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the release the package is associated with. Not all distributions have a formal release
+        system; to accommodate this, the release may be filtered on an empty string.
+    component:
+      in: query
+      name: component
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the component the package is associated with. Not all distributions have a software 
+        sectioning system; to accommodate this, the component may be filtered on an empty string.
+    architecture:
+      in: query
+      name: architecture
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the architecture of the package.
+  securitySchemes:
+    AuthCookie:
+      type: apiKey
+      in: header
+      name: X-Auth-Cookie
+      description: |-
+        General administrative authentication. All privileged operations and endpoints can be accessed by a bearer of an
+        auth cookie.
+    WorkerKey:
+      type: apiKey
+      in: header
+      name: X-Worker-Key
+      description: |-
+        Worker-specific key generated by the worker and used for read/write operations on privileged worker endpoints.
+    SignupSecret:
+      type: apiKey
+      in: header
+      name: X-Signup-Secret
+      description: |-
+        Static key used by workers to initially register themselves and their keys with the daemon.
