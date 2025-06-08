@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct QueueJobRequest {
+    pub distribution: Option<String>,
+    pub release: Option<String>,
+    pub component: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub architecture: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PopQueuedJobRequest {
     pub supported_backends: Vec<String>,
     pub architecture: String,

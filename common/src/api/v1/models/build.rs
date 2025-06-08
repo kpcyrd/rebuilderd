@@ -1,15 +1,14 @@
 use chrono::NaiveDateTime;
+use diesel::serialize::Output;
+#[cfg(feature = "diesel")]
+use diesel::{
+    deserialize::FromSql, serialize::ToSql, sql_types::Text, sqlite::Sqlite, sqlite::SqliteValue,
+    AsExpression, FromSqlRow, Queryable,
+};
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RebuildRequest {
-    pub distribution: Option<String>,
-    pub release: Option<String>,
-    pub component: Option<String>,
-    pub name: Option<String>,
-    pub version: Option<String>,
-    pub architecture: Option<String>,
-}
+use std::error::Error;
+use std::fmt;
+use std::fmt::Formatter;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RebuildReport {
@@ -21,10 +20,67 @@ pub struct RebuildReport {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
+#[cfg_attr(feature = "diesel", diesel(sql_type = Text))]
 pub enum BuildStatus {
     Good,
     Bad,
     Fail,
+}
+
+impl fmt::Display for BuildStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            BuildStatus::Good => write!(f, "GOOD"),
+            BuildStatus::Bad => write!(f, "BAD"),
+            BuildStatus::Fail => write!(f, "FAIL"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BuildStatusParseError {
+    value: String,
+}
+
+impl fmt::Display for BuildStatusParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let value = &self.value;
+        write!(f, "could not parse \"{value}\" as a build status")
+    }
+}
+
+impl Error for BuildStatusParseError {}
+
+impl TryFrom<&str> for BuildStatus {
+    type Error = BuildStatusParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "GOOD" => Ok(BuildStatus::Good),
+            "BAD" => Ok(BuildStatus::Bad),
+            "FAIL" => Ok(BuildStatus::Fail),
+            _ => Err(BuildStatusParseError {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl FromSql<Text, Sqlite> for BuildStatus {
+    fn from_sql(bytes: SqliteValue) -> diesel::deserialize::Result<Self> {
+        let t = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
+        Ok(t.as_str().try_into()?)
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl ToSql<Text, Sqlite> for BuildStatus {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> diesel::serialize::Result {
+        out.set_value(self.to_string());
+        Ok(diesel::serialize::IsNull::No)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,6 +98,7 @@ pub enum ArtifactStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(Queryable))]
 pub struct Rebuild {
     pub id: i32,
     pub name: String,
@@ -51,8 +108,8 @@ pub struct Rebuild {
     pub component: Option<String>,
     pub architecture: String,
     pub backend: String,
-    pub retries: u32,
-    pub started_at: NaiveDateTime,
-    pub built_at: NaiveDateTime,
-    pub status: BuildStatus,
+    pub retries: i32,
+    pub started_at: Option<NaiveDateTime>,
+    pub built_at: Option<NaiveDateTime>,
+    pub status: Option<BuildStatus>,
 }
