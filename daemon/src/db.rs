@@ -15,6 +15,7 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
     info!("Using database at {:?}", url);
     let mut connection = SqliteConnection::establish(url)?;
 
+    let mut database_schema_changed = false;
     while connection
         .has_pending_migration(MIGRATIONS)
         .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?
@@ -31,10 +32,16 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
             .map_err(|err| anyhow!("Failed to run pending migration: {err:#}"))?;
 
         info!("Applied database migration: {version}");
+        database_schema_changed = true;
     }
 
-    info!("reclaiming disk space (this might take a while)");
-    sql_query("VACUUM;").execute(&mut connection)?;
+    if database_schema_changed {
+        info!("reclaiming disk space (this might take a while)");
+        sql_query("VACUUM;").execute(&mut connection)?;
+
+        info!("analyzing new schema and optimizing queries");
+        sql_query("ANALYZE;").execute(&mut connection)?;
+    }
 
     Ok(connection)
 }
