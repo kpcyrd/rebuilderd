@@ -16,10 +16,8 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
     let mut connection = SqliteConnection::establish(url)?;
 
     let mut database_schema_changed = false;
-    while connection
-        .has_pending_migration(MIGRATIONS)
-        .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?
-    {
+
+    loop {
         let pending_migrations = connection
             .pending_migrations(MIGRATIONS)
             .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?;
