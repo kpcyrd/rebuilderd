@@ -434,7 +434,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RebuildRequest'
+              $ref: '#/components/schemas/QueueJobRequest'
       responses:
         "204":
           $ref: '#/components/responses/NoContent'
@@ -821,7 +821,7 @@ components:
         - good
         - bad
         - unknown
-    RebuildRequest:
+    QueueJobRequest:
       type: object
       properties:
         distribution:

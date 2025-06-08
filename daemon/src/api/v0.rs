@@ -1,3 +1,4 @@
+use crate::api::forward_compressed_data;
 use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
@@ -50,44 +51,6 @@ fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option
         .ok()
         .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
         .map(|value| value.signed_duration_since(datetime))
-}
-
-async fn forward_compressed_data(
-    request: HttpRequest,
-    content_type: &str,
-    data: Vec<u8>,
-) -> web::Result<HttpResponse> {
-    let mut builder = HttpResponse::Ok();
-
-    builder
-        .content_type(content_type)
-        .append_header(("X-Content-Type-Options", "nosniff"))
-        .append_header(("Content-Security-Policy", "default-src 'none'"));
-
-    if is_zstd_compressed(data.as_slice()) {
-        let client_supports_zstd = AcceptEncoding::parse(&request)
-            .ok()
-            .and_then(|a| a.negotiate([Encoding::zstd()].iter()))
-            .map(|e| e == Encoding::zstd())
-            .unwrap_or(false);
-
-        if client_supports_zstd {
-            builder.insert_header(ContentEncoding::Zstd);
-
-            let resp = builder.body(data);
-            Ok(resp)
-        } else {
-            let decoded_log = zstd_decompress(data.as_slice())
-                .await
-                .map_err(Error::from)?;
-
-            let resp = builder.body(decoded_log);
-            Ok(resp)
-        }
-    } else {
-        let resp = builder.body(data);
-        Ok(resp)
-    }
 }
 
 #[get("/api/v0/workers")]
