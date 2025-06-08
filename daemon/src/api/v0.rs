@@ -1,5 +1,5 @@
 use crate::attestation::{self, Attestation};
-use crate::auth;
+use crate::api::{auth, forward_compressed_data};
 use crate::config::Config;
 use crate::dashboard::DashboardState;
 use crate::db::Pool;
@@ -10,15 +10,15 @@ use crate::models;
 use crate::models::{r1, BinaryPackage, BuildInput, Queued, SourcePackage};
 use crate::schema::*;
 use crate::sync;
-use crate::util::{is_zstd_compressed, zstd_compress, zstd_decompress};
+use crate::util::zstd_compress;
 use crate::web;
-use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header};
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
 use chrono::prelude::*;
 use chrono::Duration;
 use diesel::{OptionalExtension, RunQueryDsl, SelectableHelper, SqliteConnection};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::v0::*;
+use rebuilderd_common::api::WORKER_KEY_HEADER;
 use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
 use std::net::IpAddr;
@@ -52,44 +52,6 @@ fn modified_since_duration(req: &HttpRequest, datetime: DateTime<Utc>) -> Option
         .ok()
         .and_then(|value| chrono::DateTime::parse_from_rfc2822(value).ok())
         .map(|value| value.signed_duration_since(datetime))
-}
-
-async fn forward_compressed_data(
-    request: HttpRequest,
-    content_type: &str,
-    data: Vec<u8>,
-) -> web::Result<HttpResponse> {
-    let mut builder = HttpResponse::Ok();
-
-    builder
-        .content_type(content_type)
-        .append_header(("X-Content-Type-Options", "nosniff"))
-        .append_header(("Content-Security-Policy", "default-src 'none'"));
-
-    if is_zstd_compressed(data.as_slice()) {
-        let client_supports_zstd = AcceptEncoding::parse(&request)
-            .ok()
-            .and_then(|a| a.negotiate([Encoding::zstd()].iter()))
-            .map(|e| e == Encoding::zstd())
-            .unwrap_or(false);
-
-        if client_supports_zstd {
-            builder.insert_header(ContentEncoding::Zstd);
-
-            let resp = builder.body(data);
-            Ok(resp)
-        } else {
-            let decoded_log = zstd_decompress(data.as_slice())
-                .await
-                .map_err(Error::from)?;
-
-            let resp = builder.body(decoded_log);
-            Ok(resp)
-        }
-    } else {
-        let resp = builder.body(data);
-        Ok(resp)
-    }
 }
 
 #[get("/api/v0/workers")]
@@ -284,7 +246,7 @@ fn get_worker_from_request(
         worker.bump_last_ping(&ip);
         Ok(worker)
     } else {
-        let worker = models::NewWorker::new(key.to_string(), ip, None);
+        let worker = models::NewWorker::new(key.to_string(), None, ip, None);
         worker.insert(connection)?;
         get_worker_from_request(req, cfg, connection)
     }

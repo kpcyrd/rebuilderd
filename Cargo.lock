@@ -1957,6 +1957,7 @@ dependencies = [
  "chrono",
  "clap",
  "colored",
+ "diesel",
  "dirs-next",
  "log",
  "reqwest",

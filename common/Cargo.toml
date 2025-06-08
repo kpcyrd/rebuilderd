@@ -14,9 +14,14 @@ anyhow = "1.0.58"
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "4.5.21", features = ["derive"] }
 colored = "3"
+diesel = { version = "2", features = ["sqlite"], optional = true }
 dirs-next = "2.0.0"
 log = "0.4.17"
 reqwest = { version = "0.12", features = ["blocking", "json", "stream", "rustls-tls-native-roots"], default-features = false }
 serde = { version = "1.0.137", features = ["derive"] }
 toml = "0.9"
 url = "2.2.2"
+
+[features]
+diesel = ["dep:diesel"]
+v0 = []

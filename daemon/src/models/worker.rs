@@ -1,12 +1,13 @@
 use crate::schema::*;
 use chrono::prelude::*;
 use diesel::prelude::*;
+use diesel::upsert::excluded;
 use rebuilderd_common::api;
 use rebuilderd_common::errors::*;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 
-#[derive(Identifiable, Queryable, AsChangeset, Serialize, PartialEq, Eq, Debug)]
+#[derive(Identifiable, Queryable, AsChangeset, Selectable, Serialize, PartialEq, Eq, Debug)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 #[diesel(treat_none_as_null = true)]
 #[diesel(table_name = workers)]
@@ -52,6 +53,18 @@ impl Worker {
 
         Ok(())
     }
+
+    pub fn get_and_refresh(key: &str, connection: &mut SqliteConnection) -> Result<Worker> {
+        let worker = diesel::update(workers::table.filter(workers::key.eq(key)))
+            .set((
+                workers::last_ping.eq(Utc::now().naive_utc()),
+                workers::online.eq(true),
+            ))
+            .returning(Worker::as_select())
+            .get_result(connection)?;
+
+        Ok(worker)
+    }
 }
 
 impl From<Worker> for api::v0::Worker {
@@ -71,6 +84,7 @@ impl From<Worker> for api::v0::Worker {
 #[diesel(table_name = workers)]
 pub struct NewWorker {
     pub key: String,
+    pub name: String,
     pub address: String,
     pub status: Option<String>,
     pub last_ping: NaiveDateTime,
@@ -86,15 +100,40 @@ impl NewWorker {
         Ok(())
     }
 
-    pub fn new(key: String, addr: IpAddr, status: Option<String>) -> NewWorker {
+    pub fn new(
+        key: String,
+        name: Option<String>,
+        addr: IpAddr,
+        status: Option<String>,
+    ) -> NewWorker {
         let now: DateTime<Utc> = Utc::now();
 
         NewWorker {
             key,
+            name: name.unwrap_or("".to_string()),
             address: addr.to_string(),
             status,
             last_ping: now.naive_utc(),
             online: true,
         }
+    }
+
+    pub fn upsert(&self, connection: &mut SqliteConnection) -> Result<Worker> {
+        let result = diesel::insert_into(workers::table)
+            .values(self)
+            .on_conflict(workers::key)
+            .do_update()
+            .set((
+                workers::key.eq(excluded(workers::key)),
+                workers::name.eq(&self.name),
+                workers::address.eq(&self.address),
+                workers::status.eq(&self.status),
+                workers::last_ping.eq(&self.last_ping),
+                workers::online.eq(&self.online),
+            ))
+            .returning(Worker::as_select())
+            .get_result::<Worker>(connection)?;
+
+        Ok(result)
     }
 }

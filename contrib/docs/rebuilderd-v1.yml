@@ -417,7 +417,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RebuildRequest'
+              $ref: '#/components/schemas/QueueJobRequest'
       responses:
         "204":
           $ref: '#/components/responses/NoContent'
@@ -535,6 +535,11 @@ paths:
       summary: Gets precomputed information useful for dashboards and data presentations
       tags:
         - miscellaneous
+      parameters:
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+        - $ref: '#/components/parameters/architecture'
       responses:
         "200":
           description: Success
@@ -873,31 +878,19 @@ components:
     DashboardState:
       type: object
       properties:
-        distributions:
-          type: object
-          additionalProperties:
-            type: object
-            additionalProperties:
-              $ref: '#/components/schemas/DistributionStatistics'
-        active_builds:
-          type: array
-          items:
-            $ref: '#/components/schemas/QueuedJob'
-    DistributionStatistics:
-      type: object
-      properties:
         good:
           type: integer
         bad:
           type: integer
+        fail:
+          type: integer
         unknown:
           type: integer
-      additionalProperties: false
-      required:
-        - good
-        - bad
-        - unknown
-    RebuildRequest:
+        active_builds:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedJob'
+    QueueJobRequest:
       type: object
       properties:
         distribution:
@@ -953,6 +946,21 @@ components:
           description: The ID of the record
           type: integer
           minimum: 1
+        name:
+          description: The name of the source package
+          type: string
+        version:
+          description: The version of the source package
+          type: string
+        distribution:
+          description: The distribution the package belong to
+          type: string
+        release:
+          description: The release the package belong to
+          type: string
+        component:
+          description: The component the package belong to
+          type: string
         architecture:
           description: The architecture the queue item should be built for
           type: string
@@ -966,6 +974,9 @@ components:
       additionalProperties: false
       required:
         - id
+        - name
+        - version
+        - distribution
         - architecture
         - backend
         - url
@@ -1067,11 +1078,9 @@ components:
         component:
           description: The component the package belong to
           type: string
-        architectures:
-          description: The architectures the package appears in
-          type: array
-          items:
-            type: string
+        architecture:
+          description: The architecture the package belongs to
+          type: string
         build_id:
           description: The ID of the latest build of this package
           type: integer
@@ -1083,7 +1092,7 @@ components:
         - distribution
         - release
         - component
-        - architectures
+        - architecture
     BinaryPackage:
       type: object
       properties:

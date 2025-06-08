@@ -79,6 +79,7 @@ fn sync(import: &SuiteImport, connection: &mut SqliteConnection) -> Result<()> {
                 let needs_rebuild = match rebuilds::table
                     .filter(rebuilds::build_input_id.eq(build_input.id))
                     .select(rebuilds::status)
+                    .order_by(rebuilds::built_at.desc())
                     .get_result::<Option<String>>(connection)
                     .optional()?
                     .flatten()
