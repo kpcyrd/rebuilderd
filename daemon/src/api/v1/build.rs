@@ -72,9 +72,8 @@ pub async fn get_build_log(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let build_log = rebuild_artifacts::table
-        .filter(rebuild_artifacts::id.eq(id.into_inner()))
-        .inner_join(rebuilds::table)
+    let build_log = rebuilds::table
+        .filter(rebuilds::id.eq(id.into_inner()))
         .select(rebuilds::build_log)
         .first::<Vec<u8>>(connection.as_mut())
         .map_err(Error::from)?;
@@ -89,7 +88,20 @@ pub async fn get_build_artifacts(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    Ok(HttpResponse::NotImplemented())
+    let artifacts = rebuilds::table
+        .inner_join(rebuild_artifacts::table)
+        .filter(rebuilds::id.eq(id.into_inner()))
+        .select((
+            rebuild_artifacts::id,
+            rebuild_artifacts::name,
+            rebuild_artifacts::diffoscope.is_not_null(),
+            rebuild_artifacts::attestation.is_not_null(),
+            rebuild_artifacts::status,
+        ))
+        .get_results::<api::v1::RebuildArtifact>(connection.as_mut())
+        .map_err(Error::from)?;
+
+    Ok(HttpResponse::Ok().json(artifacts))
 }
 
 #[get("/api/v1/builds/{id}/artifacts/{artifact_id}")]
@@ -100,7 +112,26 @@ pub async fn get_build_artifact(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    Ok(HttpResponse::NotImplemented())
+    let artifact = rebuilds::table
+        .inner_join(rebuild_artifacts::table)
+        .filter(rebuilds::id.eq(id.into_inner()))
+        .filter(rebuild_artifacts::id.eq(artifact_id.into_inner()))
+        .select((
+            rebuild_artifacts::id,
+            rebuild_artifacts::name,
+            rebuild_artifacts::diffoscope.is_not_null(),
+            rebuild_artifacts::attestation.is_not_null(),
+            rebuild_artifacts::status,
+        ))
+        .first::<api::v1::RebuildArtifact>(connection.as_mut())
+        .optional()
+        .map_err(Error::from)?;
+
+    if let Some(artifact) = artifact {
+        Ok(HttpResponse::Ok().json(artifact))
+    } else {
+        Ok(HttpResponse::NotFound().finish())
+    }
 }
 
 #[get("/api/v1/builds/{id}/artifacts/{artifact_id}/diffoscope")]
@@ -112,13 +143,16 @@ pub async fn get_build_artifact_diffoscope(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let diffoscope = rebuild_artifacts::table
-        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+    let diffoscope = rebuilds::table
+        .inner_join(rebuild_artifacts::table)
+        .filter(rebuilds::id.eq(id.into_inner()))
+        .filter(rebuild_artifacts::id.eq(artifact_id.into_inner()))
         .select(rebuild_artifacts::diffoscope)
         .first::<Option<Vec<u8>>>(connection.as_mut())
+        .optional()
         .map_err(Error::from)?;
 
-    if let Some(diffoscope) = diffoscope {
+    if let Some(diffoscope) = diffoscope.flatten() {
         forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await
     } else {
         Ok(HttpResponse::NotFound().finish())
@@ -134,13 +168,16 @@ pub async fn get_build_artifact_attestation(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let attestation = rebuild_artifacts::table
-        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+    let attestation = rebuilds::table
+        .inner_join(rebuild_artifacts::table)
+        .filter(rebuilds::id.eq(id.into_inner()))
+        .filter(rebuild_artifacts::id.eq(artifact_id.into_inner()))
         .select(rebuild_artifacts::attestation)
         .first::<Option<Vec<u8>>>(connection.as_mut())
+        .optional()
         .map_err(Error::from)?;
 
-    if let Some(attestation) = attestation {
+    if let Some(attestation) = attestation.flatten() {
         forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
     } else {
         Ok(HttpResponse::NotFound().finish())
