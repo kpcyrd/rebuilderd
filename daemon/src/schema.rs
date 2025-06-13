@@ -3,9 +3,9 @@
 diesel::table! {
     builds (id) {
         id -> Integer,
-        diffoscope -> Nullable<Text>,
+        diffoscope -> Nullable<Binary>,
         build_log -> Binary,
-        attestation -> Nullable<Text>,
+        attestation -> Nullable<Binary>,
     }
 }
 

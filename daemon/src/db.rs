@@ -1,7 +1,9 @@
+use crate::code_migrations::code_migration;
 use diesel::connection::{Instrumentation, SimpleConnection, TransactionManager};
 use diesel::prelude::*;
 use diesel::query_builder::{QueryFragment, QueryId};
 use diesel::r2d2::{self, ConnectionManager};
+use diesel::sql_query;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use rebuilderd_common::errors::*;
 
@@ -13,14 +15,30 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
     info!("Using database at {:?}", url);
     let mut connection = SqliteConnection::establish(url)?;
 
-    while connection
-        .has_pending_migration(MIGRATIONS)
-        .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?
-    {
-        let version = connection
-            .run_next_migration(MIGRATIONS)
+    let mut database_schema_changed = false;
+
+    loop {
+        let pending_migrations = connection
+            .pending_migrations(MIGRATIONS)
+            .map_err(|err| anyhow!("Failed to check for pending migrations: {err:#}"))?;
+
+        let Some(next_migration) = pending_migrations.first() else {
+            break;
+        };
+
+        let version = code_migration::run_code_backed_migration(&mut connection, next_migration)
             .map_err(|err| anyhow!("Failed to run pending migration: {err:#}"))?;
+
         info!("Applied database migration: {version}");
+        database_schema_changed = true;
+    }
+
+    if database_schema_changed {
+        info!("reclaiming disk space (this might take a while)");
+        sql_query("VACUUM;").execute(&mut connection)?;
+
+        info!("analyzing new schema and optimizing queries");
+        sql_query("ANALYZE;").execute(&mut connection)?;
     }
 
     Ok(connection)

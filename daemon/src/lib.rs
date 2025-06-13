@@ -15,12 +15,14 @@ use std::time::Duration;
 
 pub mod api;
 pub mod auth;
+pub mod code_migrations;
 pub mod config;
 pub mod dashboard;
 pub mod db;
 pub mod models;
 pub mod schema;
 pub mod sync;
+pub mod util;
 pub mod web;
 
 fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
