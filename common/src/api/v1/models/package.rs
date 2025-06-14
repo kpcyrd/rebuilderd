@@ -36,7 +36,6 @@ pub struct SourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
-    pub architecture: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

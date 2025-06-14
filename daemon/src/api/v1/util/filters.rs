@@ -14,7 +14,7 @@ pub struct OriginFilter {
 }
 
 impl<'a> OriginFilter {
-    pub fn filter<Q, A>(&'a self, mut sql: Q, architecture_column: A) -> Q
+    pub fn filter<Q, A>(&'a self, mut sql: Q, architecture_column: Option<A>) -> Q
     where
         A: OriginFilterColumn + Expression<SqlType = Text>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::distribution, &'a String>, Output = Q>,
@@ -35,7 +35,9 @@ impl<'a> OriginFilter {
         }
 
         if let Some(architecture) = &self.architecture {
-            sql = sql.filter(architecture_column.eq(architecture));
+            if let Some(architecture_column) = architecture_column {
+                sql = sql.filter(architecture_column.eq(architecture));
+            }
         }
 
         sql

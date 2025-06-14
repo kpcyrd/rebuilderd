@@ -24,7 +24,6 @@ fn source_packages_base() -> _ {
             source_packages::distribution,
             source_packages::release.nullable(),
             source_packages::component.nullable(),
-            build_inputs::architecture,
         ))
 }
 
@@ -125,7 +124,7 @@ pub async fn get_source_packages(
     let base = source_packages_base();
     let mut sql = base.into_boxed();
 
-    sql = origin_filter.filter(sql, build_inputs::architecture);
+    sql = origin_filter.filter(sql, None);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
     let records = sql
@@ -172,7 +171,7 @@ pub async fn get_binary_packages(
     let base = binary_packages_base();
     let mut sql = base.into_boxed();
 
-    sql = origin_filter.filter(sql, binary_packages::architecture);
+    sql = origin_filter.filter(sql, None);
     sql = identity_filter.filter(sql, binary_packages::name, binary_packages::version);
 
     let records = sql
