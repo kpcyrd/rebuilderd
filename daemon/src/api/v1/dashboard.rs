@@ -1,13 +1,13 @@
 use crate::api::v1::util::filters::OriginFilter;
 use crate::db::Pool;
-use crate::diesel::ExpressionMethods;
-use crate::diesel::NullableExpressionMethods;
-use crate::diesel::RunQueryDsl;
 use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
 use crate::web;
 use actix_web::{get, HttpResponse, Responder};
 use diesel::dsl::{case_when, sum};
 use diesel::sql_types::Integer;
+use diesel::ExpressionMethods;
+use diesel::NullableExpressionMethods;
+use diesel::RunQueryDsl;
 use diesel::{BoolExpressionMethods, JoinOnDsl, QueryDsl};
 use rebuilderd_common::api::v1::{DashboardState, QueuedJob};
 use rebuilderd_common::errors::Error;

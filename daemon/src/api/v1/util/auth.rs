@@ -1,10 +1,10 @@
 use crate::api;
 use crate::config::Config;
-use crate::diesel::ExpressionMethods;
-use crate::diesel::QueryDsl;
 use crate::models::Worker;
 use crate::schema::workers;
 use actix_web::HttpRequest;
+use diesel::ExpressionMethods;
+use diesel::QueryDsl;
 use diesel::{RunQueryDsl, SqliteConnection};
 use log::debug;
 use rebuilderd_common::api::{AUTH_COOKIE_HEADER, SIGNUP_SECRET_HEADER, WORKER_KEY_HEADER};

@@ -1,8 +1,8 @@
 use crate::db::Pool;
-use crate::diesel::ExpressionMethods;
 use crate::schema::{build_inputs, source_packages};
 use crate::web;
 use actix_web::{get, HttpResponse, Responder};
+use diesel::ExpressionMethods;
 use diesel::{QueryDsl, RunQueryDsl};
 use rebuilderd_common::errors::Error;
 

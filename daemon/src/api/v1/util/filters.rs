@@ -1,7 +1,7 @@
-use crate::diesel::ExpressionMethods;
 use crate::schema::source_packages;
 use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
+use diesel::ExpressionMethods;
 use diesel::{Column, Expression};
 use serde::Deserialize;
 
