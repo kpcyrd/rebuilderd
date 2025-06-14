@@ -15,6 +15,37 @@ use rebuilderd_common::errors::Error;
 // TODO: unify
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
+#[diesel::dsl::auto_type]
+fn source_packages_base() -> _ {
+    source_packages::table
+        .inner_join(build_inputs::table)
+        .select((
+            source_packages::id,
+            source_packages::name,
+            source_packages::version,
+            source_packages::distribution,
+            source_packages::release.nullable(),
+            source_packages::component.nullable(),
+            build_inputs::architecture,
+        ))
+}
+
+#[diesel::dsl::auto_type]
+fn binary_packages_base() -> _ {
+    binary_packages::table
+        .inner_join(source_packages::table)
+        .select((
+            binary_packages::id,
+            binary_packages::name,
+            binary_packages::version,
+            source_packages::distribution,
+            source_packages::release,
+            source_packages::component,
+            binary_packages::architecture,
+            binary_packages::artifact_url,
+        ))
+}
+
 #[post("/api/v1/packages")]
 pub async fn submit_package_report(
     pool: web::Data<Pool>,
@@ -93,18 +124,7 @@ pub async fn get_source_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = source_packages::table
-        .inner_join(build_inputs::table)
-        .select((
-            source_packages::id,
-            source_packages::name,
-            source_packages::version,
-            source_packages::distribution,
-            source_packages::release.nullable(),
-            source_packages::component.nullable(),
-            build_inputs::architecture,
-        ));
-
+    let base = source_packages_base();
     let mut sql = base.into_boxed();
 
     sql = origin_filter.filter(sql, build_inputs::architecture);
@@ -130,17 +150,7 @@ pub async fn get_source_package(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    if let Some(record) = source_packages::table
-        .inner_join(build_inputs::table)
-        .select((
-            source_packages::id,
-            source_packages::name,
-            source_packages::version,
-            source_packages::distribution,
-            source_packages::release,
-            source_packages::component,
-            build_inputs::architecture,
-        ))
+    if let Some(record) = source_packages_base()
         .filter(source_packages::id.eq(id.into_inner()))
         .get_result::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .optional()
@@ -161,19 +171,7 @@ pub async fn get_binary_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = binary_packages::table
-        .inner_join(source_packages::table)
-        .select((
-            binary_packages::id,
-            binary_packages::name,
-            binary_packages::version,
-            source_packages::distribution,
-            source_packages::release,
-            source_packages::component,
-            binary_packages::architecture,
-            binary_packages::artifact_url,
-        ));
-
+    let base = binary_packages_base();
     let mut sql = base.into_boxed();
 
     sql = origin_filter.filter(sql, binary_packages::architecture);
@@ -199,18 +197,7 @@ pub async fn get_binary_package(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    if let Some(record) = binary_packages::table
-        .inner_join(source_packages::table)
-        .select((
-            binary_packages::id,
-            binary_packages::name,
-            binary_packages::version,
-            source_packages::distribution,
-            source_packages::release,
-            source_packages::component,
-            binary_packages::architecture,
-            binary_packages::artifact_url,
-        ))
+    if let Some(record) = binary_packages_base()
         .filter(binary_packages::id.eq(id.into_inner()))
         .get_result::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .optional()
