@@ -1,11 +1,14 @@
 use crate::api::forward_compressed_data;
 use crate::api::v1::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::pagination::{Page, PaginateDsl};
+use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
 use crate::diesel::QueryDsl;
-use crate::schema::{build_inputs, rebuild_artifacts, rebuilds, source_packages};
-use crate::web;
+use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
+use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
+use crate::util::{is_zstd_compressed, zstd_compress};
+use crate::{auth, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use diesel::dsl::InnerJoinQuerySource;
 use diesel::sql_types::Bool;
@@ -75,12 +78,76 @@ pub async fn get_builds(
 
 #[post("/api/v1/builds")]
 pub async fn submit_rebuild_report(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     request: web::Json<RebuildReport>,
 ) -> web::Result<impl Responder> {
+    if auth::worker(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
 
-    Ok(HttpResponse::NotImplemented())
+    let report = request.into_inner();
+    let queued = queue::table
+        .filter(queue::id.eq(report.queue_id))
+        .get_result::<Queued>(connection.as_mut())
+        .map_err(Error::from)?;
+
+    let encoded_log = if is_zstd_compressed(&report.build_log) {
+        report.build_log
+    } else {
+        zstd_compress(&report.build_log[..])
+            .await
+            .map_err(Error::from)?
+    };
+
+    let new_rebuild = NewRebuild {
+        build_input_id: queued.build_input_id,
+        started_at: queued.started_at,
+        built_at: Some(report.built_at),
+        build_log: encoded_log,
+        status: Some(report.status.to_string()),
+    };
+
+    let new_rebuild_id = new_rebuild.insert(connection.as_mut())?;
+
+    for artifact_report in report.artifacts {
+        let encoded_diffoscope = if let Some(diffoscope) = artifact_report.diffoscope {
+            Some(if is_zstd_compressed(&diffoscope) {
+                diffoscope
+            } else {
+                zstd_compress(&diffoscope[..]).await.map_err(Error::from)?
+            })
+        } else {
+            None::<Vec<u8>>
+        };
+
+        let encoded_attestation = if let Some(attestation) = artifact_report.attestation {
+            Some(if is_zstd_compressed(&attestation) {
+                attestation
+            } else {
+                zstd_compress(&attestation[..]).await.map_err(Error::from)?
+            })
+        } else {
+            None::<Vec<u8>>
+        };
+
+        let new_rebuild_artifact = NewRebuildArtifact {
+            rebuild_id: new_rebuild_id,
+            name: artifact_report.name,
+            diffoscope: encoded_diffoscope,
+            attestation: encoded_attestation,
+            status: Some(artifact_report.status.to_string()),
+        };
+
+        new_rebuild_artifact.insert(connection.as_mut())?;
+    }
+
+    queued.delete(connection.as_mut())?;
+
+    Ok(HttpResponse::NoContent())
 }
 
 #[get("/api/v1/builds/{id}")]
