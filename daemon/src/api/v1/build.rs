@@ -1,6 +1,6 @@
 use crate::api::forward_compressed_data;
-use crate::api::v1::filters::{IdentityFilter, OriginFilter};
-use crate::api::v1::pagination::{Page, PaginateDsl};
+use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
+use crate::api::v1::util::pagination::{Page, PaginateDsl};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
@@ -10,24 +10,10 @@ use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_pac
 use crate::util::{is_zstd_compressed, zstd_compress};
 use crate::{auth, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
-use diesel::dsl::InnerJoinQuerySource;
-use diesel::sql_types::Bool;
-use diesel::sqlite::Sqlite;
-use diesel::{BoxableExpression, OptionalExtension, RunQueryDsl};
+use diesel::{OptionalExtension, RunQueryDsl};
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{Rebuild, RebuildReport, ResultPage};
 use rebuilderd_common::errors::Error;
-
-type BuildsFilter = Box<
-    dyn BoxableExpression<
-        InnerJoinQuerySource<
-            rebuilds::table,
-            InnerJoinQuerySource<build_inputs::table, source_packages::table>,
-        >,
-        Sqlite,
-        SqlType = Bool,
-    >,
->;
 
 #[get("/api/v1/builds")]
 pub async fn get_builds(

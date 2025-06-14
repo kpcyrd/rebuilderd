@@ -1,4 +1,4 @@
-use crate::api::v1::pagination::Page;
+use crate::api::v1::util::pagination::Page;
 use crate::web;
 
 use crate::db::Pool;

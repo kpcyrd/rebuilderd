@@ -1,5 +1,5 @@
-use crate::api::v1::filters::{IdentityFilter, OriginFilter};
-use crate::api::v1::pagination::Page;
+use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
+use crate::api::v1::util::pagination::Page;
 use crate::db::Pool;
 use crate::web;
 use actix_web::{delete, get, post, HttpResponse, Responder};
