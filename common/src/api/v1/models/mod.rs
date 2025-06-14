@@ -1,11 +1,11 @@
 mod build;
-mod miscellaneous;
+mod dashboard;
 mod package;
 mod queue;
 mod worker;
 
 pub use build::*;
-pub use miscellaneous::*;
+pub use dashboard::*;
 pub use package::*;
 pub use queue::*;
 use serde::{Deserialize, Serialize};
