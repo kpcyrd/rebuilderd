@@ -515,6 +515,11 @@ paths:
       summary: Gets precomputed information useful for dashboards and data presentations
       tags:
         - miscellaneous
+      parameters:
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+        - $ref: '#/components/parameters/architecture'
       responses:
         "200":
           description: Success
@@ -797,30 +802,18 @@ components:
     DashboardState:
       type: object
       properties:
-        distributions:
-          type: object
-          additionalProperties:
-            type: object
-            additionalProperties:
-              $ref: '#/components/schemas/DistributionStatistics'
-        active_builds:
-          type: array
-          items:
-            $ref: '#/components/schemas/QueuedJob'
-    DistributionStatistics:
-      type: object
-      properties:
         good:
           type: integer
         bad:
           type: integer
+        fail:
+          type: integer
         unknown:
           type: integer
-      additionalProperties: false
-      required:
-        - good
-        - bad
-        - unknown
+        active_builds:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedJob'
     QueueJobRequest:
       type: object
       properties:
