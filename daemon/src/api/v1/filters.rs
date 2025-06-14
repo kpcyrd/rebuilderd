@@ -1,5 +1,5 @@
 use crate::diesel::ExpressionMethods;
-use crate::schema::source_packages;
+use crate::schema::{build_inputs, source_packages};
 use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
 use diesel::{Column, Expression};
@@ -16,7 +16,7 @@ pub struct OriginFilter {
 impl<'a> OriginFilter {
     pub fn filter<Q, A>(&'a self, mut sql: Q, architecture_column: A) -> Q
     where
-        A: Column + Expression<SqlType = Text>,
+        A: OriginFilterColumn + Expression<SqlType = Text>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::distribution, &'a String>, Output = Q>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::release, &'a String>, Output = Q>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::component, &'a String>, Output = Q>,
@@ -41,6 +41,13 @@ impl<'a> OriginFilter {
         sql
     }
 }
+
+pub trait OriginFilterColumn: Column {}
+
+impl OriginFilterColumn for source_packages::distribution {}
+impl OriginFilterColumn for source_packages::release {}
+impl OriginFilterColumn for source_packages::component {}
+impl OriginFilterColumn for build_inputs::architecture {}
 
 #[derive(Debug, Deserialize)]
 pub struct IdentityFilter {

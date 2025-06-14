@@ -1,6 +1,6 @@
 use crate::api::forward_compressed_data;
 use crate::api::v1::filters::{IdentityFilter, OriginFilter};
-use crate::api::v1::pagination::{Page, SortDirection};
+use crate::api::v1::pagination::{Page, PaginateDsl};
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
 use crate::diesel::QueryDsl;
@@ -12,7 +12,7 @@ use diesel::sql_types::Bool;
 use diesel::sqlite::Sqlite;
 use diesel::{BoxableExpression, OptionalExtension, RunQueryDsl};
 use rebuilderd_common::api;
-use rebuilderd_common::api::v1::{Rebuild, RebuildReport};
+use rebuilderd_common::api::v1::{Rebuild, RebuildReport, ResultPage};
 use rebuilderd_common::errors::Error;
 
 type BuildsFilter = Box<
@@ -35,7 +35,7 @@ pub async fn get_builds(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = rebuilds::table
+    let base = rebuilds::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
         .select((
             rebuilds::id,
@@ -50,58 +50,27 @@ pub async fn get_builds(
             rebuilds::started_at,
             rebuilds::built_at,
             rebuilds::status,
-        ))
-        .into_boxed();
+        ));
+
+    let mut sql = base.into_boxed();
 
     sql = origin_filter.filter(sql, build_inputs::architecture);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
-    // apply pagination
-    if let Some(sort) = &page.sort {
-        let direction = &page.direction.clone().unwrap_or(SortDirection::Ascending);
-
-        if *direction == SortDirection::Ascending {
-            sql = match sort.as_str() {
-                "id" => sql.order(rebuilds::id),
-                "name" => sql.order(source_packages::name),
-                "version" => sql.order(source_packages::version),
-                "distribution" => sql.order(source_packages::distribution),
-                "release" => sql.order(source_packages::release),
-                "component" => sql.order(source_packages::component),
-                "architecture" => sql.order(build_inputs::architecture),
-                "backend" => sql.order(build_inputs::backend),
-                "retries" => sql.order(build_inputs::retries),
-                "started_at" => sql.order(rebuilds::started_at),
-                "built_at" => sql.order(rebuilds::built_at),
-                "status" => sql.order(rebuilds::status),
-                _ => return Ok(HttpResponse::BadRequest().finish()),
-            };
-        } else {
-            sql = match sort.as_str() {
-                "id" => sql.order(rebuilds::id.desc()),
-                "name" => sql.order(source_packages::name.desc()),
-                "version" => sql.order(source_packages::version.desc()),
-                "distribution" => sql.order(source_packages::distribution.desc()),
-                "release" => sql.order(source_packages::release.desc()),
-                "component" => sql.order(source_packages::component.desc()),
-                "architecture" => sql.order(build_inputs::architecture.desc()),
-                "backend" => sql.order(build_inputs::backend.desc()),
-                "retries" => sql.order(build_inputs::retries.desc()),
-                "started_at" => sql.order(rebuilds::started_at.desc()),
-                "built_at" => sql.order(rebuilds::built_at.desc()),
-                "status" => sql.order(rebuilds::status.desc()),
-                _ => return Ok(HttpResponse::BadRequest().finish()),
-            };
-        }
-
-        sql = sql.then_order_by(rebuilds::id);
-    }
-
     let rebuilds = sql
-        .get_results::<Rebuild>(connection.as_mut())
+        .paginate(page.into_inner())
+        .load::<Rebuild>(connection.as_mut())
         .map_err(Error::from)?;
 
-    Ok(HttpResponse::Ok().json(rebuilds))
+    let count = base
+        .count()
+        .get_result::<i64>(connection.as_mut())
+        .map_err(Error::from)?;
+
+    Ok(HttpResponse::Ok().json(ResultPage {
+        total: count,
+        records: rebuilds,
+    }))
 }
 
 #[post("/api/v1/builds")]
