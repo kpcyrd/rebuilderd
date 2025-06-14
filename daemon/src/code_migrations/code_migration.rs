@@ -1,7 +1,7 @@
 use crate::code_migrations::compress_logs::CompressLogsMigration;
-use crate::diesel::ExpressionMethods;
 use diesel::migration::{Migration, MigrationVersion, Result};
 use diesel::sqlite::Sqlite;
+use diesel::ExpressionMethods;
 use diesel::{Connection, RunQueryDsl, SqliteConnection};
 
 pub trait CodeMigration {
