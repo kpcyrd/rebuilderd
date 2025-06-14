@@ -13,6 +13,7 @@ pub struct RegisterWorkerRequest {
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct Worker {
     pub id: i32,
+    pub name: String,
     pub address: String,
     pub status: Option<String>,
     pub last_ping: NaiveDateTime,
