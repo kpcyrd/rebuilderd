@@ -144,6 +144,7 @@ impl NewQueued {
         }
     }
 
+    // TODO: upserting isn't quite right here... we only upsert some fields and that's not consistent
     pub fn upsert(&self, connection: &mut SqliteConnection) -> Result<Queued> {
         use crate::schema::queue::*;
 

@@ -46,20 +46,17 @@ pub async fn get_builds(
     sql = origin_filter.filter(sql, build_inputs::architecture);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
-    let rebuilds = sql
+    let records = sql
         .paginate(page.into_inner())
         .load::<Rebuild>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let count = base
+    let total = base
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
 
-    Ok(HttpResponse::Ok().json(ResultPage {
-        total: count,
-        records: rebuilds,
-    }))
+    Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
 #[post("/api/v1/builds")]
@@ -140,7 +137,7 @@ pub async fn submit_rebuild_report(
 pub async fn get_build(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    if let Some(rebuild) = rebuilds::table
+    if let Some(record) = rebuilds::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
         .filter(rebuilds::id.eq(*id))
         .select((
@@ -161,7 +158,7 @@ pub async fn get_build(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result
         .optional()
         .map_err(Error::from)?
     {
-        Ok(HttpResponse::Ok().json(rebuild))
+        Ok(HttpResponse::Ok().json(record))
     } else {
         Ok(HttpResponse::NotFound().finish())
     }

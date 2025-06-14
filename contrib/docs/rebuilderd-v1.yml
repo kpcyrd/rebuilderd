@@ -991,11 +991,9 @@ components:
         component:
           description: The component the package belong to
           type: string
-        architectures:
-          description: The architectures the package appears in
-          type: array
-          items:
-            type: string
+        architecture:
+          description: The architecture the package belongs to
+          type: string
       additionalProperties: false
       required:
         - name
@@ -1003,7 +1001,7 @@ components:
         - distribution
         - release
         - component
-        - architectures
+        - architecture
     BinaryPackage:
       type: object
       properties:

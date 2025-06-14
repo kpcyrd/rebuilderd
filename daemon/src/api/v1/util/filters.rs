@@ -1,5 +1,5 @@
 use crate::diesel::ExpressionMethods;
-use crate::schema::{build_inputs, source_packages};
+use crate::schema::{binary_packages, build_inputs, source_packages};
 use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
 use diesel::{Column, Expression};
@@ -48,6 +48,7 @@ impl OriginFilterColumn for source_packages::distribution {}
 impl OriginFilterColumn for source_packages::release {}
 impl OriginFilterColumn for source_packages::component {}
 impl OriginFilterColumn for build_inputs::architecture {}
+impl OriginFilterColumn for binary_packages::architecture {}
 
 #[derive(Debug, Deserialize)]
 pub struct IdentityFilter {

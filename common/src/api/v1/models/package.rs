@@ -1,3 +1,4 @@
+use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,6 +27,8 @@ pub struct BinaryPackageReport {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(Queryable))]
+#[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct SourcePackage {
     pub id: i32,
     pub name: String,
@@ -33,10 +36,12 @@ pub struct SourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
-    pub architectures: Vec<String>,
+    pub architecture: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(Queryable))]
+#[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct BinaryPackage {
     pub id: i32,
     pub name: String,
