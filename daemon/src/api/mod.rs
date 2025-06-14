@@ -2,10 +2,13 @@ use crate::util::{is_zstd_compressed, zstd_decompress};
 use crate::web;
 use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header};
 use actix_web::{HttpRequest, HttpResponse};
-use rebuilderd_common::errors::Error;
+use rebuilderd_common::errors::{format_err, Context, Error};
 
+pub mod auth;
 pub mod v0;
 pub mod v1;
+
+const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
 pub async fn forward_compressed_data(
     request: HttpRequest,
@@ -43,4 +46,15 @@ pub async fn forward_compressed_data(
         let resp = builder.body(data);
         Ok(resp)
     }
+}
+
+pub fn header<'a>(req: &'a HttpRequest, key: &str) -> rebuilderd_common::errors::Result<&'a str> {
+    let value = req
+        .headers()
+        .get(key)
+        .ok_or_else(|| format_err!("Missing header"))?
+        .to_str()
+        .context("Failed to decode header value")?;
+
+    Ok(value)
 }

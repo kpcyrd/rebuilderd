@@ -1,5 +1,6 @@
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
+use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
 use crate::diesel::NullableExpressionMethods;
@@ -11,9 +12,6 @@ use chrono::Utc;
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{PackageReport, ResultPage};
 use rebuilderd_common::errors::Error;
-
-// TODO: unify
-const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
 #[diesel::dsl::auto_type]
 fn source_packages_base() -> _ {
@@ -46,7 +44,7 @@ fn binary_packages_base() -> _ {
         ))
 }
 
-#[post("/api/v1/packages")]
+#[post("/")]
 pub async fn submit_package_report(
     pool: web::Data<Pool>,
     request: web::Json<PackageReport>,
@@ -115,7 +113,7 @@ pub async fn submit_package_report(
     Ok(HttpResponse::NotImplemented())
 }
 
-#[get("/api/v1/packages/source")]
+#[get("/source")]
 pub async fn get_source_packages(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -143,7 +141,7 @@ pub async fn get_source_packages(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[get("/api/v1/packages/source/{id}")]
+#[get("/source/{id}")]
 pub async fn get_source_package(
     pool: web::Data<Pool>,
     id: web::Path<i32>,
@@ -162,7 +160,7 @@ pub async fn get_source_package(
     }
 }
 
-#[get("/api/v1/packages/binary")]
+#[get("/binary")]
 pub async fn get_binary_packages(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -190,7 +188,7 @@ pub async fn get_binary_packages(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[get("/api/v1/packages/binary/{id}")]
+#[get("/binary/{id}")]
 pub async fn get_binary_package(
     pool: web::Data<Pool>,
     id: web::Path<i32>,

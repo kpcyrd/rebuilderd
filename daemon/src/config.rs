@@ -1,4 +1,4 @@
-use crate::auth;
+use crate::api::auth;
 use rebuilderd_common::config::{ConfigFile, ScheduleConfig, WorkerConfig};
 use rebuilderd_common::errors::*;
 use std::env;

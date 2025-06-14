@@ -1,3 +1,4 @@
+use crate::api::{AUTH_COOKIE_HEADER, SIGNUP_SECRET_HEADER, WORKER_KEY_HEADER};
 use crate::config::ConfigFile;
 use crate::errors::*;
 use crate::{auth, http};
@@ -10,10 +11,6 @@ use std::env;
 use std::ops::Deref;
 use std::str::FromStr;
 use url::Url;
-
-pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";
-pub const WORKER_KEY_HEADER: &str = "X-Worker-Key";
-pub const SIGNUP_SECRET_HEADER: &str = "X-Signup-Secret";
 
 pub struct Client {
     endpoint: Url,

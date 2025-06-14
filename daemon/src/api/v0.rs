@@ -1,5 +1,4 @@
-use crate::api::forward_compressed_data;
-use crate::auth;
+use crate::api::{auth, forward_compressed_data};
 use crate::config::Config;
 use crate::dashboard::DashboardState;
 use crate::db::Pool;
@@ -12,12 +11,12 @@ use crate::schema::*;
 use crate::sync;
 use crate::util::zstd_compress;
 use crate::web;
-use actix_web::http::header::Header;
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
 use chrono::prelude::*;
 use chrono::Duration;
 use diesel::{OptionalExtension, RunQueryDsl, SelectableHelper, SqliteConnection};
 use rebuilderd_common::api::v0::*;
+use rebuilderd_common::api::WORKER_KEY_HEADER;
 use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
 use std::net::IpAddr;
@@ -245,7 +244,7 @@ fn get_worker_from_request(
         worker.bump_last_ping(&ip);
         Ok(worker)
     } else {
-        let worker = models::NewWorker::new(key.to_string(), ip, None);
+        let worker = models::NewWorker::new(key.to_string(), None, ip, None);
         worker.insert(connection)?;
         get_worker_from_request(req, cfg, connection)
     }

@@ -1,47 +1,15 @@
+use crate::api::auth;
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
-use crate::diesel::ExpressionMethods;
-use crate::{auth, models, web};
-use std::net::IpAddr;
-
-use crate::api::v0::header;
+use crate::api::v1::util::worker::refresh_worker;
 use crate::config::Config;
 use crate::db::Pool;
-use crate::schema::{source_packages, workers};
+use crate::diesel::ExpressionMethods;
+use crate::schema::workers;
+use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
-use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection};
-use log::debug;
-use rebuilderd_common::api::v0::WORKER_KEY_HEADER;
+use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{RegisterWorkerRequest, ResultPage};
-use rebuilderd_common::errors::{format_err, Context, Error};
-
-pub fn refresh_worker(
-    req: &HttpRequest,
-    cfg: &Config,
-    connection: &mut SqliteConnection,
-) -> web::Result<models::Worker> {
-    let key = header(req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
-
-    let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
-        let ip = header(req, real_ip_header).context("Failed to locate real ip header")?;
-        ip.parse::<IpAddr>()
-            .context("Can't parse real ip header as ip address")?
-    } else {
-        let ci = req
-            .peer_addr()
-            .ok_or_else(|| format_err!("Can't determine client ip"))?;
-        ci.ip()
-    };
-    debug!("detected worker ip for {:?} as {}", key, ip);
-
-    if let Some(mut worker) = models::Worker::get(key, connection)? {
-        worker.bump_last_ping(&ip);
-        Ok(worker)
-    } else {
-        let worker = models::NewWorker::new(key.to_string(), ip, None);
-        worker.insert(connection)?;
-        refresh_worker(req, cfg, connection)
-    }
-}
+use rebuilderd_common::errors::Error;
 
 #[diesel::dsl::auto_type]
 fn workers_base() -> _ {
@@ -55,7 +23,7 @@ fn workers_base() -> _ {
     ))
 }
 
-#[get("/api/v1/workers")]
+#[get("/")]
 pub async fn get_workers(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -77,7 +45,7 @@ pub async fn get_workers(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/api/v1/workers")]
+#[post("/")]
 pub async fn register_worker(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -94,7 +62,7 @@ pub async fn register_worker(
     Ok(HttpResponse::NoContent().finish())
 }
 
-#[get("/api/v1/workers/{id}")]
+#[get("/{id}")]
 pub async fn get_worker(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -110,7 +78,7 @@ pub async fn get_worker(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Resul
     }
 }
 
-#[delete("/api/v1/workers/{id}")]
+#[delete("/{id}")]
 pub async fn unregister_worker(
     req: HttpRequest,
     cfg: web::Data<Config>,

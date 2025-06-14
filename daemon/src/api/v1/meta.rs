@@ -6,7 +6,7 @@ use actix_web::{get, HttpResponse, Responder};
 use diesel::{QueryDsl, RunQueryDsl};
 use rebuilderd_common::errors::Error;
 
-#[get("/api/v1/meta/distributions")]
+#[get("/distributions")]
 pub async fn get_distributions(pool: web::Data<Pool>) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -19,7 +19,7 @@ pub async fn get_distributions(pool: web::Data<Pool>) -> web::Result<impl Respon
     Ok(HttpResponse::Ok().json(distributions))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/releases")]
+#[get("/distributions/{distribution}/releases")]
 pub async fn get_distribution_releases(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,
@@ -36,7 +36,7 @@ pub async fn get_distribution_releases(
     Ok(HttpResponse::Ok().json(distribution_releases))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/architectures")]
+#[get("/distributions/{distribution}/architectures")]
 pub async fn get_distribution_architectures(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,
@@ -54,7 +54,7 @@ pub async fn get_distribution_architectures(
     Ok(HttpResponse::Ok().json(distribution_architectures))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/components")]
+#[get("/distributions/{distribution}/components")]
 pub async fn get_distribution_components(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,
@@ -71,7 +71,7 @@ pub async fn get_distribution_components(
     Ok(HttpResponse::Ok().json(distribution_components))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/{release}/architectures")]
+#[get("/distributions/{distribution}/{release}/architectures")]
 pub async fn get_distribution_release_architectures(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,
@@ -91,7 +91,7 @@ pub async fn get_distribution_release_architectures(
     Ok(HttpResponse::Ok().json(distribution_release_architectures))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/{release}/components")]
+#[get("/distributions/{distribution}/{release}/components")]
 pub async fn get_distribution_release_components(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,
@@ -110,7 +110,7 @@ pub async fn get_distribution_release_components(
     Ok(HttpResponse::Ok().json(distribution_release_components))
 }
 
-#[get("/api/v1/meta/distributions/{distribution}/{release}/components/{component}/architectures")]
+#[get("/distributions/{distribution}/{release}/components/{component}/architectures")]
 pub async fn get_distribution_release_component_architectures(
     pool: web::Data<Pool>,
     distribution: web::Path<String>,

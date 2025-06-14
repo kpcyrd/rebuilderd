@@ -1,6 +1,6 @@
-use crate::api::forward_compressed_data;
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
+use crate::api::{auth, forward_compressed_data};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
@@ -8,14 +8,14 @@ use crate::diesel::QueryDsl;
 use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
 use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
 use crate::util::{is_zstd_compressed, zstd_compress};
-use crate::{auth, web};
+use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use diesel::{OptionalExtension, RunQueryDsl};
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{Rebuild, RebuildReport, ResultPage};
 use rebuilderd_common::errors::Error;
 
-#[get("/api/v1/builds")]
+#[get("/")]
 pub async fn get_builds(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -59,7 +59,7 @@ pub async fn get_builds(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/api/v1/builds")]
+#[post("/")]
 pub async fn submit_rebuild_report(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -133,7 +133,7 @@ pub async fn submit_rebuild_report(
     Ok(HttpResponse::NoContent())
 }
 
-#[get("/api/v1/builds/{id}")]
+#[get("/{id}")]
 pub async fn get_build(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -164,7 +164,7 @@ pub async fn get_build(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result
     }
 }
 
-#[get("/api/v1/builds/{id}/log")]
+#[get("/{id}/log")]
 pub async fn get_build_log(
     req: HttpRequest,
     pool: web::Data<Pool>,
@@ -181,7 +181,7 @@ pub async fn get_build_log(
     forward_compressed_data(req, "text/plain; charset=utf-8", build_log).await
 }
 
-#[get("/api/v1/builds/{id}/artifacts")]
+#[get("/{id}/artifacts")]
 pub async fn get_build_artifacts(
     pool: web::Data<Pool>,
     id: web::Path<i32>,
@@ -204,7 +204,7 @@ pub async fn get_build_artifacts(
     Ok(HttpResponse::Ok().json(artifacts))
 }
 
-#[get("/api/v1/builds/{id}/artifacts/{artifact_id}")]
+#[get("/{id}/artifacts/{artifact_id}")]
 pub async fn get_build_artifact(
     pool: web::Data<Pool>,
     id: web::Path<i32>,
@@ -234,7 +234,7 @@ pub async fn get_build_artifact(
     }
 }
 
-#[get("/api/v1/builds/{id}/artifacts/{artifact_id}/diffoscope")]
+#[get("/{id}/artifacts/{artifact_id}/diffoscope")]
 pub async fn get_build_artifact_diffoscope(
     req: HttpRequest,
     pool: web::Data<Pool>,
@@ -259,7 +259,7 @@ pub async fn get_build_artifact_diffoscope(
     }
 }
 
-#[get("/api/v1/builds/{id}/artifacts/{artifact_id}/attestation")]
+#[get("/{id}/artifacts/{artifact_id}/attestation")]
 pub async fn get_build_artifact_attestation(
     req: HttpRequest,
     pool: web::Data<Pool>,

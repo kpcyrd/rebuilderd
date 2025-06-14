@@ -1,21 +1,18 @@
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
-use crate::api::v1::worker::refresh_worker;
+use crate::api::v1::util::worker::refresh_worker;
+use crate::api::{auth, DEFAULT_QUEUE_PRIORITY};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
 use crate::models::NewQueued;
 use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packages, workers};
-use crate::{auth, web};
+use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::associations::HasTable;
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{PopQueuedJobRequest, QueueJobRequest, QueuedJob, ResultPage};
 use rebuilderd_common::errors::Error;
-
-// TODO: unify
-const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
 #[diesel::dsl::auto_type]
 fn queue_base() -> _ {
@@ -34,7 +31,7 @@ fn queue_base() -> _ {
         ))
 }
 
-#[get("/api/v1/queue")]
+#[get("/")]
 pub async fn get_queued_jobs(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -62,7 +59,7 @@ pub async fn get_queued_jobs(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/api/v1/queue")]
+#[post("/")]
 pub async fn request_rebuild(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -116,7 +113,7 @@ pub async fn request_rebuild(
     Ok(HttpResponse::NoContent())
 }
 
-#[get("/api/v1/queue/{id}")]
+#[get("/{id}")]
 pub async fn get_queued_job(
     pool: web::Data<Pool>,
     id: web::Path<i32>,
@@ -135,7 +132,7 @@ pub async fn get_queued_job(
     }
 }
 
-#[delete("/api/v1/queue/{id}")]
+#[delete("/{id}")]
 pub async fn drop_queued_job(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -155,7 +152,7 @@ pub async fn drop_queued_job(
     Ok(HttpResponse::NoContent())
 }
 
-#[post("/api/v1/queue/pop")]
+#[post("/pop")]
 pub async fn request_work(
     req: HttpRequest,
     cfg: web::Data<Config>,
