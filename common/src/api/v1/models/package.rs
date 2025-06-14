@@ -1,3 +1,4 @@
+#[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
