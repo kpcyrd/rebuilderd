@@ -45,7 +45,7 @@ fn binary_packages_base() -> _ {
         ))
 }
 
-#[post("/")]
+#[post("")]
 pub async fn submit_package_report(
     req: HttpRequest,
     cfg: web::Data<Config>,
@@ -97,6 +97,7 @@ pub async fn submit_package_report(
         let needs_rebuild = match rebuilds::table
             .filter(rebuilds::build_input_id.eq(build_input.id))
             .select(rebuilds::status)
+            .order_by(rebuilds::built_at.desc())
             .get_result::<Option<String>>(connection.as_mut())
             .optional()
             .map_err(Error::from)?

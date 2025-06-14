@@ -27,7 +27,7 @@ fn workers_base() -> _ {
     ))
 }
 
-#[get("/")]
+#[get("")]
 pub async fn get_workers(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -49,7 +49,7 @@ pub async fn get_workers(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/")]
+#[post("")]
 pub async fn register_worker(
     req: HttpRequest,
     cfg: web::Data<Config>,

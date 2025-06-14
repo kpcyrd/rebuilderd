@@ -31,7 +31,7 @@ fn queue_base() -> _ {
         ))
 }
 
-#[get("/")]
+#[get("")]
 pub async fn get_queued_jobs(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -64,7 +64,7 @@ pub async fn get_queued_jobs(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/")]
+#[post("")]
 pub async fn request_rebuild(
     req: HttpRequest,
     cfg: web::Data<Config>,

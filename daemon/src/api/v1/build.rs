@@ -16,7 +16,7 @@ use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{Rebuild, RebuildReport, ResultPage};
 use rebuilderd_common::errors::Error;
 
-#[get("/")]
+#[get("")]
 pub async fn get_builds(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
@@ -65,7 +65,7 @@ pub async fn get_builds(
     Ok(HttpResponse::Ok().json(ResultPage { total, records }))
 }
 
-#[post("/")]
+#[post("")]
 pub async fn submit_rebuild_report(
     req: HttpRequest,
     cfg: web::Data<Config>,
