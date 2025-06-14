@@ -1,15 +1,19 @@
-use crate::api::auth;
+use crate::api::header;
+use crate::api::v1::util::auth;
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
-use crate::api::v1::util::worker::refresh_worker;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
+use crate::models::NewWorker;
 use crate::schema::workers;
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
+use chrono::Utc;
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{RegisterWorkerRequest, ResultPage};
-use rebuilderd_common::errors::Error;
+use rebuilderd_common::api::WORKER_KEY_HEADER;
+use rebuilderd_common::errors::{format_err, Context, Error};
+use std::net::IpAddr;
 
 #[diesel::dsl::auto_type]
 fn workers_base() -> _ {
@@ -52,12 +56,33 @@ pub async fn register_worker(
     pool: web::Data<Pool>,
     request: web::Json<RegisterWorkerRequest>,
 ) -> web::Result<impl Responder> {
-    if auth::worker(&cfg, &req).is_err() {
+    let mut connection = pool.get().map_err(Error::from)?;
+    if auth::worker(&cfg, &req, connection.as_mut()).is_err() {
         return Ok(HttpResponse::Forbidden().finish());
     }
 
-    let mut connection = pool.get().map_err(Error::from)?;
-    refresh_worker(&req, &cfg, connection.as_mut())?;
+    let key = header(&req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
+    let ip = if let Some(real_ip_header) = &cfg.real_ip_header {
+        let ip = header(&req, real_ip_header).context("Failed to locate real ip header")?;
+        ip.parse::<IpAddr>()
+            .context("Can't parse real ip header as ip address")?
+    } else {
+        let ci = req
+            .peer_addr()
+            .ok_or_else(|| format_err!("Can't determine client ip"))?;
+        ci.ip()
+    };
+
+    let new_worker = NewWorker {
+        key: key.to_string(),
+        name: request.name.clone(),
+        address: ip.to_string(),
+        status: None,
+        last_ping: Utc::now().naive_utc(),
+        online: true,
+    };
+
+    new_worker.upsert(connection.as_mut())?;
 
     Ok(HttpResponse::NoContent().finish())
 }
@@ -85,11 +110,10 @@ pub async fn unregister_worker(
     pool: web::Data<Pool>,
     id: web::Path<i32>,
 ) -> web::Result<impl Responder> {
-    if auth::worker(&cfg, &req).is_err() {
+    let mut connection = pool.get().map_err(Error::from)?;
+    if auth::worker(&cfg, &req, connection.as_mut()).is_err() {
         return Ok(HttpResponse::Forbidden().finish());
     }
-
-    let mut connection = pool.get().map_err(Error::from)?;
 
     connection
         .transaction(|conn| {

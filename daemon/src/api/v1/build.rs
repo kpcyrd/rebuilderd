@@ -1,6 +1,7 @@
+use crate::api::forward_compressed_data;
+use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
-use crate::api::{auth, forward_compressed_data};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
@@ -71,11 +72,10 @@ pub async fn submit_rebuild_report(
     pool: web::Data<Pool>,
     request: web::Json<RebuildReport>,
 ) -> web::Result<impl Responder> {
-    if auth::worker(&cfg, &req).is_err() {
+    let mut connection = pool.get().map_err(Error::from)?;
+    if auth::worker(&cfg, &req, connection.as_mut()).is_err() {
         return Ok(HttpResponse::Forbidden());
     }
-
-    let mut connection = pool.get().map_err(Error::from)?;
 
     let report = request.into_inner();
     let queued = queue::table

@@ -53,6 +53,18 @@ impl Worker {
 
         Ok(())
     }
+
+    pub fn get_and_refresh(key: &str, connection: &mut SqliteConnection) -> Result<Worker> {
+        let worker = diesel::update(workers::table.filter(workers::key.eq(key)))
+            .set((
+                workers::last_ping.eq(Utc::now().naive_utc()),
+                workers::online.eq(true),
+            ))
+            .returning(Worker::as_select())
+            .get_result(connection)?;
+
+        Ok(worker)
+    }
 }
 
 impl From<Worker> for api::v0::Worker {

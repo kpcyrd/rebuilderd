@@ -1,7 +1,7 @@
+use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
-use crate::api::v1::util::worker::refresh_worker;
-use crate::api::{auth, DEFAULT_QUEUE_PRIORITY};
+use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
@@ -53,7 +53,7 @@ pub async fn get_queued_jobs(
 
     let records = sql
         .paginate(page.into_inner())
-        .load::<rebuilderd_common::api::v1::QueuedJob>(connection.as_mut())
+        .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;
 
     let total = base
@@ -169,12 +169,14 @@ pub async fn request_work(
     pool: web::Data<Pool>,
     request: web::Json<PopQueuedJobRequest>,
 ) -> web::Result<impl Responder> {
-    if auth::worker(&cfg, &req).is_err() {
+    let mut connection = pool.get().map_err(Error::from)?;
+
+    let check_worker = auth::worker(&cfg, &req, connection.as_mut());
+    if check_worker.is_err() {
         return Ok(HttpResponse::Forbidden().finish());
     }
 
-    let mut connection = pool.get().map_err(Error::from)?;
-    let worker = refresh_worker(&req, &cfg, connection.as_mut())?;
+    let worker = check_worker?;
 
     // TODO: retry logic?
     let pop_request = request.into_inner();

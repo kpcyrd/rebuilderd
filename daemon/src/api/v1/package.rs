@@ -1,13 +1,15 @@
+use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
 use crate::api::v1::util::pagination::{Page, PaginateDsl};
 use crate::api::DEFAULT_QUEUE_PRIORITY;
+use crate::config::Config;
 use crate::db::Pool;
 use crate::diesel::ExpressionMethods;
 use crate::diesel::NullableExpressionMethods;
 use crate::models::{NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
 use crate::schema::{binary_packages, build_inputs, rebuilds, source_packages};
 use crate::web;
-use actix_web::{get, post, HttpResponse, Responder};
+use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{PackageReport, ResultPage};
@@ -45,9 +47,15 @@ fn binary_packages_base() -> _ {
 
 #[post("/")]
 pub async fn submit_package_report(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     request: web::Json<PackageReport>,
 ) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
 
     let report = request.into_inner();
@@ -109,7 +117,7 @@ pub async fn submit_package_report(
         }
     }
 
-    Ok(HttpResponse::NotImplemented())
+    Ok(HttpResponse::NotImplemented().finish())
 }
 
 #[get("/source")]
