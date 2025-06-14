@@ -43,7 +43,12 @@ pub async fn get_builds(
 
     let mut sql = base.into_boxed();
 
-    sql = origin_filter.filter(sql, build_inputs::architecture);
+    sql = origin_filter.filter(sql);
+
+    if let Some(architecture) = &origin_filter.architecture {
+        sql = sql.filter(build_inputs::architecture.eq(architecture));
+    }
+
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
     let records = sql

@@ -1,5 +1,5 @@
 use crate::diesel::ExpressionMethods;
-use crate::schema::{binary_packages, build_inputs, source_packages};
+use crate::schema::source_packages;
 use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
 use diesel::{Column, Expression};
@@ -14,13 +14,11 @@ pub struct OriginFilter {
 }
 
 impl<'a> OriginFilter {
-    pub fn filter<Q, A>(&'a self, mut sql: Q, architecture_column: Option<A>) -> Q
+    pub fn filter<Q>(&'a self, mut sql: Q) -> Q
     where
-        A: OriginFilterColumn + Expression<SqlType = Text>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::distribution, &'a String>, Output = Q>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::release, &'a String>, Output = Q>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::component, &'a String>, Output = Q>,
-        Q: FilterDsl<diesel::dsl::Eq<A, &'a String>, Output = Q>,
     {
         if let Some(distribution) = &self.distribution {
             sql = sql.filter(source_packages::distribution.eq(distribution));
@@ -34,23 +32,9 @@ impl<'a> OriginFilter {
             sql = sql.filter(source_packages::component.eq(component));
         }
 
-        if let Some(architecture) = &self.architecture {
-            if let Some(architecture_column) = architecture_column {
-                sql = sql.filter(architecture_column.eq(architecture));
-            }
-        }
-
         sql
     }
 }
-
-pub trait OriginFilterColumn: Column {}
-
-impl OriginFilterColumn for source_packages::distribution {}
-impl OriginFilterColumn for source_packages::release {}
-impl OriginFilterColumn for source_packages::component {}
-impl OriginFilterColumn for build_inputs::architecture {}
-impl OriginFilterColumn for binary_packages::architecture {}
 
 #[derive(Debug, Deserialize)]
 pub struct IdentityFilter {

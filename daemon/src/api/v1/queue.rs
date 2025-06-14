@@ -43,7 +43,12 @@ pub async fn get_queued_jobs(
     let base = queue_base();
     let mut sql = base.into_boxed();
 
-    sql = origin_filter.filter(sql, build_inputs::architecture);
+    sql = origin_filter.filter(sql);
+
+    if let Some(architecture) = &origin_filter.architecture {
+        sql = sql.filter(build_inputs::architecture.eq(architecture));
+    }
+
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
     let records = sql
@@ -93,7 +98,12 @@ pub async fn request_rebuild(
         .into_boxed();
 
     // TODO: allow matching on binary package names and architectures
-    sql = origin_filter.filter(sql, build_inputs::architecture);
+    sql = origin_filter.filter(sql);
+
+    if let Some(architecture) = &origin_filter.architecture {
+        sql = sql.filter(build_inputs::architecture.eq(architecture));
+    }
+
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
     let build_input_ids = sql

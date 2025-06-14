@@ -24,3 +24,4 @@ url = "2.2.2"
 
 [features]
 diesel = ["dep:diesel"]
+v0 = []
