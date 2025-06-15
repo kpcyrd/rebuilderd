@@ -1043,6 +1043,10 @@ components:
         architecture:
           description: The architecture the package belongs to
           type: string
+        build_id:
+          description: The ID of the latest build of this package
+          type: integer
+          nullable: true
       additionalProperties: false
       required:
         - name

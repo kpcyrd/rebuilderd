@@ -39,6 +39,7 @@ pub struct SourcePackage {
     pub release: Option<String>,
     pub component: Option<String>,
     pub status: Option<BuildStatus>,
+    pub build_id: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
