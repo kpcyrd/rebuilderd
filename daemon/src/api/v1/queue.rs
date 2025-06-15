@@ -127,7 +127,7 @@ pub async fn request_rebuild(
     for build_input_id in build_input_ids {
         let new_queued_job = NewQueued {
             build_input_id,
-            priority: DEFAULT_QUEUE_PRIORITY,
+            priority: queue_request.priority.unwrap_or(DEFAULT_QUEUE_PRIORITY),
             queued_at: Utc::now().naive_utc(),
         };
 

@@ -11,6 +11,7 @@ pub struct QueueJobRequest {
     pub name: Option<String>,
     pub version: Option<String>,
     pub architecture: Option<String>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
