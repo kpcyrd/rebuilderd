@@ -8,9 +8,9 @@ use std::borrow::Cow;
 pub trait BuildRestApi {
     async fn get_builds(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<Rebuild>>;
 
     async fn submit_build_report(&self, request: RebuildReport) -> Result<()>;
@@ -23,7 +23,7 @@ pub trait BuildRestApi {
 }
 
 pub trait DashboardRestApi {
-    async fn get_dashboard(&self, origin_filter: Option<OriginFilter>) -> Result<OriginFilter>;
+    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter>;
 }
 
 pub trait MetaRestApi {
@@ -56,18 +56,18 @@ pub trait PackageRestApi {
 
     async fn get_source_packages(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<SourcePackage>>;
 
     async fn get_source_package(&self, id: i32) -> Result<SourcePackage>;
 
     async fn get_binary_packages(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<BinaryPackage>>;
 
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
@@ -76,9 +76,9 @@ pub trait PackageRestApi {
 pub trait QueueRestApi {
     async fn get_queued_jobs(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<QueuedJob>>;
 
     async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()>;
@@ -89,7 +89,7 @@ pub trait QueueRestApi {
 }
 
 pub trait WorkerRestApi {
-    async fn get_workers(&self, page: Option<Page>) -> Result<ResultPage<Worker>>;
+    async fn get_workers(&self, page: Option<&Page>) -> Result<ResultPage<Worker>>;
     async fn register_worker(&self, request: RegisterWorkerRequest) -> Result<()>;
     async fn get_worker(&self, id: i32) -> Result<Worker>;
     async fn unregister_worker(&self, id: i32) -> Result<()>;
@@ -98,9 +98,9 @@ pub trait WorkerRestApi {
 impl BuildRestApi for Client {
     async fn get_builds(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<Rebuild>> {
         let records = self
             .get(Cow::Borrowed("api/v1/builds"))
@@ -206,7 +206,7 @@ impl BuildRestApi for Client {
 }
 
 impl DashboardRestApi for Client {
-    async fn get_dashboard(&self, origin_filter: Option<OriginFilter>) -> Result<OriginFilter> {
+    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter> {
         let dashboard = self
             .get(Cow::Borrowed("api/v1/dashboard"))
             .query(&origin_filter)
@@ -344,9 +344,9 @@ impl PackageRestApi for Client {
 
     async fn get_source_packages(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<SourcePackage>> {
         let records = self
             .get(Cow::Borrowed("api/v1/packages/source"))
@@ -376,9 +376,9 @@ impl PackageRestApi for Client {
 
     async fn get_binary_packages(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<BinaryPackage>> {
         let records = self
             .get(Cow::Borrowed("api/v1/packages/binary"))
@@ -410,9 +410,9 @@ impl PackageRestApi for Client {
 impl QueueRestApi for Client {
     async fn get_queued_jobs(
         &self,
-        page: Option<Page>,
-        origin_filter: Option<OriginFilter>,
-        identity_filter: Option<IdentityFilter>,
+        page: Option<&Page>,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
     ) -> Result<ResultPage<QueuedJob>> {
         let records = self
             .get(Cow::Borrowed("api/v1/queue"))
@@ -483,7 +483,7 @@ impl QueueRestApi for Client {
 }
 
 impl WorkerRestApi for Client {
-    async fn get_workers(&self, page: Option<Page>) -> Result<ResultPage<Worker>> {
+    async fn get_workers(&self, page: Option<&Page>) -> Result<ResultPage<Worker>> {
         let workers = self
             .get(Cow::Borrowed("api/v1/workers"))
             .query(&page)
