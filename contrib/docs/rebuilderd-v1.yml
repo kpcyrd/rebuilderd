@@ -427,6 +427,25 @@ paths:
           $ref: '#/components/responses/Unauthorized'
       security:
         - AuthCookie: [ ]
+    delete:
+      summary: Drop multiple enqueued rebuilds
+      tags:
+        - queue
+      parameters:
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/component'
+
+        - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/architecture'
+      responses:
+        "204":
+          $ref: '#/components/responses/Deleted'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+      security:
+        - AuthCookie: [ ]
   /queue/{id}:
     get:
       summary: Gets information about a specific enqueued rebuild

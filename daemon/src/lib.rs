@@ -61,6 +61,7 @@ pub async fn run_config(config: Config) -> Result<()> {
                                 .service(api::v1::request_rebuild)
                                 .service(api::v1::get_queued_job)
                                 .service(api::v1::drop_queued_job)
+                                .service(api::v1::drop_queued_jobs)
                                 .service(api::v1::request_work),
                         )
                         .service(

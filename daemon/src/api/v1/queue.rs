@@ -137,6 +137,41 @@ pub async fn request_rebuild(
     Ok(HttpResponse::NoContent())
 }
 
+#[delete("")]
+pub async fn drop_queued_jobs(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
+    pool: web::Data<Pool>,
+    origin_filter: web::Query<OriginFilter>,
+    identity_filter: web::Query<IdentityFilter>,
+) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden());
+    }
+
+    let mut connection = pool.get().map_err(Error::from)?;
+
+    let mut sql = queue::table
+        .inner_join(build_inputs::table.inner_join(source_packages::table))
+        .select(queue::id)
+        .into_boxed();
+
+    sql = origin_filter.filter(sql);
+    if let Some(architecture) = &origin_filter.architecture {
+        sql = sql.filter(build_inputs::architecture.eq(architecture));
+    }
+
+    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
+
+    let ids = sql.load::<i32>(connection.as_mut()).map_err(Error::from)?;
+
+    diesel::delete(queue::table.filter(queue::id.eq_any(ids)))
+        .execute(connection.as_mut())
+        .map_err(Error::from)?;
+
+    Ok(HttpResponse::NoContent())
+}
+
 #[get("/{id}")]
 pub async fn get_queued_job(
     pool: web::Data<Pool>,
