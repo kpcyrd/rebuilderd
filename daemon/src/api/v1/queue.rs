@@ -43,9 +43,7 @@ pub async fn get_queued_jobs(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = queue_base();
-    let mut sql = base.into_boxed();
-
+    let mut sql = queue_base().into_boxed();
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
@@ -59,7 +57,16 @@ pub async fn get_queued_jobs(
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = base
+    let mut total_sql = queue_base().into_boxed();
+    total_sql = origin_filter.filter(total_sql);
+
+    if let Some(architecture) = &origin_filter.architecture {
+        total_sql = total_sql.filter(build_inputs::architecture.eq(architecture));
+    }
+
+    total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
+
+    let total = total_sql
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;

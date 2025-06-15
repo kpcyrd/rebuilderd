@@ -131,9 +131,7 @@ pub async fn get_source_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = source_packages_base();
-    let mut sql = base.into_boxed();
-
+    let mut sql = source_packages_base().into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
@@ -142,7 +140,11 @@ pub async fn get_source_packages(
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = base
+    let mut total_sql = source_packages_base().into_boxed();
+    total_sql = origin_filter.filter(total_sql);
+    total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
+
+    let total = total_sql
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -178,9 +180,7 @@ pub async fn get_binary_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = binary_packages_base();
-    let mut sql = base.into_boxed();
-
+    let mut sql = binary_packages_base().into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, binary_packages::name, binary_packages::version);
 
@@ -189,7 +189,11 @@ pub async fn get_binary_packages(
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = base
+    let mut total_sql = binary_packages_base().into_boxed();
+    total_sql = origin_filter.filter(total_sql);
+    total_sql = identity_filter.filter(total_sql, binary_packages::name, binary_packages::version);
+
+    let total = total_sql
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;

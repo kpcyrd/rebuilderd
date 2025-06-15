@@ -34,14 +34,12 @@ pub async fn get_workers(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let base = workers_base();
-
-    let records = base
+    let records = workers_base()
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::Worker>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = base
+    let total = workers_base()
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
