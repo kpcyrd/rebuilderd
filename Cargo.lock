@@ -1965,6 +1965,7 @@ name = "rebuilderd-worker"
 version = "0.23.1"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap",
  "data-encoding",
  "env_logger",
