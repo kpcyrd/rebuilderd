@@ -1080,6 +1080,14 @@ components:
           description: The URL where the artifact can be fetched
           type: string
           format: uri
+        build_id:
+          description: The ID of the latest build of this package
+          type: integer
+          nullable: true
+        artifact_id:
+          description: The ID of the latest artifact of this package
+          type: integer
+          nullable: true
       additionalProperties: false
       required:
         - name

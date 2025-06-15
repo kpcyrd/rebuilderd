@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,8 @@ pub struct QueuedJob {
     pub architecture: String,
     pub backend: String,
     pub url: String,
+    pub queued_at: NaiveDateTime,
+    pub started_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

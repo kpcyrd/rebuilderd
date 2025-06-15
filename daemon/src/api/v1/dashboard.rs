@@ -91,6 +91,8 @@ pub async fn get_dashboard(
             build_inputs::architecture,
             build_inputs::backend,
             build_inputs::url,
+            queue::queued_at,
+            queue::started_at,
         ))
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;

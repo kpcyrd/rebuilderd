@@ -33,6 +33,8 @@ fn queue_base() -> _ {
             build_inputs::architecture,
             build_inputs::backend,
             build_inputs::url,
+            queue::queued_at,
+            queue::started_at,
         ))
 }
 
