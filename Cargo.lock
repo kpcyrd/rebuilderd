@@ -1878,7 +1878,7 @@ dependencies = [
 
 [[package]]
 name = "rebuildctl"
-version = "0.23.1"
+version = "0.24.0"
 dependencies = [
  "bzip2",
  "chrono",
@@ -1907,7 +1907,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd"
-version = "0.23.1"
+version = "0.24.0"
 dependencies = [
  "actix-web",
  "chrono",
@@ -1946,7 +1946,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd-tests"
-version = "0.23.1"
+version = "0.24.0"
 dependencies = [
  "actix-web",
  "clap",
@@ -1961,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "rebuilderd-worker"
-version = "0.23.1"
+version = "0.24.0"
 dependencies = [
  "async-trait",
  "clap",
