@@ -23,6 +23,7 @@ toml = "0.8"
 url = "2.2.2"
 zstd = "0.13.3"
 tokio = "1.44.2"
+async-trait = "0.1.88"
 
 [dev-dependencies]
 tokio-test = "0.4.4"

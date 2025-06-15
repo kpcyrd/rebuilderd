@@ -2,9 +2,11 @@ mod models;
 
 use crate::api::Client;
 use crate::errors::*;
+use async_trait::async_trait;
 pub use models::*;
 use std::borrow::Cow;
 
+#[async_trait]
 pub trait BuildRestApi {
     async fn get_builds(
         &self,
@@ -22,10 +24,12 @@ pub trait BuildRestApi {
     async fn get_build_artifact_attestation(&self, id: i32, artifact_id: i32) -> Result<Vec<u8>>;
 }
 
+#[async_trait]
 pub trait DashboardRestApi {
     async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter>;
 }
 
+#[async_trait]
 pub trait MetaRestApi {
     async fn get_distributions(&self) -> Result<Vec<String>>;
     async fn get_distribution_releases(&self, distribution: &str) -> Result<Vec<String>>;
@@ -51,6 +55,7 @@ pub trait MetaRestApi {
     ) -> Result<Vec<String>>;
 }
 
+#[async_trait]
 pub trait PackageRestApi {
     async fn submit_package_report(&self, report: &PackageReport) -> Result<()>;
 
@@ -73,6 +78,7 @@ pub trait PackageRestApi {
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
 }
 
+#[async_trait]
 pub trait QueueRestApi {
     async fn get_queued_jobs(
         &self,
@@ -93,6 +99,7 @@ pub trait QueueRestApi {
     async fn ping_job(&self, id: i32) -> Result<()>;
 }
 
+#[async_trait]
 pub trait WorkerRestApi {
     async fn get_workers(&self, page: Option<&Page>) -> Result<ResultPage<Worker>>;
     async fn register_worker(&self, request: RegisterWorkerRequest) -> Result<()>;
@@ -100,6 +107,7 @@ pub trait WorkerRestApi {
     async fn unregister_worker(&self, id: i32) -> Result<()>;
 }
 
+#[async_trait]
 impl BuildRestApi for Client {
     async fn get_builds(
         &self,
@@ -210,6 +218,7 @@ impl BuildRestApi for Client {
     }
 }
 
+#[async_trait]
 impl DashboardRestApi for Client {
     async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter> {
         let dashboard = self
@@ -225,6 +234,7 @@ impl DashboardRestApi for Client {
     }
 }
 
+#[async_trait]
 impl MetaRestApi for Client {
     async fn get_distributions(&self) -> Result<Vec<String>> {
         let results = self
@@ -336,6 +346,7 @@ impl MetaRestApi for Client {
     }
 }
 
+#[async_trait]
 impl PackageRestApi for Client {
     async fn submit_package_report(&self, report: &PackageReport) -> Result<()> {
         self.post(Cow::Borrowed("api/v1/packages"))
@@ -412,6 +423,7 @@ impl PackageRestApi for Client {
     }
 }
 
+#[async_trait]
 impl QueueRestApi for Client {
     async fn get_queued_jobs(
         &self,
@@ -502,6 +514,7 @@ impl QueueRestApi for Client {
     }
 }
 
+#[async_trait]
 impl WorkerRestApi for Client {
     async fn get_workers(&self, page: Option<&Page>) -> Result<ResultPage<Worker>> {
         let workers = self
