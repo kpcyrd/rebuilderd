@@ -1941,8 +1941,11 @@ dependencies = [
  "log",
  "reqwest",
  "serde",
+ "tokio",
+ "tokio-test",
  "toml",
  "url",
+ "zstd",
 ]
 
 [[package]]

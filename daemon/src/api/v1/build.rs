@@ -7,7 +7,6 @@ use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
 use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
-use crate::util::{is_zstd_compressed, zstd_compress};
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use diesel::ExpressionMethods;
@@ -18,6 +17,7 @@ use rebuilderd_common::api::v1::{
     IdentityFilter, OriginFilter, Page, Rebuild, RebuildReport, ResultPage,
 };
 use rebuilderd_common::errors::Error;
+use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
 
 #[diesel::dsl::auto_type]
 fn builds_base() -> _ {
