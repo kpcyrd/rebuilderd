@@ -6,20 +6,35 @@ use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
-use crate::schema::{binary_packages, build_inputs, rebuilds, source_packages};
+use crate::schema::{binary_packages, build_inputs, rebuild_artifacts, rebuilds, source_packages};
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
+use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl};
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter, PackageReport, Page, ResultPage};
 use rebuilderd_common::errors::Error;
+
+diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);
 
 #[diesel::dsl::auto_type]
 fn source_packages_base() -> _ {
     source_packages::table
         .inner_join(build_inputs::table)
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).eq(build_inputs::id)))
+        .left_join(
+            r2.on(r2.field(rebuilds::build_input_id).eq(build_inputs::id).and(
+                r1.field(rebuilds::built_at)
+                    .lt(r2.field(rebuilds::built_at))
+                    .or(r1.fields(
+                        rebuilds::built_at
+                            .eq(r2.field(rebuilds::built_at))
+                            .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
+                    )),
+            )),
+        )
+        .filter(r2.field(rebuilds::id).is_null())
         .select((
             source_packages::id,
             source_packages::name,
@@ -27,6 +42,7 @@ fn source_packages_base() -> _ {
             source_packages::distribution,
             source_packages::release.nullable(),
             source_packages::component.nullable(),
+            r1.field(rebuilds::status).nullable(),
         ))
 }
 
@@ -34,6 +50,25 @@ fn source_packages_base() -> _ {
 fn binary_packages_base() -> _ {
     binary_packages::table
         .inner_join(source_packages::table)
+        .inner_join(build_inputs::table)
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).eq(build_inputs::id)))
+        .left_join(
+            rebuild_artifacts::table.on(rebuild_artifacts::rebuild_id
+                .eq(r1.field(rebuilds::id))
+                .and(rebuild_artifacts::name.eq(binary_packages::name))),
+        )
+        .left_join(
+            r2.on(r2.field(rebuilds::build_input_id).eq(build_inputs::id).and(
+                r1.field(rebuilds::built_at)
+                    .lt(r2.field(rebuilds::built_at))
+                    .or(r1.fields(
+                        rebuilds::built_at
+                            .eq(r2.field(rebuilds::built_at))
+                            .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
+                    )),
+            )),
+        )
+        .filter(r2.field(rebuilds::id).is_null())
         .select((
             binary_packages::id,
             binary_packages::name,
@@ -43,6 +78,7 @@ fn binary_packages_base() -> _ {
             source_packages::component,
             binary_packages::architecture,
             binary_packages::artifact_url,
+            rebuild_artifacts::status.nullable(),
         ))
 }
 
