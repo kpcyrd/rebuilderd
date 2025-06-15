@@ -1933,15 +1933,20 @@ name = "rebuilderd-common"
 version = "0.23.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "clap",
  "colored",
+ "diesel",
  "dirs-next",
  "log",
  "reqwest",
  "serde",
+ "tokio",
+ "tokio-test",
  "toml",
  "url",
+ "zstd",
 ]
 
 [[package]]
@@ -1964,6 +1969,7 @@ name = "rebuilderd-worker"
 version = "0.24.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "clap",
  "data-encoding",
  "env_logger",

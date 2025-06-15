@@ -1,7 +1,8 @@
 use crate::code_migrations::code_migration;
-use diesel::connection::{Instrumentation, SimpleConnection, TransactionManager};
+use diesel::connection::{Instrumentation, LoadConnection, SimpleConnection, TransactionManager};
+use diesel::expression::QueryMetadata;
 use diesel::prelude::*;
-use diesel::query_builder::{QueryFragment, QueryId};
+use diesel::query_builder::{Query, QueryFragment, QueryId};
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::sql_query;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
@@ -55,6 +56,22 @@ pub fn setup_pool(url: &str) -> Result<Pool> {
 }
 
 pub struct SqliteConnectionWrap(SqliteConnection);
+
+impl LoadConnection for SqliteConnectionWrap {
+    type Cursor<'conn, 'query> = <SqliteConnection as LoadConnection>::Cursor<'conn, 'query>;
+    type Row<'conn, 'query> = <SqliteConnection as LoadConnection>::Row<'conn, 'query>;
+
+    fn load<'conn, 'query, T>(
+        &'conn mut self,
+        source: T,
+    ) -> QueryResult<Self::Cursor<'conn, 'query>>
+    where
+        T: Query + QueryFragment<Self::Backend> + QueryId + 'query,
+        Self::Backend: QueryMetadata<T::SqlType>,
+    {
+        self.0.load(source)
+    }
+}
 
 impl std::convert::AsMut<SqliteConnection> for SqliteConnectionWrap {
     fn as_mut(&mut self) -> &mut SqliteConnection {
