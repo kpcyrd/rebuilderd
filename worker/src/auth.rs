@@ -1,6 +1,6 @@
 use data_encoding::BASE64;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
-use rebuilderd_common::api::v0::Client;
+use rebuilderd_common::api::Client;
 use rebuilderd_common::config::ConfigFile;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
