@@ -82,12 +82,10 @@ pub trait QueueRestApi {
     ) -> Result<ResultPage<QueuedJob>>;
 
     async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()>;
-
     async fn get_queued_job(&self, id: i32) -> Result<QueuedJob>;
-
     async fn drop_queued_job(&self, id: i32) -> Result<()>;
-
-    async fn request_work(&self, request: PopQueuedJobRequest) -> Result<QueuedJob>;
+    async fn request_work(&self, request: PopQueuedJobRequest) -> Result<JobAssignment>;
+    async fn ping_job(&self, id: i32) -> Result<()>;
 }
 
 pub trait WorkerRestApi {
@@ -461,7 +459,7 @@ impl QueueRestApi for Client {
         Ok(())
     }
 
-    async fn request_work(&self, request: PopQueuedJobRequest) -> Result<QueuedJob> {
+    async fn request_work(&self, request: PopQueuedJobRequest) -> Result<JobAssignment> {
         let record = self
             .post(Cow::Borrowed("api/v1/queue/pop"))
             .json(&request)

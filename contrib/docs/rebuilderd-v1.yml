@@ -136,32 +136,15 @@ paths:
           schema:
             type: integer
             minimum: 1
-
-        - $ref: '#/components/parameters/limit'
-        - $ref: '#/components/parameters/before'
-        - $ref: '#/components/parameters/after'
-        - $ref: '#/components/parameters/sort'
-        - $ref: '#/components/parameters/direction'
-
-        - $ref: '#/components/parameters/name'
-        - $ref: '#/components/parameters/version'
-        - $ref: '#/components/parameters/architecture'
       responses:
         "200":
           description: Success
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  total:
-                    description: The total number of records in the whole filtered set
-                    type: integer
-                  records:
-                    description: The records in the requested slice of the set
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/RebuildArtifact'
+                type: array
+                items:
+                  $ref: '#/components/schemas/RebuildArtifact'
         "404":
           $ref: '#/components/responses/NotFound'
   /builds/{id}/artifacts/{artifact_id}:
@@ -487,6 +470,24 @@ paths:
           $ref: '#/components/responses/NotFound'
       security:
         - AuthCookie: [ ]
+  /queue/{id}/ping:
+    post:
+      summary: Pings the build, notifying rebuilderd that the worker is actively working on the job
+      tags:
+        - queue
+      parameters:
+        - in: path
+          name: id
+          description: The ID of the enqueued job
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          $ref: '#/components/responses/NoContent'
+      security:
+        - WorkerKey: [ ]
   /queue/pop:
     post:
       summary: Requests work from the queue
@@ -504,7 +505,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QueuedJob'
+                $ref: '#/components/schemas/JobAssignment'
         "401":
           $ref: '#/components/responses/Unauthorized'
       security:
@@ -799,6 +800,43 @@ paths:
 
 components:
   schemas:
+    JobAssignment:
+      oneOf:
+        - type: object
+          description: Nothing
+          additionalProperties: false
+        - $ref: '#/components/schemas/QueuedJobWithArtifacts'
+    QueuedJobWithArtifacts:
+      type: object
+      properties:
+        job:
+          $ref: '#/components/schemas/QueuedJob'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedJobArtifact'
+      additionalProperties: false
+      required:
+        - job
+        - artifacts
+    QueuedJobArtifact:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        architecture:
+          type: string
+        url:
+          type: string
+          format: uri
+      additionalProperties: false
+      required:
+        - name
+        - version
+        - architecture
+        - url
     DashboardState:
       type: object
       properties:

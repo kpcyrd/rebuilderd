@@ -255,8 +255,33 @@ pub async fn request_work(
             Ok(None)
         }
     })? {
-        Ok(HttpResponse::Ok().json(record))
+        let artifacts = queue::table
+            .inner_join(
+                build_inputs::table.inner_join(
+                    source_packages::table
+                        .inner_join(binary_packages::table)
+                        .on(binary_packages::build_input_id
+                            .eq(build_inputs::id)
+                            .and(binary_packages::source_package_id.eq(source_packages::id))),
+                ),
+            )
+            .select((
+                binary_packages::name,
+                binary_packages::version,
+                binary_packages::architecture,
+                binary_packages::artifact_url,
+            ))
+            .filter(queue::id.eq(record.id))
+            .get_results::<QueuedJobArtifact>(connection.as_mut())
+            .map_err(Error::from)?;
+
+        Ok(
+            HttpResponse::Ok().json(JobAssignment::Rebuild(Box::new(QueuedJobWithArtifacts {
+                job: record,
+                artifacts,
+            }))),
+        )
     } else {
-        Ok(HttpResponse::NotFound().finish())
+        Ok(HttpResponse::Ok().json(JobAssignment::Nothing))
     }
 }
