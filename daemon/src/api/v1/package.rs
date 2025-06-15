@@ -79,6 +79,8 @@ fn binary_packages_base() -> _ {
             binary_packages::architecture,
             binary_packages::artifact_url,
             rebuild_artifacts::status.nullable(),
+            r1.field(rebuilds::id).nullable(),
+            rebuild_artifacts::id.nullable(),
         ))
 }
 

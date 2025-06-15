@@ -54,4 +54,6 @@ pub struct BinaryPackage {
     pub architecture: String,
     pub url: String,
     pub status: Option<ArtifactStatus>,
+    pub build_id: Option<i32>,
+    pub artifact_id: Option<i32>,
 }
