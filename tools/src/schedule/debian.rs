@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
 use crate::schedule::{fetch_url_or_path, Pkg};
-use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
+use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use std::collections::HashMap;
@@ -75,7 +75,7 @@ impl SourcePkgBucket {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum VersionConstraint {
     Explicit(String),
     Implicit(String),
@@ -289,7 +289,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    groups: HashMap<String, Vec<PkgGroup>>,
+    reports: HashMap<(String, String, String), PackageReport>,
 }
 
 impl SyncState {
@@ -297,57 +297,44 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn ensure_group_exists(
-        &mut self,
-        src: &DebianSourcePkg,
-        distro: String,
-        suite: String,
-        arch: &str,
-    ) {
-        // TODO: creating a new group isn't always needed
-        let buildinfo_url = src.buildinfo_url(arch);
-        let new_group = PkgGroup::new(
-            src.base.clone(),
-            src.version.clone(),
-            distro,
-            suite,
-            arch.to_string(),
-            Some(buildinfo_url),
-        );
-
-        if let Some(list) = self.groups.get_mut(&src.base) {
-            for group in list.iter() {
-                if group.version == src.version && group.architecture == arch {
-                    return;
-                }
-            }
-
-            list.push(new_group);
-        } else {
-            self.groups.insert(src.base.clone(), vec![new_group]);
-        }
-    }
-
     fn get_mut_group(
         &mut self,
         src: &DebianSourcePkg,
-        distro: String,
-        suite: String,
-        arch: &str,
-    ) -> &mut PkgGroup {
-        self.ensure_group_exists(src, distro, suite, arch);
+        release: &String,
+        component: &String,
+        architecture: &String,
+    ) -> &mut SourcePackageReport {
+        let key = (release.clone(), component.clone(), architecture.clone());
+        let report = self
+            .reports
+            .entry(key.clone())
+            .or_insert_with(|| PackageReport {
+                distribution: "debian".to_string(),
+                release: Some(release.clone()),
+                component: Some(component.clone()),
+                architecture: architecture.clone(),
+                packages: Vec::new(),
+            });
 
-        // ensure_group_exists ensures the group exists
-        let list = self.groups.get_mut(&src.base).unwrap();
+        match report
+            .packages
+            .iter_mut()
+            .find(|p| src.base == p.name && src.version == p.version)
+        {
+            Some(_) => {}
+            None => {
+                let source_report = SourcePackageReport {
+                    name: src.base.clone(),
+                    version: src.version.clone(),
+                    url: src.buildinfo_url(&architecture),
+                    artifacts: Vec::new(),
+                };
 
-        for group in list {
-            if group.version == src.version && group.architecture == arch {
-                return group;
+                report.packages.push(source_report);
             }
-        }
+        };
 
-        // ensure_group_exists ensures the group exists
-        unreachable!()
+        report.packages.last_mut().unwrap()
     }
 
     pub fn push(
@@ -355,33 +342,28 @@ impl SyncState {
         src: &DebianSourcePkg,
         bin: DebianBinPkg,
         source: &str,
-        distro: String,
-        suite: String,
+        release: &String,
+        component: &String,
     ) {
-        let group = self.get_mut_group(src, distro, suite, &bin.architecture);
+        let group = self.get_mut_group(src, release, component, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
-        group.add_artifact(PkgArtifact {
+        group.artifacts.push(BinaryPackageReport {
             name: bin.name,
             version: bin.version,
+            architecture: bin.architecture.clone(),
             url,
         });
     }
 
-    pub fn to_vec(self) -> Vec<PkgGroup> {
-        let mut out = self.groups.into_values().flatten().collect::<Vec<_>>();
-        out.sort_by(|a, b| {
-            a.name
-                .cmp(&b.name)
-                .then_with(|| a.version.cmp(&b.version))
-                .then_with(|| a.architecture.cmp(&b.architecture))
-        });
-        out
+    pub fn to_vec(self) -> Vec<PackageReport> {
+        self.reports.into_values().collect()
     }
 
     pub fn import_binary_pkg(
         &mut self,
         pkg: DebianBinPkg,
         sources: &SourcePkgBucket,
+        release: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         // Debian combines arch:all and arch:any packages.
@@ -398,13 +380,7 @@ impl SyncState {
             src.base, src.version
         );
 
-        self.push(
-            &src,
-            pkg,
-            &sync.source,
-            sync.distro.clone(),
-            sync.suite.clone(),
-        );
+        self.push(&src, pkg, &sync.source, release, &sync.suite);
         Ok(())
     }
 
@@ -412,10 +388,11 @@ impl SyncState {
         &mut self,
         bytes: &[u8],
         sources: &SourcePkgBucket,
+        release: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
-            self.import_binary_pkg(pkg, sources, sync)?;
+            self.import_binary_pkg(pkg, sources, release, sync)?;
         }
         Ok(())
     }
@@ -424,17 +401,18 @@ impl SyncState {
         &mut self,
         bytes: &[u8],
         sources: &SourcePkgBucket,
+        release: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
-            self.import_binary_pkg(pkg, sources, sync)?;
+            self.import_binary_pkg(pkg, sources, release, sync)?;
         }
         Ok(())
     }
 }
 
-pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    let mut out = SyncState::new();
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
+    let mut state = SyncState::new();
 
     for release in &sync.releases {
         let mut sources = SourcePkgBucket::new();
@@ -456,12 +434,13 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
                 "{}/dists/{}/{}/binary-{}/Packages.xz",
                 sync.source, release, sync.suite, arch
             );
+
             let bytes = fetch_url_or_path(http, &db_url).await?;
-            out.import_compressed_binary_package_file(&bytes, &sources, sync)?;
+            state.import_compressed_binary_package_file(&bytes, &sources, release, &sync)?;
         }
     }
 
-    Ok(out.to_vec())
+    Ok(state.to_vec())
 }
 
 #[cfg(test)]
@@ -471,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_parse_bin_pkg_simple() {
-        let bytes= b"Package: sniffglue
+        let bytes = b"Package: sniffglue
 Source: rust-sniffglue
 Version: 0.14.0-2
 Installed-Size: 2344
@@ -698,30 +677,34 @@ Section: misc
             &src,
             bin,
             "https://deb.debian.org/debian",
-            "debian".to_string(),
-            "main".to_string(),
+            &"sid".to_string(),
+            &"main".to_string(),
         );
 
-        let mut groups = HashMap::new();
-        groups.insert("mariadb-10.5".to_string(), vec![
-            PkgGroup {
-                name: "mariadb-10.5".to_string(),
-                version: "1:10.5.12-1".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "all".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/m/mariadb-10.5/mariadb-10.5_10.5.12-1_all.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "mariadb-server".to_string(),
-                        version: "1:10.5.12-1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
-                    }
-                ],
-            },
-        ]);
+        let mut reports = HashMap::new();
+        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("sid".to_string()),
+            component: Some("main".to_string()),
+            architecture: "amd64".to_string(),
+            packages: vec![
+                SourcePackageReport {
+                    name: "mariadb-10.5".to_string(),
+                    version: "1:10.5.12-1".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/m/mariadb-10.5/mariadb-10.5_10.5.12-1_all.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "mariadb-server".to_string(),
+                            version: "1:10.5.12-1".to_string(),
+                            architecture: "all".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
+                        }
+                    ],
+                },
+            ]
+        });
 
-        assert_eq!(state, SyncState { groups });
+        assert_eq!(state, SyncState { reports });
     }
 
     #[test]
@@ -805,36 +788,41 @@ Section: misc
                 &src_pkgs[0],
                 bin,
                 "https://deb.debian.org/debian",
-                "debian".to_string(),
-                "main".to_string(),
+                &"sid".to_string(),
+                &"main".to_string(),
             );
         }
 
-        let mut groups = HashMap::new();
-        groups.insert("rust-sniffglue".to_string(), vec![
-            PkgGroup {
-                name: "rust-sniffglue".to_string(),
-                version: "0.14.0-2".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "amd64".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/r/rust-sniffglue/rust-sniffglue_0.14.0-2_amd64.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "librust-sniffglue-dev".to_string(),
-                        version: "0.14.0-2".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/librust-sniffglue-dev_0.14.0-2_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "sniffglue".to_string(),
-                        version: "0.14.0-2".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
-                    }
-                ],
-            },
-        ]);
+        let mut reports = HashMap::new();
+        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("sid".to_string()),
+            component: Some("main".to_string()),
+            architecture: "amd64".to_string(),
+            packages: vec![
+                SourcePackageReport {
+                    name: "rust-sniffglue".to_string(),
+                    version: "0.14.0-2".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-sniffglue/rust-sniffglue_0.14.0-2_amd64.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "librust-sniffglue-dev".to_string(),
+                            version: "0.14.0-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/librust-sniffglue-dev_0.14.0-2_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "sniffglue".to_string(),
+                            version: "0.14.0-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
+                        }
+                    ],
+                },
+            ]
+        });
 
-        assert_eq!(state, SyncState { groups });
+        assert_eq!(state, SyncState { reports });
     }
 
     #[test]
@@ -1136,91 +1124,102 @@ Section: mail
                 &src,
                 bin,
                 "https://deb.debian.org/debian",
-                "debian".to_string(),
-                "main".to_string(),
+                &"sid".to_string(),
+                &"main".to_string(),
             );
         }
 
-        let mut groups = HashMap::new();
-        groups.insert("courier".to_string(), vec![
-            PkgGroup {
-                name: "courier".to_string(),
-                version: "1.0.16-3+b1".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "amd64".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "courier-base".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-base_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-faxmail".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-faxmail_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-imap".to_string(),
-                        version: "5.0.13+1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-imap_5.0.13+1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-ldap".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-ldap_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-mlm".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mlm_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-mta".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mta_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-pcp".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pcp_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-pop".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pop_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "courier-webadmin".to_string(),
-                        version: "1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-webadmin_1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                    PkgArtifact {
-                        name: "sqwebmail".to_string(),
-                        version: "6.0.5+1.0.16-3+b1".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/sqwebmail_6.0.5+1.0.16-3+b1_amd64.deb".to_string(),
-                    },
-                ],
-            },
-            PkgGroup {
-                name: "courier".to_string(),
-                version: "1.0.16-3".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "all".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3_all.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "courier-doc".to_string(),
-                        version: "1.0.16-3".to_string(),
-                        url: "https://deb.debian.org/debian/pool/main/c/courier/courier-doc_1.0.16-3_all.deb".to_string(),
-                    }
-                ],
-            },
-        ]);
+        let mut reports = HashMap::new();
+        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("sid".to_string()),
+            component: Some("main".to_string()),
+            architecture: "amd64".to_string(),
+            packages: vec![
+                SourcePackageReport {
+                    name: "courier".to_string(),
+                    version: "1.0.16-3+b1".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3+b1_amd64.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "courier-base".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-base_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-faxmail".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-faxmail_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-imap".to_string(),
+                            version: "5.0.13+1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-imap_5.0.13+1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-ldap".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-ldap_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-mlm".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mlm_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-mta".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mta_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-pcp".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pcp_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-pop".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pop_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "courier-webadmin".to_string(),
+                            version: "1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-webadmin_1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "sqwebmail".to_string(),
+                            version: "6.0.5+1.0.16-3+b1".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/sqwebmail_6.0.5+1.0.16-3+b1_amd64.deb".to_string(),
+                        },
+                    ],
+                },
+                SourcePackageReport {
+                    name: "courier".to_string(),
+                    version: "1.0.16-3".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/c/courier/courier_1.0.16-3_all.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "courier-doc".to_string(),
+                            version: "1.0.16-3".to_string(),
+                            architecture: "all".to_string(),
+                            url: "https://deb.debian.org/debian/pool/main/c/courier/courier-doc_1.0.16-3_all.deb".to_string(),
+                        }
+                    ],
+                },
+            ],
+        });
 
-        assert_eq!(state, SyncState { groups });
+        assert_eq!(state, SyncState { reports });
     }
 
     #[test]
@@ -1455,7 +1454,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
 
 ";
 
-        let mut out = SyncState::new();
+        let mut state = SyncState::new();
         let sync = PkgsSync {
             distro: "debian".to_string(),
             suite: "main".to_string(),
@@ -1470,34 +1469,74 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
         };
 
         // add the package list twice, to simulate importing sid and testing
-        out.import_uncompressed_binary_package_file(&bytes[..], &sources, &sync)
+        state
+            .import_uncompressed_binary_package_file(
+                &bytes[..],
+                &sources,
+                &"sid".to_string(),
+                &sync,
+            )
             .unwrap();
-        out.import_uncompressed_binary_package_file(&bytes[..], &sources, &sync)
+        state
+            .import_uncompressed_binary_package_file(
+                &bytes[..],
+                &sources,
+                &"testing".to_string(),
+                &sync,
+            )
             .unwrap();
 
-        let pkgs = out.to_vec();
-        assert_eq!(pkgs, vec![
-            PkgGroup {
-                name: "rust-repro-env".to_string(),
-                version: "0.4.3-2".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "amd64".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/r/rust-repro-env/rust-repro-env_0.4.3-2_amd64.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "repro-env".to_string(),
-                        version: "0.4.3-2".to_string(),
-                        url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
-                    },
-                ]
-            }
-        ]);
+        let mut reports = HashMap::new();
+        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("sid".to_string()),
+            component: Some("main".to_string()),
+            architecture: "amd64".to_string(),
+            packages: vec![
+                SourcePackageReport {
+                    name: "rust-repro-env".to_string(),
+                    version: "0.4.3-2".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-repro-env/rust-repro-env_0.4.3-2_amd64.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "repro-env".to_string(),
+                            version: "0.4.3-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
+                        },
+                    ]
+                }
+            ]
+        });
+
+        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("testing".to_string()),
+            component: Some("main".to_string()),
+            architecture: "amd64".to_string(),
+            packages: vec![
+                SourcePackageReport {
+                    name: "rust-repro-env".to_string(),
+                    version: "0.4.3-2".to_string(),
+                    url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-repro-env/rust-repro-env_0.4.3-2_amd64.buildinfo".to_string(),
+                    artifacts: vec![
+                        BinaryPackageReport {
+                            name: "repro-env".to_string(),
+                            version: "0.4.3-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
+                        },
+                    ]
+                }
+            ]
+        });
+
+        assert_eq!(state, SyncState { reports });
     }
 
     #[test]
     fn test_novnc_partially_pending_decruft() {
-        let mut out = SyncState::new();
+        let mut state = SyncState::new();
 
         let sync = PkgsSync {
             distro: "debian".to_string(),
@@ -1604,7 +1643,16 @@ Size: 12664
 MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
-"[..]),
+"[..]),] {
+            let mut sources = SourcePkgBucket::new();
+            sources
+                .import_uncompressed_source_package_file(&source[..])
+                .unwrap();
+            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &sync)
+                .unwrap();
+        }
+
+        for (source, binary) in [
             // testing
             (b"Package: novnc
 Binary: novnc, python3-novnc
@@ -1675,47 +1723,63 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
             sources
                 .import_uncompressed_source_package_file(source)
                 .unwrap();
-            out.import_uncompressed_binary_package_file(binary, &sources, &sync)
+            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &sync)
                 .unwrap();
         }
 
-        let pkgs = out.to_vec();
-        assert_eq!(pkgs, vec![
-            PkgGroup {
-                name: "novnc".to_string(),
-                version: "1:1.6.0-1".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "all".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
-                        name: "python3-novnc".to_string(),
-                        version: "1:1.6.0-1".to_string(),
-                        url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
-                    },
-                    PkgArtifact {
+        let mut reports = HashMap::new();
+        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("sid".to_string()),
+                component: Some("main".to_string()),
+                architecture: "amd64".to_string(),
+                packages: vec![
+                    SourcePackageReport {
                         name: "novnc".to_string(),
                         version: "1:1.6.0-1".to_string(),
-                        url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
+                        artifacts: vec![
+                            BinaryPackageReport {
+                                name: "python3-novnc".to_string(),
+                                version: "1:1.6.0-1".to_string(),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                            },
+                            BinaryPackageReport {
+                                name: "novnc".to_string(),
+                                version: "1:1.6.0-1".to_string(),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                            },
+                        ]
                     },
                 ]
-            },
-            PkgGroup {
-                name: "novnc".to_string(),
-                version: "1:1.6.0-2".to_string(),
-                distro: "debian".to_string(),
-                suite: "main".to_string(),
-                architecture: "all".to_string(),
-                input_url: Some("https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string()),
-                artifacts: vec![
-                    PkgArtifact {
+            });
+        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("testing".to_string()),
+                component: Some("main".to_string()),
+                architecture: "amd64".to_string(),
+                packages: vec![
+                    SourcePackageReport {
                         name: "novnc".to_string(),
                         version: "1:1.6.0-2".to_string(),
-                        url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string(),
+                        artifacts: vec![
+                            BinaryPackageReport {
+                                name: "novnc".to_string(),
+                                version: "1:1.6.0-2".to_string(),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                            },
+                        ]
                     },
                 ]
             }
-        ]);
+        );
+
+        assert_eq!(state, SyncState { reports });
     }
 }
