@@ -473,6 +473,15 @@ impl QueueRestApi for Client {
 
         Ok(record)
     }
+
+    async fn ping_job(&self, id: i32) -> Result<()> {
+        self.post(Cow::Owned(format!("api/v1/queue/{id}/ping")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
 }
 
 impl WorkerRestApi for Client {

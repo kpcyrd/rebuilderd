@@ -10,10 +10,12 @@ use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packa
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::ExpressionMethods;
+use diesel::BoolExpressionMethods;
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::{ExpressionMethods, JoinOnDsl};
 use rebuilderd_common::api::v1::{
-    IdentityFilter, OriginFilter, Page, PopQueuedJobRequest, QueueJobRequest, QueuedJob, ResultPage,
+    IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, QueueJobRequest,
+    QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
 };
 use rebuilderd_common::errors::Error;
 
@@ -170,6 +172,36 @@ pub async fn drop_queued_job(
         .map_err(Error::from)?;
 
     Ok(HttpResponse::NoContent())
+}
+
+#[post("/{id}/ping")]
+pub async fn ping_job(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
+    pool: web::Data<Pool>,
+    id: web::Path<i32>,
+) -> web::Result<impl Responder> {
+    let mut connection = pool.get().map_err(Error::from)?;
+
+    let check_worker = auth::worker(&cfg, &req, connection.as_mut());
+    if check_worker.is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
+    let worker = check_worker?;
+
+    let now = Utc::now();
+    diesel::update(queue::table)
+        .set(queue::last_ping.eq(now.naive_utc()))
+        .filter(
+            queue::id
+                .eq(id.into_inner())
+                .and(queue::worker.eq(worker.id)),
+        )
+        .execute(connection.as_mut())
+        .map_err(Error::from)?;
+
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[post("/pop")]
