@@ -157,7 +157,7 @@ pub async fn submit_package_report(
         }
     }
 
-    Ok(HttpResponse::NotImplemented().finish())
+    Ok(HttpResponse::NoContent().finish())
 }
 
 #[get("/source")]
