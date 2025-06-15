@@ -1,19 +1,15 @@
 use crate::args::PkgsSync;
 use crate::decompress;
 use crate::schedule::{fetch_url_or_path, Pkg};
-use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
+use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
 
-pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    if sync.releases.len() > 1 {
-        bail!("Tracking multiple releases in the same rebuilder is currently unsupported");
-    }
-
-    let mut bases: HashMap<_, PkgGroup> = HashMap::new();
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
+    let mut reports = Vec::new();
 
     for release in &sync.releases {
         for arch in &sync.architectures {
@@ -28,6 +24,16 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
             let data = decompress::stream(comp, &bytes)?;
             let packages = parse_package_index(data)?;
 
+            let mut report = PackageReport {
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some(sync.suite.clone()),
+                architecture: arch.clone(),
+                packages: Vec::new(),
+            };
+
+            let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
+
             for pkg in packages {
                 if !pkg.matches(sync) {
                     continue;
@@ -35,31 +41,34 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
 
                 let url = format!("{url}{}", pkg.location.href);
                 let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
-                let artifact = PkgArtifact {
+                let artifact = BinaryPackageReport {
                     name: pkg.name,
                     version,
-                    url,
+                    architecture: pkg.arch,
+                    url: url.clone(),
                 };
 
                 if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
-                    group.add_artifact(artifact);
+                    group.artifacts.push(artifact);
                 } else {
-                    let mut group = PkgGroup::new(
-                        pkg.format.sourcerpm.clone(),
-                        format!("{}-{}", pkg.version.ver, pkg.version.rel),
-                        sync.distro.to_string(),
-                        sync.suite.to_string(),
-                        pkg.arch,
-                        None,
-                    );
-                    group.add_artifact(artifact);
+                    let mut group = SourcePackageReport {
+                        name: pkg.format.sourcerpm.clone(),
+                        version: format!("{}-{}", pkg.version.ver, pkg.version.rel),
+                        url: url.clone(), // use first artifact's url as the source URL for now
+                        artifacts: Vec::new(),
+                    };
+
+                    group.artifacts.push(artifact);
                     bases.insert(pkg.format.sourcerpm, group);
                 }
             }
+
+            report.packages = bases.into_values().collect();
+            reports.push(report);
         }
     }
 
-    Ok(bases.into_values().collect())
+    Ok(reports)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

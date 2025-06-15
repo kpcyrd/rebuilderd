@@ -1,7 +1,7 @@
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::Shell;
 use glob::Pattern;
-use rebuilderd_common::api::v0::Status;
+use rebuilderd_common::api::v1::BuildStatus;
 use rebuilderd_common::errors::*;
 use std::io;
 use std::path::PathBuf;
@@ -102,7 +102,7 @@ pub struct PkgsFilter {
     pub name: Option<String>,
     /// Filter packages matching this status
     #[arg(long)]
-    pub status: Option<Status>,
+    pub status: Option<BuildStatus>,
     /// Filter packages matching this distro
     #[arg(long)]
     pub distro: Option<String>,
