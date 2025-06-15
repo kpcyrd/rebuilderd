@@ -2,7 +2,7 @@
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageReport {
     pub distribution: String,
     pub release: Option<String>,
@@ -11,7 +11,7 @@ pub struct PackageReport {
     pub packages: Vec<SourcePackageReport>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourcePackageReport {
     pub name: String,
     pub version: String,
@@ -19,7 +19,7 @@ pub struct SourcePackageReport {
     pub artifacts: Vec<BinaryPackageReport>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BinaryPackageReport {
     pub name: String,
     pub version: String,

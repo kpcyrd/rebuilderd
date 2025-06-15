@@ -1,6 +1,6 @@
-use crate::api::v1::util::filters::OriginFilter;
+use crate::api::v1::util::filters::DieselOriginFilter;
 use crate::db::Pool;
-use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
+use crate::schema::{build_inputs, queue, rebuilds, source_packages};
 use crate::web;
 use actix_web::{get, HttpResponse, Responder};
 use diesel::dsl::{case_when, sum};
@@ -9,7 +9,7 @@ use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
 use diesel::RunQueryDsl;
 use diesel::{BoolExpressionMethods, JoinOnDsl, QueryDsl};
-use rebuilderd_common::api::v1::{DashboardState, QueuedJob};
+use rebuilderd_common::api::v1::{DashboardState, OriginFilter, QueuedJob};
 use rebuilderd_common::errors::Error;
 
 diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);

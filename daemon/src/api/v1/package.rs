@@ -1,6 +1,7 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
-use crate::api::v1::util::pagination::{Page, PaginateDsl};
+use crate::api::v1::util::filters::DieselIdentityFilter;
+use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::Pool;
@@ -12,7 +13,7 @@ use chrono::Utc;
 use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
-use rebuilderd_common::api::v1::{PackageReport, ResultPage};
+use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter, PackageReport, Page, ResultPage};
 use rebuilderd_common::errors::Error;
 
 #[diesel::dsl::auto_type]

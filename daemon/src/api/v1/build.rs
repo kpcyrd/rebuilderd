@@ -1,7 +1,8 @@
 use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::{IdentityFilter, OriginFilter};
-use crate::api::v1::util::pagination::{Page, PaginateDsl};
+use crate::api::v1::util::filters::DieselIdentityFilter;
+use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
@@ -13,7 +14,9 @@ use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel::{OptionalExtension, RunQueryDsl};
 use rebuilderd_common::api;
-use rebuilderd_common::api::v1::{Rebuild, RebuildReport, ResultPage};
+use rebuilderd_common::api::v1::{
+    IdentityFilter, OriginFilter, Page, Rebuild, RebuildReport, ResultPage,
+};
 use rebuilderd_common::errors::Error;
 
 #[get("")]

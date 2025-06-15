@@ -1,6 +1,6 @@
 use crate::api::header;
 use crate::api::v1::util::auth;
-use crate::api::v1::util::pagination::{Page, PaginateDsl};
+use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::NewWorker;
@@ -10,7 +10,7 @@ use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
 use diesel::ExpressionMethods;
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
-use rebuilderd_common::api::v1::{RegisterWorkerRequest, ResultPage};
+use rebuilderd_common::api::v1::{Page, RegisterWorkerRequest, ResultPage};
 use rebuilderd_common::api::WORKER_KEY_HEADER;
 use rebuilderd_common::errors::{format_err, Context, Error};
 use std::net::IpAddr;

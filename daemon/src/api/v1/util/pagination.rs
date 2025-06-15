@@ -2,25 +2,10 @@ use diesel::query_builder::{AstPass, Query, QueryFragment};
 use diesel::sql_types::Integer;
 use diesel::sqlite::Sqlite;
 use diesel::{QueryId, QueryResult, RunQueryDsl, SqliteConnection};
-use serde::Deserialize;
+use rebuilderd_common::api::v1::{Page, SortDirection};
 use std::error::Error;
 use std::fmt;
 use std::fmt::Formatter;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Page {
-    pub limit: Option<i32>,
-    pub before: Option<i32>,
-    pub after: Option<i32>,
-    pub sort: Option<String>,
-    pub direction: Option<SortDirection>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Deserialize)]
-pub enum SortDirection {
-    Ascending,
-    Descending,
-}
 
 #[derive(Debug, Clone)]
 struct InvalidSortFieldError;

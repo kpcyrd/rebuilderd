@@ -3,18 +3,18 @@ use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
 use diesel::ExpressionMethods;
 use diesel::{Column, Expression};
-use serde::Deserialize;
+use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter};
 
-#[derive(Debug, Deserialize)]
-pub struct OriginFilter {
-    pub distribution: Option<String>,
-    pub release: Option<String>,
-    pub component: Option<String>,
-    pub architecture: Option<String>,
+pub trait DieselOriginFilter<'a> {
+    fn filter<Q>(&'a self, sql: Q) -> Q
+    where
+        Q: FilterDsl<diesel::dsl::Eq<source_packages::distribution, &'a String>, Output = Q>,
+        Q: FilterDsl<diesel::dsl::Eq<source_packages::release, &'a String>, Output = Q>,
+        Q: FilterDsl<diesel::dsl::Eq<source_packages::component, &'a String>, Output = Q>;
 }
 
-impl<'a> OriginFilter {
-    pub fn filter<Q>(&'a self, mut sql: Q) -> Q
+impl<'a> DieselOriginFilter<'a> for OriginFilter {
+    fn filter<Q>(&'a self, mut sql: Q) -> Q
     where
         Q: FilterDsl<diesel::dsl::Eq<source_packages::distribution, &'a String>, Output = Q>,
         Q: FilterDsl<diesel::dsl::Eq<source_packages::release, &'a String>, Output = Q>,
@@ -36,14 +36,17 @@ impl<'a> OriginFilter {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct IdentityFilter {
-    pub name: Option<String>,
-    pub version: Option<String>,
+pub trait DieselIdentityFilter<'a> {
+    fn filter<Q, N, V>(&'a self, sql: Q, name_column: N, version_column: V) -> Q
+    where
+        N: Column + Expression<SqlType = Text>,
+        V: Column + Expression<SqlType = Text>,
+        Q: FilterDsl<diesel::dsl::Eq<N, &'a String>, Output = Q>,
+        Q: FilterDsl<diesel::dsl::Eq<V, &'a String>, Output = Q>;
 }
 
-impl<'a> IdentityFilter {
-    pub fn filter<Q, N, V>(&'a self, mut sql: Q, name_column: N, version_column: V) -> Q
+impl<'a> DieselIdentityFilter<'a> for IdentityFilter {
+    fn filter<Q, N, V>(&'a self, mut sql: Q, name_column: N, version_column: V) -> Q
     where
         N: Column + Expression<SqlType = Text>,
         V: Column + Expression<SqlType = Text>,

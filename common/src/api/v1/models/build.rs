@@ -1,9 +1,8 @@
 use chrono::NaiveDateTime;
-use diesel::serialize::Output;
 #[cfg(feature = "diesel")]
 use diesel::{
-    deserialize::FromSql, serialize::ToSql, sql_types::Text, sqlite::Sqlite, sqlite::SqliteValue,
-    AsExpression, FromSqlRow, Queryable,
+    deserialize::FromSql, serialize::Output, serialize::ToSql, sql_types::Text, sqlite::Sqlite,
+    sqlite::SqliteValue, AsExpression, FromSqlRow, Queryable,
 };
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -19,14 +18,26 @@ pub struct RebuildReport {
     pub artifacts: Vec<RebuildArtifactReport>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
 #[cfg_attr(feature = "diesel", diesel(sql_type = Text))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub enum BuildStatus {
+    #[serde(rename = "GOOD")]
+    #[clap(name = "GOOD")]
     Good,
+
+    #[serde(rename = "BAD")]
+    #[clap(name = "BAD")]
     Bad,
+
+    #[serde(rename = "FAIL")]
+    #[clap(name = "FAIL")]
     Fail,
+
+    #[serde(rename = "UNKWN")]
+    #[clap(name = "UNKWN")]
+    Unknown,
 }
 
 impl fmt::Display for BuildStatus {
@@ -35,6 +46,7 @@ impl fmt::Display for BuildStatus {
             BuildStatus::Good => write!(f, "GOOD"),
             BuildStatus::Bad => write!(f, "BAD"),
             BuildStatus::Fail => write!(f, "FAIL"),
+            BuildStatus::Unknown => write!(f, "UNKWN"),
         }
     }
 }
@@ -92,13 +104,22 @@ pub struct RebuildArtifactReport {
     pub status: ArtifactStatus,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, clap::ValueEnum)]
 #[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
 #[cfg_attr(feature = "diesel", diesel(sql_type = Text))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub enum ArtifactStatus {
+    #[serde(rename = "GOOD")]
+    #[clap(name = "GOOD")]
     Good,
+
+    #[serde(rename = "BAD")]
+    #[clap(name = "BAD")]
     Bad,
+
+    #[serde(rename = "UNKWN")]
+    #[clap(name = "UNKWN")]
+    Unknown,
 }
 
 impl fmt::Display for ArtifactStatus {
@@ -106,6 +127,7 @@ impl fmt::Display for ArtifactStatus {
         match self {
             ArtifactStatus::Good => write!(f, "GOOD"),
             ArtifactStatus::Bad => write!(f, "BAD"),
+            ArtifactStatus::Unknown => write!(f, "UNKWN"),
         }
     }
 }
