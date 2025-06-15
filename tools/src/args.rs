@@ -49,8 +49,6 @@ pub enum Pkgs {
     SyncProfile(PkgsSyncProfile),
     /// Read a package sync from stdin
     SyncStdin(PkgsSyncStdin),
-    /// Requeue a given package
-    Requeue(PkgsRequeue),
     /// Access the build log of the last rebuild
     Log(PkgsLog),
     /// Access the diffoscope of the last rebuild (if there is any)
