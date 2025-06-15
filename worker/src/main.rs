@@ -16,6 +16,7 @@ use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::utils::zstd_compress;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
@@ -123,12 +124,12 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                     }
                 };
 
-            let build_log = String::from_utf8_lossy(&log).into_owned();
+            let encoded_log = zstd_compress(&log[..]).await.map_err(Error::from)?;
 
             let report = RebuildReport {
                 queue_id: rb.job.id,
                 built_at: Utc::now().naive_utc(),
-                build_log: build_log.into_bytes(), // TODO: precompress
+                build_log: encoded_log,
                 status: overall_status,
                 artifacts: rebuilds,
             };

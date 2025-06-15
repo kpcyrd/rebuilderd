@@ -10,6 +10,7 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::utils::zstd_compress;
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
@@ -206,7 +207,12 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<Rebuild
 
                     let attestation = serde_json::to_string(&signed_link)
                         .context("Failed to serialize attestation")?;
-                    res.attestation = Some(attestation.into_bytes()); // TODO: precompress into zstd
+
+                    let encoded_attestation = zstd_compress(attestation.as_bytes())
+                        .await
+                        .map_err(Error::from)?;
+
+                    res.attestation = Some(encoded_attestation);
                 }
                 Err(err) => warn!("Failed to generate in-toto attestation: {:#?}", err),
             }
@@ -227,7 +233,11 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<Rebuild
                 let diff = diffoscope(&artifact_path, &output_path, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
-                res.diffoscope = Some(diff.into_bytes()); // TODO: precompress into zstd
+
+                let encoded_diffoscope =
+                    zstd_compress(diff.as_bytes()).await.map_err(Error::from)?;
+
+                res.diffoscope = Some(encoded_diffoscope);
             }
 
             res
