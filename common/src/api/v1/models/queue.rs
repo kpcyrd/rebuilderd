@@ -23,7 +23,7 @@ pub struct PopQueuedJobRequest {
     pub supported_architectures: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "diesel", derive(Queryable))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct QueuedJob {
@@ -40,7 +40,7 @@ pub struct QueuedJob {
     pub started_at: Option<NaiveDateTime>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "diesel", derive(Queryable))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct QueuedJobArtifact {
@@ -50,13 +50,13 @@ pub struct QueuedJobArtifact {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueuedJobWithArtifacts {
     pub job: QueuedJob,
     pub artifacts: Vec<QueuedJobArtifact>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobAssignment {
     Nothing,
     Rebuild(Box<QueuedJobWithArtifacts>),

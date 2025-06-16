@@ -1989,8 +1989,10 @@ name = "rebuilderd-tests"
 version = "0.25.0"
 dependencies = [
  "actix-web",
+ "chrono",
  "clap",
  "colored",
+ "diesel",
  "env_logger",
  "futures",
  "in-toto",
