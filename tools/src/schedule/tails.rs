@@ -11,24 +11,24 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
         .parse::<Url>()
         .context("Failed to parse source as url")?;
 
-    let mut url = source.clone();
-    url.path_segments_mut()
-        .map_err(|_| anyhow!("cannot be base"))?
-        .pop_if_empty()
-        .push(&sync.suite);
-
-    info!("Downloading directory list from {}", url);
-    let directory_list = http
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
-
     let mut reports = Vec::new();
     for release in &sync.releases {
         for architecture in &sync.architectures {
+            let mut url = source.clone();
+            url.path_segments_mut()
+                .map_err(|_| anyhow!("cannot be base"))?
+                .pop_if_empty()
+                .push(&release);
+
+            info!("Downloading directory list from {}", url);
+            let directory_list = http
+                .get(url)
+                .send()
+                .await?
+                .error_for_status()?
+                .text()
+                .await?;
+
             let mut report = PackageReport {
                 distribution: "tails".to_string(),
                 release: Some(release.clone()),
@@ -59,7 +59,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     .map_err(|_| anyhow!("cannot be base"))?
                     .pop_if_empty()
                     .extend(&[
-                        &sync.suite,
+                        release,
                         &format!("tails-{architecture}-{version}"),
                         &filename,
                     ]);

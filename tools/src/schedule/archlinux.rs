@@ -158,13 +158,14 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
     let mut reports = Vec::new();
     for arch in &sync.architectures {
-        let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
+        let suite = sync.suite.clone().unwrap();
+        let db = mirror_to_url(source, &suite, arch, &format!("{}.db", suite))?;
         let bytes = fetch_url_or_path(http, &db).await?;
 
         let mut report = PackageReport {
             distribution: "archlinux".to_string(),
             release: None,
-            component: Some(sync.suite.clone()),
+            component: Some(suite.clone()),
             architecture: arch.clone(),
             packages: Vec::new(),
         };
@@ -177,7 +178,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 continue;
             }
 
-            let url = mirror_to_url(source, &sync.suite, arch, &pkg.filename)?;
+            let url = mirror_to_url(source, &suite, arch, &pkg.filename)?;
             let artifact = BinaryPackageReport {
                 name: pkg.name,
                 version: pkg.version.clone(),

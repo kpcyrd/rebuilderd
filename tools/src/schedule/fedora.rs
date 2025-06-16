@@ -13,7 +13,9 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
     for release in &sync.releases {
         for arch in &sync.architectures {
-            let url = format!("{}/{}/{}/{}/os/", sync.source, release, sync.suite, arch);
+            let suite = &sync.suite.clone().unwrap();
+
+            let url = format!("{}/{}/{}/{}/os/", sync.source, release, suite, arch);
             let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
             let location = get_primary_location_from_xml(&bytes)?;
 
@@ -27,7 +29,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             let mut report = PackageReport {
                 distribution: "archlinux".to_string(),
                 release: None,
-                component: Some(sync.suite.clone()),
+                component: Some(suite.clone()),
                 architecture: arch.clone(),
                 packages: Vec::new(),
             };

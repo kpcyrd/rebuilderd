@@ -75,7 +75,7 @@ pub struct PkgsSyncStdin {
 #[derive(Debug, Parser)]
 pub struct PkgsSync {
     pub distro: String,
-    pub suite: String,
+    pub suite: Option<String>,
     pub source: String,
     #[arg(long = "architecture")]
     pub architectures: Vec<String>,

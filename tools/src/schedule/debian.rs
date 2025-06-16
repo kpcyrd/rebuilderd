@@ -380,7 +380,13 @@ impl SyncState {
             src.base, src.version
         );
 
-        self.push(&src, pkg, &sync.source, release, &sync.suite);
+        self.push(
+            &src,
+            pkg,
+            &sync.source,
+            release,
+            &sync.suite.clone().unwrap(),
+        );
         Ok(())
     }
 
@@ -415,12 +421,13 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     let mut state = SyncState::new();
 
     for release in &sync.releases {
+        let suite = sync.suite.clone().unwrap();
         let mut sources = SourcePkgBucket::new();
 
         // Downloading source package index
         let db_url = format!(
             "{}/dists/{}/{}/source/Sources.xz",
-            sync.source, release, sync.suite
+            sync.source, release, suite
         );
 
         let bytes = fetch_url_or_path(http, &db_url).await?;
@@ -432,7 +439,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             // Downloading binary package index
             let db_url = format!(
                 "{}/dists/{}/{}/binary-{}/Packages.xz",
-                sync.source, release, sync.suite, arch
+                sync.source, release, suite, arch
             );
 
             let bytes = fetch_url_or_path(http, &db_url).await?;
@@ -1457,7 +1464,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
         let mut state = SyncState::new();
         let sync = PkgsSync {
             distro: "debian".to_string(),
-            suite: "main".to_string(),
+            suite: Some("main".to_string()),
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string()],
             print_json: true,
@@ -1540,7 +1547,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
 
         let sync = PkgsSync {
             distro: "debian".to_string(),
-            suite: "main".to_string(),
+            suite: Some("main".to_string()),
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string(), "all".to_string()],
             print_json: true,
