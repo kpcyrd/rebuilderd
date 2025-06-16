@@ -1,6 +1,6 @@
 mod models;
 
-use crate::api::Client;
+use crate::api::{Client, ZstdRequestBuilder};
 use crate::errors::*;
 use async_trait::async_trait;
 pub use models::*;
@@ -134,7 +134,7 @@ impl BuildRestApi for Client {
     async fn submit_build_report(&self, request: RebuildReport) -> Result<()> {
         self.post(Cow::Borrowed("api/v1/builds"))
             .json(&request)
-            .send()
+            .send_encoded()
             .await?
             .error_for_status()?;
 
@@ -365,7 +365,7 @@ impl PackageRestApi for Client {
     async fn submit_package_report(&self, report: &PackageReport) -> Result<()> {
         self.post(Cow::Borrowed("api/v1/packages"))
             .json(report)
-            .send()
+            .send_encoded()
             .await?
             .error_for_status()?;
 
@@ -462,7 +462,7 @@ impl QueueRestApi for Client {
     async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()> {
         self.post(Cow::Borrowed("api/v1/queue"))
             .json(&request)
-            .send()
+            .send_encoded()
             .await?
             .error_for_status()?;
 
@@ -509,7 +509,7 @@ impl QueueRestApi for Client {
         let record = self
             .post(Cow::Borrowed("api/v1/queue/pop"))
             .json(&request)
-            .send()
+            .send_encoded()
             .await?
             .error_for_status()?
             .json()
@@ -546,7 +546,7 @@ impl WorkerRestApi for Client {
     async fn register_worker(&self, request: RegisterWorkerRequest) -> Result<()> {
         self.post(Cow::Borrowed("api/v1/workers"))
             .json(&request)
-            .send()
+            .send_encoded()
             .await?
             .error_for_status()?;
 

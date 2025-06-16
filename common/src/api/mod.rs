@@ -1,7 +1,12 @@
 use crate::auth;
 use crate::config::ConfigFile;
+use crate::errors::Error;
+use crate::utils::zstd_compress;
 use anyhow::{anyhow, Context};
+use async_trait::async_trait;
 use log::debug;
+use reqwest::header::CONTENT_ENCODING;
+use reqwest::{RequestBuilder, Response};
 use std::borrow::Cow;
 use std::env;
 use url::Url;
@@ -46,7 +51,8 @@ impl Client {
             .pop_if_empty();
 
         debug!("Setting rebuilderd endpoint to {:?}", endpoint.as_str());
-        let client = crate::http::client()?;
+        let client = crate::http::Client::builder().zstd(true).build()?;
+
         Ok(Client {
             endpoint,
             client,
@@ -146,5 +152,38 @@ impl Client {
         }
 
         req
+    }
+}
+
+#[async_trait]
+pub trait ZstdRequestBuilder {
+    async fn send_encoded(self) -> crate::errors::Result<Response>;
+}
+
+#[async_trait]
+impl ZstdRequestBuilder for RequestBuilder {
+    async fn send_encoded(self) -> crate::errors::Result<Response> {
+        if let Some(new_request) = self.try_clone() {
+            let mut request = self.build()?;
+
+            if let Some(body) = request.body_mut() {
+                if let Some(bytes) = body.as_bytes() {
+                    let encoded_body = zstd_compress(bytes).await?;
+
+                    new_request
+                        .body(encoded_body)
+                        .header(CONTENT_ENCODING, "zstd")
+                        .send()
+                        .await
+                        .map_err(Error::from)
+                } else {
+                    new_request.send().await.map_err(Error::from)
+                }
+            } else {
+                new_request.send().await.map_err(Error::from)
+            }
+        } else {
+            self.send().await.map_err(Error::from)
+        }
     }
 }
