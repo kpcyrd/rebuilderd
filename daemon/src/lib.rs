@@ -1,6 +1,6 @@
 use crate::config::Config;
 use actix_web::middleware::Logger;
-use actix_web::web::{scope, Data};
+use actix_web::web::{scope, Data, JsonConfig};
 use actix_web::{middleware, App, HttpServer};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::*;
@@ -21,9 +21,13 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
     let privkey = Arc::new(privkey);
 
     HttpServer::new(move || {
+        // allow up to 16MiB of payload
+        let json_config = JsonConfig::default().limit(16777216);
+
         App::new()
             .wrap(Logger::default())
             .wrap(middleware::Compress::default())
+            .app_data(json_config)
             .app_data(Data::new(pool.clone()))
             .app_data(Data::new(config.clone()))
             .app_data(Data::new(privkey.clone()))
