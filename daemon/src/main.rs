@@ -1,22 +1,11 @@
-use clap::{ArgAction, Parser};
+mod args;
+
+use crate::args::Args;
+use clap::Parser;
 use env_logger::Env;
+use rebuilderd::attestation;
 use rebuilderd::config;
 use rebuilderd_common::errors::*;
-use std::path::PathBuf;
-
-#[derive(Debug, Parser)]
-#[command(version)]
-struct Args {
-    /// Verbose logging
-    #[arg(short, long, action(ArgAction::Count))]
-    verbose: u8,
-    /// Load and print a config
-    #[arg(long)]
-    check_config: bool,
-    /// Configuration file path
-    #[arg(short, long)]
-    config: Option<PathBuf>,
-}
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -36,6 +25,11 @@ async fn main() -> Result<()> {
     let config = config::load(args.config.as_deref())?;
     if args.check_config {
         println!("{:#?}", config);
+    } else if args.keygen {
+        let (privkey, pubkey) = attestation::keygen_pem()?;
+
+        println!("{}", privkey.trim_end());
+        println!("{}", pubkey.trim_end());
     } else {
         rebuilderd::run_config(config).await?;
     }

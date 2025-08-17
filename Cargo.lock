@@ -1920,6 +1920,7 @@ dependencies = [
  "env_logger",
  "in-toto",
  "log",
+ "pem",
  "rand",
  "rebuilderd-common",
  "serde",

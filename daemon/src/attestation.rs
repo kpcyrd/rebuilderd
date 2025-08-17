@@ -1,9 +1,36 @@
 use crate::util;
 use in_toto::{
-    crypto::{PrivateKey, PublicKey},
+    crypto::{KeyType, PrivateKey, PublicKey, SignatureScheme},
     models::{Metablock, MetadataWrapper},
 };
+use pem::Pem;
 use rebuilderd_common::errors::*;
+
+const PEM_PUBLIC_KEY: &str = "ED25519 PUBLIC KEY";
+const PEM_PRIVATE_KEY: &str = "PRIVATE KEY";
+
+struct Secret(Vec<u8>);
+struct Public(Vec<u8>);
+
+fn keygen() -> Result<(Secret, Public)> {
+    let privkey = PrivateKey::new(KeyType::Ed25519)?;
+
+    let pubkey = {
+        let privkey = PrivateKey::from_pkcs8(&privkey, SignatureScheme::Ed25519)?;
+        privkey.public().as_bytes().to_vec()
+    };
+
+    Ok((Secret(privkey), Public(pubkey)))
+}
+
+pub fn keygen_pem() -> Result<(String, String)> {
+    let (privkey, pubkey) = keygen()?;
+
+    let privkey = pem::encode(&Pem::new(PEM_PRIVATE_KEY, privkey.0));
+    let pubkey = pem::encode(&Pem::new(&PEM_PUBLIC_KEY, pubkey.0));
+
+    Ok((privkey, pubkey))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Attestation {
