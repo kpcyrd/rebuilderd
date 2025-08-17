@@ -14,6 +14,7 @@ use std::thread;
 use std::time::Duration;
 
 pub mod api;
+pub mod attestation;
 pub mod auth;
 pub mod code_migrations;
 pub mod config;

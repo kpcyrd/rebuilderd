@@ -1,3 +1,4 @@
+use crate::attestation::Attestation;
 use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
@@ -474,11 +475,17 @@ pub async fn report_build(
         };
 
         let encoded_attestation = match &rebuild.attestation {
-            Some(attestation) => Some(
-                zstd_compress(attestation.as_bytes())
-                    .await
-                    .map_err(Error::from)?,
-            ),
+            Some(attestation) => {
+                let attestation = Attestation::parse(attestation.as_bytes())?;
+
+                // add additional signature
+                // attestation.sign(privkey)?;
+
+                // compress attestation
+                let compressed = attestation.to_compressed_bytes().await?;
+
+                Some(compressed)
+            }
             _ => None,
         };
 
