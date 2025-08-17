@@ -14,7 +14,7 @@ pub async fn download(url_str: &str, path: &Path) -> Result<PathBuf> {
     let filename = url
         .path_segments()
         .ok_or_else(|| format_err!("Url doesn't seem to have a path"))?
-        .last()
+        .next_back()
         .ok_or_else(|| format_err!("Failed to get filename from path"))?
         .to_owned();
     if filename.is_empty() {

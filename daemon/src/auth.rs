@@ -91,6 +91,7 @@ pub fn setup_auth_cookie() -> Result<String> {
     let mut file = OpenOptions::new()
         .mode(0o640)
         .write(true)
+        .truncate(true)
         .create(true)
         .open(cookie_path)
         .context("Failed to open auth cookie file")?;

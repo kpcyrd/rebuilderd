@@ -48,24 +48,26 @@ pub fn load() -> Result<Profile> {
 fn load_key<P: AsRef<Path>>(path: P) -> Result<Profile> {
     let path = path.as_ref();
 
-    let privkey = if path.exists() {
-        let content = fs::read(path)?;
-        PrivateKey::from_pkcs8(&content, SignatureScheme::Ed25519)?
-    } else {
-        let sk = PrivateKey::new(KeyType::Ed25519)?;
-
-        let mut file = OpenOptions::new()
-            .mode(0o640)
-            .write(true)
-            .create(true)
-            .open(path)?;
-        file.write_all(&sk[..])?;
-
-        PrivateKey::from_pkcs8(&sk, SignatureScheme::Ed25519)?
+    let privkey = match OpenOptions::new()
+        .mode(0o640)
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            // file didn't exist yet, generate new key
+            let secret = PrivateKey::new(KeyType::Ed25519)?;
+            file.write_all(&secret[..])?;
+            secret
+        }
+        Err(_err) => {
+            // assume the file already exists, try reading the content
+            fs::read(path)?
+        }
     };
 
-    let pk = privkey.public();
-    let pubkey = BASE64.encode(pk.as_bytes());
+    let privkey = PrivateKey::from_pkcs8(&privkey, SignatureScheme::Ed25519)?;
+    let pubkey = BASE64.encode(privkey.public().as_bytes());
 
     Ok(Profile { pubkey, privkey })
 }

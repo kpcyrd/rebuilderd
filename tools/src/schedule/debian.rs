@@ -1673,9 +1673,9 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
         ] {
             let mut sources = SourcePkgBucket::new();
             sources
-                .import_uncompressed_source_package_file(&source[..])
+                .import_uncompressed_source_package_file(source)
                 .unwrap();
-            out.import_uncompressed_binary_package_file(&binary[..], &sources, &sync)
+            out.import_uncompressed_binary_package_file(binary, &sources, &sync)
                 .unwrap();
         }
 
