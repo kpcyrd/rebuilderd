@@ -6,6 +6,7 @@ use in_toto::{
 use pem::Pem;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
+use std::borrow::Cow;
 use std::path::Path;
 
 const PEM_PUBLIC_KEY: &str = "PUBLIC KEY";
@@ -69,7 +70,7 @@ pub fn pem_to_pubkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<PublicKe
 
 pub fn load_or_create_privkey_pem(path: &Path) -> Result<PrivateKey> {
     let privkey = utils::load_or_create(path, || {
-        info!("Generating new signing private key: {path:?}");
+        info!("generating new signing private key: {path:?}");
         let privkey = PrivateKey::new(KeyType::Ed25519)?;
         let pem = privkey_to_pem(Secret(privkey));
         Ok(pem.into_bytes())
@@ -91,7 +92,15 @@ impl Attestation {
         Ok(Self { metablock })
     }
 
+    pub fn has_signature(&self, pubkey: &PublicKey) -> bool {
+        self.metablock
+            .signatures
+            .iter()
+            .any(|sig| sig.key_id() == pubkey.key_id())
+    }
+
     pub fn sign(&mut self, privkey: &PrivateKey) -> Result<()> {
+        debug!("creating signature on attestation");
         let new = Metablock::new(self.metablock.metadata.clone(), &[privkey])?;
         self.metablock.signatures.extend(new.signatures);
         Ok(())
@@ -113,6 +122,30 @@ impl Attestation {
         let json = self.serialize()?;
         let compressed = util::zstd_compress(json.as_bytes()).await?;
         Ok(compressed)
+    }
+}
+
+/// Makes sure the attestation is signed by our private key
+/// Returns true if a signature was created, returns false if attestation was already signed by us
+pub async fn compressed_attestation_sign_if_necessary(
+    bytes: Vec<u8>,
+    privkey: &PrivateKey,
+) -> Result<(Vec<u8>, bool)> {
+    let decompressed = if util::is_zstd_compressed(&bytes) {
+        let decompressed = util::zstd_decompress(&bytes).await.map_err(Error::from)?;
+        Cow::Owned(decompressed)
+    } else {
+        Cow::Borrowed(&bytes)
+    };
+
+    let mut attestation = Attestation::parse(&decompressed)?;
+    if attestation.has_signature(privkey.public()) {
+        Ok((bytes, false))
+    } else {
+        attestation.sign(privkey)?;
+
+        let compressed = attestation.to_compressed_bytes().await?;
+        Ok((compressed, true))
     }
 }
 
@@ -190,12 +223,14 @@ mod tests {
 
         // ensure it's not valid yet
         attestation.verify(1, [pubkey]).unwrap_err();
+        assert!(!attestation.has_signature(pubkey));
 
         // append a signature with our key
         attestation.sign(&privkey).unwrap();
 
         // ensure it's valid now
         attestation.verify(1, [pubkey]).unwrap();
+        assert!(attestation.has_signature(pubkey));
     }
 
     #[test]

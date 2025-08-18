@@ -471,7 +471,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        if keys != [pubkey.clone()] {
+        // if --no-daemon is set, this is expected to mismatch
+        if !args.no_daemon && keys != [pubkey.clone()] {
             bail!("Wrong api response, expected key={pubkey:?}, received={keys:?}");
         }
 

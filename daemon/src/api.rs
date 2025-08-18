@@ -551,19 +551,27 @@ pub async fn get_attestation(
     req: HttpRequest,
     id: web::Path<i32>,
     pool: web::Data<Pool>,
+    privkey: web::Data<Arc<PrivateKey>>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_mut()) {
-        Ok(build) => build,
-        Err(_) => return Ok(not_found()),
+    let Ok(mut build) = models::Build::get_id(*id, connection.as_mut()) else {
+        return Ok(not_found());
     };
 
-    if let Some(attestation) = build.attestation {
-        forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
-    } else {
-        Ok(not_found())
-    }
+    let Some(attestation) = build.attestation else {
+        return Ok(not_found());
+    };
+
+    let (attestation, has_new_signature) =
+        attestation::compressed_attestation_sign_if_necessary(attestation, &privkey).await?;
+
+    if has_new_signature {
+        build.attestation = Some(attestation.clone());
+        build.update(connection.as_mut())?;
+    };
+
+    forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
 }
 
 #[get("/api/v0/builds/{id}/diffoscope")]

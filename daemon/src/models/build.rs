@@ -19,6 +19,14 @@ impl Build {
         Ok(build)
     }
 
+    pub fn update(&self, connection: &mut SqliteConnection) -> Result<()> {
+        use crate::schema::builds::columns::*;
+        diesel::update(builds::table.filter(id.eq(self.id)))
+            .set(self)
+            .execute(connection)?;
+        Ok(())
+    }
+
     pub fn find_orphaned(connection: &mut SqliteConnection) -> Result<Vec<i32>> {
         let ids = diesel::sql_query("select id from builds as b where not exists (select 1 from packages as p where p.build_id = b.id);")
             .load::<IdRow>(connection)?;
