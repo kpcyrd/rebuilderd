@@ -10,9 +10,12 @@ pub struct Args {
     /// Load and print a config
     #[arg(long, group = "action")]
     pub check_config: bool,
-    // Generate a signing keypair (this usually happens automatically)
+    /// Generate a signing keypair (this usually happens automatically)
     #[arg(long, group = "action")]
     pub keygen: bool,
+    /// Derive the public key from a private key file
+    #[arg(long, group = "action")]
+    pub derive_pubkey: Option<PathBuf>,
     /// Configuration file path
     #[arg(short, long)]
     pub config: Option<PathBuf>,

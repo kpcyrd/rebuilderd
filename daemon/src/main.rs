@@ -30,6 +30,15 @@ async fn main() -> Result<()> {
 
         println!("{}", privkey.trim_end());
         println!("{}", pubkey.trim_end());
+    } else if let Some(path) = args.derive_pubkey {
+        let privkey = std::fs::read(path)?;
+
+        for privkey in attestation::pem_to_privkeys(&privkey)? {
+            let privkey = privkey?;
+            let pubkey = attestation::pubkey_to_pem(privkey.public())?;
+
+            println!("{}", pubkey.trim_end());
+        }
     } else {
         rebuilderd::run_config(config).await?;
     }

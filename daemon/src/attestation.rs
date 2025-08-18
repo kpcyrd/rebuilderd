@@ -6,30 +6,47 @@ use in_toto::{
 use pem::Pem;
 use rebuilderd_common::errors::*;
 
-const PEM_PUBLIC_KEY: &str = "ED25519 PUBLIC KEY";
+const PEM_PUBLIC_KEY: &str = "PUBLIC KEY";
 const PEM_PRIVATE_KEY: &str = "PRIVATE KEY";
 
 struct Secret(Vec<u8>);
-struct Public(Vec<u8>);
 
-fn keygen() -> Result<(Secret, Public)> {
+fn keygen() -> Result<(Secret, PublicKey)> {
     let privkey = PrivateKey::new(KeyType::Ed25519)?;
 
     let pubkey = {
         let privkey = PrivateKey::from_pkcs8(&privkey, SignatureScheme::Ed25519)?;
-        privkey.public().as_bytes().to_vec()
+        privkey.public().to_owned()
     };
 
-    Ok((Secret(privkey), Public(pubkey)))
+    Ok((Secret(privkey), pubkey))
 }
 
 pub fn keygen_pem() -> Result<(String, String)> {
     let (privkey, pubkey) = keygen()?;
 
     let privkey = pem::encode(&Pem::new(PEM_PRIVATE_KEY, privkey.0));
-    let pubkey = pem::encode(&Pem::new(&PEM_PUBLIC_KEY, pubkey.0));
+    let pubkey = pubkey_to_pem(&pubkey)?;
 
     Ok((privkey, pubkey))
+}
+
+pub fn pubkey_to_pem(pubkey: &PublicKey) -> Result<String> {
+    let pubkey = pubkey.as_spki()?;
+    let pem = pem::encode(&Pem::new(PEM_PUBLIC_KEY, pubkey));
+    Ok(pem)
+}
+
+pub fn pem_to_privkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<PrivateKey>>> {
+    let pems = pem::parse_many(buf).context("Failed to parse pem file")?;
+    let iter = pems
+        .into_iter()
+        .filter(|pem| pem.tag() == PEM_PRIVATE_KEY)
+        .map(|pem| {
+            PrivateKey::from_pkcs8(pem.contents(), SignatureScheme::Ed25519)
+                .context("Failed to parse private key")
+        });
+    Ok(iter)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
