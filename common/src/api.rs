@@ -1,6 +1,6 @@
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::{auth, http, PkgArtifact, PkgGroup, PkgRelease, Status};
+use crate::{auth, http, PkgArtifact, PkgGroup, PkgRelease, PublicKeys, Status};
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -203,6 +203,17 @@ impl Client {
             .bytes()
             .await?;
         Ok(attestation.to_vec())
+    }
+
+    pub async fn fetch_public_keys(&self) -> Result<PublicKeys> {
+        let keys = self
+            .get(Cow::Borrowed("api/v0/public-keys"))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(keys)
     }
 
     pub async fn list_queue(&self, list: &ListQueue) -> Result<QueueList> {

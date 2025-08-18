@@ -55,6 +55,18 @@ pub fn pem_to_privkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<Private
     Ok(iter)
 }
 
+pub fn pem_to_pubkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<PublicKey>>> {
+    let pems = pem::parse_many(buf).context("Failed to parse pem file")?;
+    let iter = pems
+        .into_iter()
+        .filter(|pem| pem.tag() == PEM_PUBLIC_KEY)
+        .map(|pem| {
+            PublicKey::from_spki(pem.contents(), SignatureScheme::Ed25519)
+                .context("Failed to parse public key")
+        });
+    Ok(iter)
+}
+
 pub fn load_or_create_privkey_pem(path: &Path) -> Result<PrivateKey> {
     let privkey = utils::load_or_create(path, || {
         info!("Generating new signing private key: {path:?}");

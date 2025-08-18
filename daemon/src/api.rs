@@ -14,8 +14,7 @@ use diesel::SqliteConnection;
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::{PkgRelease, Status};
-use serde_json::json;
+use rebuilderd_common::{PkgRelease, PublicKeys, Status};
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
@@ -607,10 +606,10 @@ pub async fn get_dashboard(
     Ok(HttpResponse::Ok().json(resp))
 }
 
-#[get("/api/v0/public-key")]
+#[get("/api/v0/public-keys")]
 pub async fn get_public_key(privkey: web::Data<Arc<PrivateKey>>) -> web::Result<impl Responder> {
     let pubkey = attestation::pubkey_to_pem(privkey.public())?;
-    Ok(HttpResponse::Ok().json(json!({
-        "current": vec![pubkey],
-    })))
+    Ok(HttpResponse::Ok().json(PublicKeys {
+        current: vec![pubkey],
+    }))
 }

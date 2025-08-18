@@ -162,3 +162,8 @@ impl FromStr for Status {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct PublicKeys {
+    pub current: Vec<String>,
+}

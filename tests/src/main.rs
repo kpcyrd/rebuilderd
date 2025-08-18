@@ -3,7 +3,7 @@ use clap::Parser;
 use colored::Colorize;
 use env_logger::Env;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
-use rebuilderd::attestation::Attestation;
+use rebuilderd::attestation::{self, Attestation};
 use rebuilderd::config::Config;
 use rebuilderd_common::api::*;
 use rebuilderd_common::config::*;
@@ -461,6 +461,24 @@ async fn main() -> Result<()> {
     })
     .await?;
 
+    let public_keys = test("Fetching public keys", async {
+        let response = client.fetch_public_keys().await?;
+
+        let mut keys = Vec::new();
+        for pem in response.current {
+            for key in attestation::pem_to_pubkeys(pem.as_bytes())? {
+                keys.push(key?);
+            }
+        }
+
+        if keys != [pubkey.clone()] {
+            bail!("Wrong api response, expected key={pubkey:?}, received={keys:?}");
+        }
+
+        Ok(keys)
+    })
+    .await?;
+
     test("Fetching and verify attestation", async {
         let pkgs = list_pkgs(&client).await?;
 
@@ -477,7 +495,7 @@ async fn main() -> Result<()> {
             let attestation = Attestation::parse(&attestation)?;
 
             // ensure the attestation verifies because the rebuilderd instance itself signed it too
-            attestation.verify(1, [&pubkey])?;
+            attestation.verify(1, &public_keys)?;
         }
 
         Ok(())
