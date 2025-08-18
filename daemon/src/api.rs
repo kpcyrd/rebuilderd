@@ -11,6 +11,7 @@ use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header}
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
 use chrono::prelude::*;
 use diesel::SqliteConnection;
+use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::{PkgRelease, Status};
@@ -430,6 +431,7 @@ pub async fn ping_build(
 pub async fn report_build(
     req: HttpRequest,
     cfg: web::Data<Config>,
+    privkey: web::Data<Arc<PrivateKey>>,
     report: web::Json<BuildReport>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
@@ -476,10 +478,10 @@ pub async fn report_build(
 
         let encoded_attestation = match &rebuild.attestation {
             Some(attestation) => {
-                let attestation = Attestation::parse(attestation.as_bytes())?;
+                let mut attestation = Attestation::parse(attestation.as_bytes())?;
 
                 // add additional signature
-                // attestation.sign(privkey)?;
+                attestation.sign(&privkey)?;
 
                 // compress attestation
                 let compressed = attestation.to_compressed_bytes().await?;

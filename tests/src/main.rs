@@ -2,6 +2,7 @@ use crate::args::Args;
 use clap::Parser;
 use colored::Colorize;
 use env_logger::Env;
+use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd::config::Config;
 use rebuilderd_common::api::*;
 use rebuilderd_common::config::*;
@@ -79,7 +80,10 @@ async fn test<T: Sized>(label: &str, f: impl futures::Future<Output = Result<T>>
 
 #[actix_web::main]
 async fn spawn_server(config: Config) {
-    if let Err(err) = rebuilderd::run_config(config).await {
+    let privkey = PrivateKey::new(KeyType::Ed25519).expect("Failed to generate private key");
+    let privkey = PrivateKey::from_pkcs8(&privkey, SignatureScheme::Ed25519)
+        .expect("Failed to use generated private key");
+    if let Err(err) = rebuilderd::run_config(config, privkey).await {
         error!("daemon errored: {:#}", err);
     }
 }

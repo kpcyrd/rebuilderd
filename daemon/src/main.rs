@@ -42,7 +42,8 @@ async fn main() -> Result<()> {
             println!("{}", pubkey.trim_end());
         }
     } else {
-        rebuilderd::run_config(config).await?;
+        let privkey = attestation::load_or_create_privkey_pem(&args.signing_key)?;
+        rebuilderd::run_config(config, privkey).await?;
     }
     Ok(())
 }

@@ -57,6 +57,7 @@ pub fn pem_to_privkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<Private
 
 pub fn load_or_create_privkey_pem(path: &Path) -> Result<PrivateKey> {
     let privkey = utils::load_or_create(path, || {
+        info!("Generating new signing private key: {path:?}");
         let privkey = PrivateKey::new(KeyType::Ed25519)?;
         let pem = privkey_to_pem(Secret(privkey));
         Ok(pem.into_bytes())

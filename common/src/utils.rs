@@ -37,6 +37,7 @@ pub fn load_or_create<F: Fn() -> Result<Vec<u8>>>(path: &Path, func: F) -> Resul
         }
         Err(_err) => {
             // assume the file already exists, try reading the content
+            debug!("Loading data from file: {path:?}");
             fs::read(path)?
         }
     };

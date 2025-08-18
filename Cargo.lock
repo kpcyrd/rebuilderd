@@ -1956,6 +1956,7 @@ dependencies = [
  "colored",
  "env_logger",
  "futures",
+ "in-toto",
  "rebuilderd",
  "rebuilderd-common",
  "tempfile",
