@@ -5,11 +5,13 @@ use in_toto::{
 };
 use pem::Pem;
 use rebuilderd_common::errors::*;
+use rebuilderd_common::utils;
+use std::path::Path;
 
 const PEM_PUBLIC_KEY: &str = "PUBLIC KEY";
 const PEM_PRIVATE_KEY: &str = "PRIVATE KEY";
 
-struct Secret(Vec<u8>);
+pub struct Secret(Vec<u8>);
 
 fn keygen() -> Result<(Secret, PublicKey)> {
     let privkey = PrivateKey::new(KeyType::Ed25519)?;
@@ -25,10 +27,14 @@ fn keygen() -> Result<(Secret, PublicKey)> {
 pub fn keygen_pem() -> Result<(String, String)> {
     let (privkey, pubkey) = keygen()?;
 
-    let privkey = pem::encode(&Pem::new(PEM_PRIVATE_KEY, privkey.0));
+    let privkey = privkey_to_pem(privkey);
     let pubkey = pubkey_to_pem(&pubkey)?;
 
     Ok((privkey, pubkey))
+}
+
+pub fn privkey_to_pem(privkey: Secret) -> String {
+    pem::encode(&Pem::new(PEM_PRIVATE_KEY, privkey.0))
 }
 
 pub fn pubkey_to_pem(pubkey: &PublicKey) -> Result<String> {
@@ -47,6 +53,18 @@ pub fn pem_to_privkeys(buf: &[u8]) -> Result<impl Iterator<Item = Result<Private
                 .context("Failed to parse private key")
         });
     Ok(iter)
+}
+
+pub fn load_or_create_privkey_pem(path: &Path) -> Result<PrivateKey> {
+    let privkey = utils::load_or_create(path, || {
+        let privkey = PrivateKey::new(KeyType::Ed25519)?;
+        let pem = privkey_to_pem(Secret(privkey));
+        Ok(pem.into_bytes())
+    })?;
+
+    pem_to_privkeys(&privkey)?
+        .next()
+        .context("No private key found in PEM file")?
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,5 +183,26 @@ mod tests {
 
         // ensure it's valid now
         attestation.verify(1, [pubkey]).unwrap();
+    }
+
+    #[test]
+    fn test_load_privkey() {
+        let mut iter = pem_to_privkeys(
+            b"-----BEGIN PRIVATE KEY-----
+            MFECAQEwBQYDK2VwBCIEINOWEV/DNN+AsZ+pLoixusXNmgS5x0TNXvkLQUnKz92k
+            gSEAB5ySaw+WE9Ut06fYlPf2V4+5gbFHA5HZJK7n2WWAGvA=
+            -----END PRIVATE KEY-----
+            ",
+        )
+        .unwrap();
+        let privkey = iter.next().unwrap().unwrap();
+        let pubkey = pubkey_to_pem(privkey.public()).unwrap();
+        assert_eq!(
+            pubkey,
+            "-----BEGIN PUBLIC KEY-----\r\n\
+        MCwwBwYDK2VwBQADIQAHnJJrD5YT1S3Tp9iU9/ZXj7mBsUcDkdkkrufZZYAa8A==\r\n\
+        -----END PUBLIC KEY-----\r\n\
+        "
+        );
     }
 }

@@ -6,6 +6,7 @@ use env_logger::Env;
 use rebuilderd::attestation;
 use rebuilderd::config;
 use rebuilderd_common::errors::*;
+use std::fs;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -31,7 +32,8 @@ async fn main() -> Result<()> {
         println!("{}", privkey.trim_end());
         println!("{}", pubkey.trim_end());
     } else if let Some(path) = args.derive_pubkey {
-        let privkey = std::fs::read(path)?;
+        let privkey =
+            fs::read(&path).with_context(|| anyhow!("Failed to read from file: {path:?}"))?;
 
         for privkey in attestation::pem_to_privkeys(&privkey)? {
             let privkey = privkey?;
