@@ -1,4 +1,4 @@
-use crate::attestation::Attestation;
+use crate::attestation::{self, Attestation};
 use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
@@ -15,6 +15,7 @@ use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::{PkgRelease, Status};
+use serde_json::json;
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
@@ -604,4 +605,12 @@ pub async fn get_dashboard(
     let state = lock.read().unwrap();
     let resp = state.get_response()?;
     Ok(HttpResponse::Ok().json(resp))
+}
+
+#[get("/api/v0/public-key")]
+pub async fn get_public_key(privkey: web::Data<Arc<PrivateKey>>) -> web::Result<impl Responder> {
+    let pubkey = attestation::pubkey_to_pem(privkey.public())?;
+    Ok(HttpResponse::Ok().json(json!({
+        "current": vec![pubkey],
+    })))
 }

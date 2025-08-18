@@ -86,6 +86,7 @@ pub async fn run_config(config: Config, privkey: PrivateKey) -> Result<()> {
             .service(api::get_diffoscope)
             .service(api::get_attestation)
             .service(api::get_dashboard)
+            .service(api::get_public_key)
             .service(
                 web::resource("/api/v0/build/report")
                     .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
