@@ -550,8 +550,9 @@ pub async fn get_build_log(
 pub async fn get_attestation(
     req: HttpRequest,
     id: web::Path<i32>,
-    pool: web::Data<Pool>,
+    cfg: web::Data<Config>,
     privkey: web::Data<Arc<PrivateKey>>,
+    pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -559,17 +560,21 @@ pub async fn get_attestation(
         return Ok(not_found());
     };
 
-    let Some(attestation) = build.attestation else {
+    let Some(mut attestation) = build.attestation else {
         return Ok(not_found());
     };
 
-    let (attestation, has_new_signature) =
-        attestation::compressed_attestation_sign_if_necessary(attestation, &privkey).await?;
+    if cfg.transparently_sign_attestations {
+        let (bytes, has_new_signature) =
+            attestation::compressed_attestation_sign_if_necessary(attestation, &privkey).await?;
 
-    if has_new_signature {
-        build.attestation = Some(attestation.clone());
-        build.update(connection.as_mut())?;
-    };
+        if has_new_signature {
+            build.attestation = Some(bytes.clone());
+            build.update(connection.as_mut())?;
+        }
+
+        attestation = bytes;
+    }
 
     forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
 }

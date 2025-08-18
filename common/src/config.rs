@@ -85,6 +85,7 @@ pub struct HttpConfig {
     pub bind_addr: Option<String>,
     pub real_ip_header: Option<String>,
     pub post_body_size_limit: Option<usize>,
+    pub transparently_sign_attestations: Option<bool>,
     pub endpoint: Option<String>,
 }
 

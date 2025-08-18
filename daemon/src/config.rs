@@ -14,6 +14,7 @@ pub struct Config {
     pub bind_addr: String,
     pub real_ip_header: Option<String>,
     pub post_body_size_limit: usize,
+    pub transparently_sign_attestations: bool,
     pub schedule: ScheduleConfig,
 }
 
@@ -35,6 +36,10 @@ pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
             .http
             .post_body_size_limit
             .unwrap_or(DEFAULT_POST_BODY_SIZE_LIMIT),
+        transparently_sign_attestations: config
+            .http
+            .transparently_sign_attestations
+            .unwrap_or(true),
         schedule: config.schedule,
     })
 }
