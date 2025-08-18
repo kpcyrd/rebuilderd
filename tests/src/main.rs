@@ -5,6 +5,9 @@ use env_logger::Env;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd::attestation::{self, Attestation};
 use rebuilderd::config::Config;
+use rebuilderd::db;
+use rebuilderd::models::{Build, Package};
+use rebuilderd::util;
 use rebuilderd_common::api::*;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
@@ -81,8 +84,8 @@ async fn test<T: Sized>(label: &str, f: impl futures::Future<Output = Result<T>>
 }
 
 #[actix_web::main]
-async fn spawn_server(config: Config, privkey: PrivateKey) {
-    if let Err(err) = rebuilderd::run_config(config, privkey).await {
+async fn spawn_server(pool: db::Pool, config: Config, privkey: PrivateKey) {
+    if let Err(err) = rebuilderd::run_config(pool, config, privkey).await {
         error!("daemon errored: {:#}", err);
     }
 }
@@ -130,6 +133,8 @@ async fn main() -> Result<()> {
         .expect("Failed to use generated private key");
     let pubkey = privkey.public().to_owned();
 
+    let mut db = None;
+
     if !args.no_daemon {
         let config = rebuilderd::config::from_struct(config.clone(), args.cookie)?;
 
@@ -137,9 +142,12 @@ async fn main() -> Result<()> {
         info!("Changing cwd to {:?}", tmp_dir);
         std::env::set_current_dir(tmp_dir.path())?;
 
+        let pool = db::setup_pool("rebuilderd.db")?;
+        db = Some(pool.clone());
+
         info!("Spawning server");
         thread::spawn(|| {
-            spawn_server(config, privkey);
+            spawn_server(pool, config, privkey);
         });
         wait_for_server(&addr)?;
     }
@@ -502,6 +510,93 @@ async fn main() -> Result<()> {
         Ok(())
     })
     .await?;
+
+    // this is only executed if we have a database handle, so skipped when --no-daemon
+    if let Some(db) = db {
+        test("Stripping signatures from attestations", async {
+            let mut connection = db.get()?;
+            let builds = Build::list(connection.as_mut())?;
+            for mut build in builds {
+                let Some(attestation) = build.attestation else {
+                    continue;
+                };
+                let attestation = util::zstd_decompress(&attestation).await?;
+                let mut attestation = Attestation::parse(&attestation)?;
+                attestation.metablock.signatures.clear();
+                let attestation = attestation.to_compressed_bytes().await?;
+
+                build.attestation = Some(attestation);
+                build.update(connection.as_mut())?;
+            }
+            Ok(())
+        })
+        .await?;
+
+        test("Verify signatures are attached transparently", async {
+            let pkgs = list_pkgs(&client).await?;
+
+            for pkg in pkgs {
+                if !pkg.has_attestation {
+                    continue;
+                }
+
+                let Some(build_id) = pkg.build_id else {
+                    continue;
+                };
+
+                // we only query a specific package
+                if pkg.name != "foo" {
+                    continue;
+                }
+
+                let attestation = client.fetch_attestation(build_id).await?;
+                let attestation = Attestation::parse(&attestation)?;
+
+                // ensure the attestation verifies because the rebuilderd instance itself signed it too
+                attestation.verify(1, &public_keys)?;
+            }
+
+            Ok(())
+        })
+        .await?;
+
+        test("Verify signatures are added back into database", async {
+            let mut connection = db.get()?;
+            let connection = connection.as_mut();
+
+            let pkgs = Package::list(connection)?;
+            for pkg in pkgs {
+                let Some(build_id) = pkg.build_id else {
+                    continue;
+                };
+
+                let build = Build::get_id(build_id, connection)?;
+                let Some(attestation) = build.attestation else {
+                    continue;
+                };
+
+                let attestation = util::zstd_decompress(&attestation).await?;
+                let attestation = Attestation::parse(&attestation)?;
+
+                match pkg.name.as_str() {
+                    "foo" => {
+                        if attestation.metablock.signatures.len() != 1 {
+                            bail!("Attestation for `foo` is expected to have exactly 1 signature");
+                        }
+                    }
+                    "bar" => {
+                        if !attestation.metablock.signatures.is_empty() {
+                            bail!("Attestation for `bar` is not expected to have a signature");
+                        }
+                    }
+                    unexpected => bail!("Found unexpected package in database: {unexpected:?}"),
+                }
+            }
+
+            Ok(())
+        })
+        .await?;
+    }
 
     Ok(())
 }

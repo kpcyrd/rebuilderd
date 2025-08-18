@@ -5,6 +5,7 @@ use clap::Parser;
 use env_logger::Env;
 use rebuilderd::attestation;
 use rebuilderd::config;
+use rebuilderd::db;
 use rebuilderd_common::errors::*;
 use std::fs;
 
@@ -43,7 +44,8 @@ async fn main() -> Result<()> {
         }
     } else {
         let privkey = attestation::load_or_create_privkey_pem(&args.signing_key)?;
-        rebuilderd::run_config(config, privkey).await?;
+        let pool = db::setup_pool("rebuilderd.db")?;
+        rebuilderd::run_config(pool, config, privkey).await?;
     }
     Ok(())
 }

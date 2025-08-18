@@ -42,8 +42,7 @@ fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
     Ok(())
 }
 
-pub async fn run_config(config: Config, privkey: PrivateKey) -> Result<()> {
-    let pool = db::setup_pool("rebuilderd.db")?;
+pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
     let bind_addr = config.bind_addr.clone();
 
     let privkey = Arc::new(privkey);
