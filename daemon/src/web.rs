@@ -19,6 +19,7 @@ impl actix_web::error::ResponseError for Error {}
 
 impl From<errors::Error> for Error {
     fn from(err: errors::Error) -> Error {
+        errors::error!("Error occurred in http handler: {err:#}");
         Error { err }
     }
 }
