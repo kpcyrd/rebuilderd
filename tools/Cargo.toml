@@ -30,7 +30,7 @@ rebuilderd-common = { version= "=0.23.0", path="../common" }
 regex = "1.5.6"
 serde = { version="1.0.137", features=["derive"] }
 serde_json = "1.0.81"
-serde-xml-rs = "0.7"
+serde-xml-rs = "0.8"
 tar = "0.4.38"
 tokio = { version="1.19.2", features=["macros", "rt-multi-thread", "io-std", "io-util"] }
 toml = "0.9"
