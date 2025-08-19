@@ -1,3 +1,4 @@
+use crate::attestation::{self, Attestation};
 use crate::auth;
 use crate::config::Config;
 use crate::dashboard::DashboardState;
@@ -10,9 +11,10 @@ use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header}
 use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
 use chrono::prelude::*;
 use diesel::SqliteConnection;
+use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::*;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::{PkgRelease, Status};
+use rebuilderd_common::{PkgRelease, PublicKeys, Status};
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::sync::{Arc, RwLock};
@@ -429,6 +431,7 @@ pub async fn ping_build(
 pub async fn report_build(
     req: HttpRequest,
     cfg: web::Data<Config>,
+    privkey: web::Data<Arc<PrivateKey>>,
     report: web::Json<BuildReport>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
@@ -474,11 +477,17 @@ pub async fn report_build(
         };
 
         let encoded_attestation = match &rebuild.attestation {
-            Some(attestation) => Some(
-                zstd_compress(attestation.as_bytes())
-                    .await
-                    .map_err(Error::from)?,
-            ),
+            Some(attestation) => {
+                let mut attestation = Attestation::parse(attestation.as_bytes())?;
+
+                // add additional signature
+                attestation.sign(&privkey)?;
+
+                // compress attestation
+                let compressed = attestation.to_compressed_bytes().await?;
+
+                Some(compressed)
+            }
             _ => None,
         };
 
@@ -541,20 +550,33 @@ pub async fn get_build_log(
 pub async fn get_attestation(
     req: HttpRequest,
     id: web::Path<i32>,
+    cfg: web::Data<Config>,
+    privkey: web::Data<Arc<PrivateKey>>,
     pool: web::Data<Pool>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let build = match models::Build::get_id(*id, connection.as_mut()) {
-        Ok(build) => build,
-        Err(_) => return Ok(not_found()),
+    let Ok(mut build) = models::Build::get_id(*id, connection.as_mut()) else {
+        return Ok(not_found());
     };
 
-    if let Some(attestation) = build.attestation {
-        forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
-    } else {
-        Ok(not_found())
+    let Some(mut attestation) = build.attestation else {
+        return Ok(not_found());
+    };
+
+    if cfg.transparently_sign_attestations {
+        let (bytes, has_new_signature) =
+            attestation::compressed_attestation_sign_if_necessary(attestation, &privkey).await?;
+
+        if has_new_signature {
+            build.attestation = Some(bytes.clone());
+            build.update(connection.as_mut())?;
+        }
+
+        attestation = bytes;
     }
+
+    forward_compressed_data(req, "application/json; charset=utf-8", attestation).await
 }
 
 #[get("/api/v0/builds/{id}/diffoscope")]
@@ -595,4 +617,12 @@ pub async fn get_dashboard(
     let state = lock.read().unwrap();
     let resp = state.get_response()?;
     Ok(HttpResponse::Ok().json(resp))
+}
+
+#[get("/api/v0/public-keys")]
+pub async fn get_public_key(privkey: web::Data<Arc<PrivateKey>>) -> web::Result<impl Responder> {
+    let pubkey = attestation::pubkey_to_pem(privkey.public())?;
+    Ok(HttpResponse::Ok().json(PublicKeys {
+        current: vec![pubkey],
+    }))
 }

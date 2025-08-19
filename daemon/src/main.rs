@@ -1,22 +1,13 @@
-use clap::{ArgAction, Parser};
-use env_logger::Env;
-use rebuilderd::config;
-use rebuilderd_common::errors::*;
-use std::path::PathBuf;
+mod args;
 
-#[derive(Debug, Parser)]
-#[command(version)]
-struct Args {
-    /// Verbose logging
-    #[arg(short, long, action(ArgAction::Count))]
-    verbose: u8,
-    /// Load and print a config
-    #[arg(long)]
-    check_config: bool,
-    /// Configuration file path
-    #[arg(short, long)]
-    config: Option<PathBuf>,
-}
+use crate::args::Args;
+use clap::Parser;
+use env_logger::Env;
+use rebuilderd::attestation;
+use rebuilderd::config;
+use rebuilderd::db;
+use rebuilderd_common::errors::*;
+use std::fs;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -36,8 +27,25 @@ async fn main() -> Result<()> {
     let config = config::load(args.config.as_deref())?;
     if args.check_config {
         println!("{:#?}", config);
+    } else if args.keygen {
+        let (privkey, pubkey) = attestation::keygen_pem()?;
+
+        println!("{}", privkey.trim_end());
+        println!("{}", pubkey.trim_end());
+    } else if let Some(path) = args.derive_pubkey {
+        let privkey =
+            fs::read(&path).with_context(|| anyhow!("Failed to read from file: {path:?}"))?;
+
+        for privkey in attestation::pem_to_privkeys(&privkey)? {
+            let privkey = privkey?;
+            let pubkey = attestation::pubkey_to_pem(privkey.public())?;
+
+            println!("{}", pubkey.trim_end());
+        }
     } else {
-        rebuilderd::run_config(config).await?;
+        let privkey = attestation::load_or_create_privkey_pem(&args.signing_key)?;
+        let pool = db::setup_pool("rebuilderd.db")?;
+        rebuilderd::run_config(pool, config, privkey).await?;
     }
     Ok(())
 }

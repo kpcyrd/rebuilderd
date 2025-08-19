@@ -8,12 +8,14 @@ use actix_web::middleware::Logger;
 use actix_web::web::Data;
 use actix_web::{middleware, App, HttpServer};
 use diesel::SqliteConnection;
+use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
 pub mod api;
+pub mod attestation;
 pub mod auth;
 pub mod code_migrations;
 pub mod config;
@@ -40,10 +42,10 @@ fn db_collect_garbage(connection: &mut SqliteConnection) -> Result<()> {
     Ok(())
 }
 
-pub async fn run_config(config: Config) -> Result<()> {
-    let pool = db::setup_pool("rebuilderd.db")?;
+pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
     let bind_addr = config.bind_addr.clone();
 
+    let privkey = Arc::new(privkey);
     let dashboard_cache = Arc::new(RwLock::new(DashboardState::new()));
 
     {
@@ -69,6 +71,7 @@ pub async fn run_config(config: Config) -> Result<()> {
             .wrap(middleware::Compress::default())
             .app_data(Data::new(pool.clone()))
             .app_data(Data::new(config.clone()))
+            .app_data(Data::new(privkey.clone()))
             .app_data(Data::new(dashboard_cache.clone()))
             .service(api::list_workers)
             .service(api::list_pkgs)
@@ -82,6 +85,7 @@ pub async fn run_config(config: Config) -> Result<()> {
             .service(api::get_diffoscope)
             .service(api::get_attestation)
             .service(api::get_dashboard)
+            .service(api::get_public_key)
             .service(
                 web::resource("/api/v0/build/report")
                     .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))

@@ -1,3 +1,9 @@
+use crate::errors::*;
+use std::fs::{self, OpenOptions};
+use std::io::prelude::*;
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
+
 pub fn secs_to_human(duration: i64) -> String {
     let secs = duration % 60;
     let mins = duration / 60;
@@ -14,6 +20,29 @@ pub fn secs_to_human(duration: i64) -> String {
     out.push(format!("{:2}s", secs));
 
     out.join(" ")
+}
+
+pub fn load_or_create<F: Fn() -> Result<Vec<u8>>>(path: &Path, func: F) -> Result<Vec<u8>> {
+    let data = match OpenOptions::new()
+        .mode(0o640)
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            // file didn't exist yet, generate new key
+            let data = func()?;
+            file.write_all(&data[..])?;
+            data
+        }
+        Err(_err) => {
+            // assume the file already exists, try reading the content
+            debug!("Loading data from file: {path:?}");
+            fs::read(path)?
+        }
+    };
+
+    Ok(data)
 }
 
 #[cfg(test)]
