@@ -64,24 +64,25 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepomdXml {
-    #[serde(rename = "$value")]
+    #[serde(rename = "#content")]
     pub data: Vec<RepomdXmlItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepomdXmlItem {
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub item_type: Option<String>,
     pub location: Option<RepomdXmlLocation>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RepomdXmlLocation {
+    #[serde(rename = "@href")]
     pub href: String,
 }
 
 fn get_primary_location_from_xml(bytes: &[u8]) -> Result<String> {
-    let list = serde_xml_rs::from_reader::<_, RepomdXml>(bytes)?;
+    let list = serde_xml_rs::from_reader::<RepomdXml, _>(bytes)?;
     let primary = list
         .data
         .into_iter()
@@ -94,13 +95,13 @@ fn get_primary_location_from_xml(bytes: &[u8]) -> Result<String> {
 }
 
 fn parse_package_index<R: Read>(r: R) -> Result<Vec<PackagesXmlItem>> {
-    let list = serde_xml_rs::from_reader::<_, PackagesXml>(r)?;
+    let list = serde_xml_rs::from_reader::<PackagesXml, _>(r)?;
     Ok(list.packages)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PackagesXml {
-    #[serde(rename = "$value")]
+    #[serde(rename = "#content")]
     pub packages: Vec<PackagesXmlItem>,
 }
 
@@ -126,19 +127,23 @@ impl Pkg for PackagesXmlItem {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackagesXmlItemVersion {
+    #[serde(rename = "@epoch")]
     pub epoch: String,
+    #[serde(rename = "@ver")]
     pub ver: String,
+    #[serde(rename = "@rel")]
     pub rel: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackagesXmlItemLocation {
+    #[serde(rename = "@href")]
     pub href: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackagesXmlItemMetadata {
-    #[serde(rename = "sourcerpm")]
+    #[serde(rename = "rpm:sourcerpm")]
     pub sourcerpm: String,
 }
 
@@ -503,6 +508,69 @@ options, packing/unpacking FIASCO firmware format and more.</description>
                     }
                 },
             ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_repomd_package_list_item() -> Result<()> {
+        let bytes = br#"<?xml version="1.0" encoding="UTF-8"?>
+<metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="69222">
+  <name>0ad-data</name>
+  <arch>noarch</arch>
+  <version epoch="0" ver="0.0.26" rel="2.fc38"/>
+  <checksum type="sha256" pkgid="YES">9d4882481909c8c5cdd4b59988f17fc015d8703f5fbc587d07bd44038fbdb9ac</checksum>
+  <summary>The Data Files for 0 AD</summary>
+  <description>0 A.D. (pronounced "zero ey-dee") is a free, open-source, cross-platform
+real-time strategy (RTS) game of ancient warfare. In short, it is a
+historically-based war/economy game that allows players to relive or rewrite
+the history of Western civilizations, focusing on the years between 500 B.C.
+and 500 A.D. The project is highly ambitious, involving state-of-the-art 3D
+graphics, detailed artwork, sound, and a flexible and powerful custom-built
+game engine.
+
+This package contains the 0ad data files.</description>
+  <packager>Fedora Project</packager>
+  <url>http://play0ad.com</url>
+  <time file="1674076145" build="1674071971"/>
+  <size package="1493523190" installed="3296032344" archive="3296040572"/>
+  <location href="Packages/0/0ad-data-0.0.26-2.fc38.noarch.rpm"/>
+  <format>
+    <rpm:license>CC-BY-SA</rpm:license>
+    <rpm:vendor>Fedora Project</rpm:vendor>
+    <rpm:group>Unspecified</rpm:group>
+    <rpm:buildhost>buildvm-a64-28.iad2.fedoraproject.org</rpm:buildhost>
+    <rpm:sourcerpm>0ad-data-0.0.26-2.fc38.src.rpm</rpm:sourcerpm>
+    <rpm:header-range start="11984" end="22489"/>
+    <rpm:provides>
+      <rpm:entry name="0ad-data" flags="EQ" epoch="0" ver="0.0.26" rel="2.fc38"/>
+    </rpm:provides>
+    <rpm:requires>
+      <rpm:entry name="dejavu-sans-fonts"/>
+      <rpm:entry name="dejavu-sans-mono-fonts"/>
+    </rpm:requires>
+  </format>
+</metadata>
+"#;
+        let pkg = serde_xml_rs::from_reader::<PackagesXmlItem, _>(&bytes[..])?;
+        assert_eq!(
+            pkg,
+            PackagesXmlItem {
+                name: "0ad-data".to_string(),
+                arch: "noarch".to_string(),
+                version: PackagesXmlItemVersion {
+                    epoch: "0".to_string(),
+                    ver: "0.0.26".to_string(),
+                    rel: "2.fc38".to_string(),
+                },
+                packager: "Fedora Project".to_string(),
+                location: PackagesXmlItemLocation {
+                    href: "Packages/0/0ad-data-0.0.26-2.fc38.noarch.rpm".to_string(),
+                },
+                format: PackagesXmlItemMetadata {
+                    sourcerpm: "0ad-data-0.0.26-2.fc38.src.rpm".to_string(),
+                }
+            },
         );
         Ok(())
     }
