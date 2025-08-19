@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd-tests"
-version = "0.24.0"
+version = "0.25.0"
 authors = ["kpcyrd <git@rxv.cc>"]
 edition = "2021"
 publish = false
@@ -14,8 +14,8 @@ colored = "3"
 env_logger = "0.11"
 futures = "0.3.21"
 in-toto = "0.4.0"
-rebuilderd = { version= "=0.24.0", path="../daemon" }
-rebuilderd-common = { version= "=0.23.0", path="../common" }
+rebuilderd = { version= "=0.25.0", path="../daemon" }
+rebuilderd-common = { version= "=0.25.0", path="../common" }
 serde_json = "1"
 tempfile = "3.3.0"
 tokio = { version="1.19.2", features=["macros", "rt-multi-thread"] }
