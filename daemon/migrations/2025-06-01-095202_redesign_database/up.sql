@@ -88,26 +88,64 @@ CREATE INDEX binary_packages_build_input_id_idx ON binary_packages (build_input_
 CREATE INDEX binary_packages_name_idx ON binary_packages (name);
 CREATE INDEX binary_packages_architecture_idx ON binary_packages (architecture);
 
--- rebuilds
+-- build logs
+CREATE TABLE build_logs
+(
+    id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    build_log BLOB    NOT NULL
+);
 
+-- build logs may be null in the old schema. We don't want that, but we also need to preserve backwards compatibility.
+-- insert a zero-length zstd stream in the place of any null build logs.
+INSERT INTO build_logs(build_log)
+SELECT COALESCE(builds.build_log, x'28b52ffd240001000099e9d851')
+FROM builds;
+
+CREATE INDEX build_logs_build_log_idx ON build_logs (build_log);
+
+CREATE TABLE diffoscope_logs
+(
+    id             INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    diffoscope_log BLOB    NOT NULL
+);
+
+INSERT INTO diffoscope_logs(diffoscope_log)
+SELECT diffoscope
+FROM builds
+WHERE diffoscope IS NOT NULL;
+
+CREATE INDEX diffoscope_logs_diffoscope_log_idx ON diffoscope_logs (diffoscope_log);
+
+CREATE TABLE attestation_logs
+(
+    id              INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    attestation_log BLOB    NOT NULL
+);
+
+INSERT INTO attestation_logs(attestation_log)
+SELECT attestation
+FROM builds
+WHERE attestation IS NOT NULL;
+
+CREATE INDEX attestation_logs_attestation_log_idx ON attestation_logs (attestation_log);
+
+-- rebuilds
 CREATE TABLE rebuilds
 (
     id             INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     build_input_id INTEGER NOT NULL REFERENCES build_inputs ON DELETE CASCADE,
     started_at     DATETIME,
     built_at       DATETIME,
-    build_log      BLOB    NOT NULL,
+    build_log_id   INTEGER NOT NULL REFERENCES build_logs ON DELETE CASCADE,
     status         TEXT
 );
 
-INSERT INTO rebuilds(build_input_id, started_at, built_at, build_log, status)
+INSERT INTO rebuilds(build_input_id, started_at, built_at, build_log_id, status)
 
--- build logs may be null in the old schema. We don't want that, but we also need to preserve backwards compatibility.
--- insert a zero-length zstd stream in the place of any null build logs.
 SELECT build_inputs.id,
        NULL,
        MAX(packages.built_at),
-       COALESCE(builds.build_log, x'28b52ffd240001000099e9d851'),
+       (SELECT id FROM build_logs WHERE build_log = COALESCE(builds.build_log, x'28b52ffd240001000099e9d851')),
        MIN(packages.status)
 FROM build_inputs
          INNER JOIN packages ON build_inputs.source_package_id = packages.pkgbase_id
@@ -121,16 +159,20 @@ CREATE INDEX rebuilds_status_idx ON rebuilds (status);
 
 CREATE TABLE rebuild_artifacts
 (
-    id          INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    rebuild_id  INTEGER NOT NULL REFERENCES rebuilds ON DELETE CASCADE,
-    name        TEXT    NOT NULL,
-    diffoscope  BLOB,
-    attestation BLOB,
-    status      TEXT
+    id                 INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    rebuild_id         INTEGER NOT NULL REFERENCES rebuilds ON DELETE CASCADE,
+    name               TEXT    NOT NULL,
+    diffoscope_log_id  INTEGER REFERENCES diffoscope_logs ON DELETE SET NULL,
+    attestation_log_id INTEGER REFERENCES attestation_logs ON DELETE SET NULL,
+    status             TEXT
 );
 
-INSERT INTO rebuild_artifacts(rebuild_id, name, diffoscope, attestation, status)
-SELECT rebuilds.id, packages.name, builds.diffoscope, builds.attestation, packages.status
+INSERT INTO rebuild_artifacts(rebuild_id, name, diffoscope_log_id, attestation_log_id, status)
+SELECT rebuilds.id,
+       packages.name,
+       (SELECT id FROM diffoscope_logs WHERE diffoscope_log = builds.diffoscope),
+       (SELECT id FROM attestation_logs WHERE attestation_log = builds.attestation),
+       packages.status
 FROM packages
          INNER JOIN (rebuilds INNER JOIN build_inputs ON rebuilds.build_input_id = build_inputs.id)
                     ON packages.pkgbase_id = build_inputs.source_package_id

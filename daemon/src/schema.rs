@@ -1,6 +1,13 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    attestation_logs (id) {
+        id -> Integer,
+        attestation_log -> Binary,
+    }
+}
+
+diesel::table! {
     binary_packages (id) {
         id -> Integer,
         source_package_id -> Integer,
@@ -25,6 +32,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    build_logs (id) {
+        id -> Integer,
+        build_log -> Binary,
+    }
+}
+
+diesel::table! {
+    diffoscope_logs (id) {
+        id -> Integer,
+        diffoscope_log -> Binary,
+    }
+}
+
+diesel::table! {
     queue (id) {
         id -> Integer,
         build_input_id -> Integer,
@@ -41,8 +62,8 @@ diesel::table! {
         id -> Integer,
         rebuild_id -> Integer,
         name -> Text,
-        diffoscope -> Nullable<Binary>,
-        attestation -> Nullable<Binary>,
+        diffoscope_log_id -> Nullable<Integer>,
+        attestation_log_id -> Nullable<Integer>,
         status -> Nullable<Text>,
     }
 }
@@ -53,7 +74,7 @@ diesel::table! {
         build_input_id -> Integer,
         started_at -> Nullable<Timestamp>,
         built_at -> Nullable<Timestamp>,
-        build_log -> Binary,
+        build_log_id -> Integer,
         status -> Nullable<Text>,
     }
 }
@@ -85,12 +106,18 @@ diesel::joinable!(binary_packages -> build_inputs (build_input_id));
 diesel::joinable!(binary_packages -> source_packages (source_package_id));
 diesel::joinable!(build_inputs -> source_packages (source_package_id));
 diesel::joinable!(queue -> build_inputs (build_input_id));
+diesel::joinable!(rebuild_artifacts -> attestation_logs (attestation_log_id));
+diesel::joinable!(rebuild_artifacts -> diffoscope_logs (diffoscope_log_id));
 diesel::joinable!(rebuild_artifacts -> rebuilds (rebuild_id));
 diesel::joinable!(rebuilds -> build_inputs (build_input_id));
+diesel::joinable!(rebuilds -> build_logs (build_log_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    attestation_logs,
     binary_packages,
     build_inputs,
+    build_logs,
+    diffoscope_logs,
     queue,
     rebuild_artifacts,
     rebuilds,

@@ -5,12 +5,18 @@ use crate::api::v1::util::filters::DieselOriginFilter;
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
-use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
-use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
+use crate::models::{
+    NewAttestationLog, NewBuildLog, NewDiffoscopeLog, NewRebuild, NewRebuildArtifact, Queued,
+};
+use crate::schema::{
+    attestation_logs, build_inputs, build_logs, diffoscope_logs, queue, rebuild_artifacts,
+    rebuilds, source_packages,
+};
 use crate::{attestation, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use diesel::dsl::update;
 use diesel::ExpressionMethods;
+use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
 use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
@@ -108,11 +114,17 @@ pub async fn submit_rebuild_report(
             .map_err(Error::from)?
     };
 
+    let new_log = NewBuildLog {
+        build_log: encoded_log,
+    };
+
+    let new_log_id = new_log.insert(connection.as_mut())?;
+
     let new_rebuild = NewRebuild {
         build_input_id: queued.build_input_id,
         started_at: queued.started_at,
         built_at: Some(report.built_at),
-        build_log: encoded_log,
+        build_log_id: new_log_id,
         status: Some(report.status.to_string()),
     };
 
@@ -139,11 +151,31 @@ pub async fn submit_rebuild_report(
             None::<Vec<u8>>
         };
 
+        let new_diffoscope_id = if let Some(encoded_diffoscope) = encoded_diffoscope {
+            let new_diffoscope_log = NewDiffoscopeLog {
+                diffoscope_log: encoded_diffoscope,
+            };
+
+            Some(new_diffoscope_log.insert(connection.as_mut())?)
+        } else {
+            None::<i32>
+        };
+
+        let new_attestation_id = if let Some(encoded_attestation) = encoded_attestation {
+            let new_attestation_log = NewAttestationLog {
+                attestation_log: encoded_attestation,
+            };
+
+            Some(new_attestation_log.insert(connection.as_mut())?)
+        } else {
+            None::<i32>
+        };
+
         let new_rebuild_artifact = NewRebuildArtifact {
             rebuild_id: new_rebuild_id,
             name: artifact_report.name,
-            diffoscope: encoded_diffoscope,
-            attestation: encoded_attestation,
+            diffoscope_log_id: new_diffoscope_id,
+            attestation_log_id: new_attestation_id,
             status: Some(artifact_report.status.to_string()),
         };
 
@@ -196,7 +228,8 @@ pub async fn get_build_log(
 
     let build_log = rebuilds::table
         .filter(rebuilds::id.eq(id.into_inner()))
-        .select(rebuilds::build_log)
+        .inner_join(build_logs::table)
+        .select(build_logs::build_log)
         .first::<Vec<u8>>(connection.as_mut())
         .map_err(Error::from)?;
 
@@ -210,13 +243,17 @@ pub async fn get_build_artifacts(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
     let records = rebuilds::table
-        .inner_join(rebuild_artifacts::table)
+        .inner_join(
+            rebuild_artifacts::table
+                .left_join(diffoscope_logs::table)
+                .left_join(attestation_logs::table),
+        )
         .filter(rebuilds::id.eq(id.into_inner()))
         .select((
             rebuild_artifacts::id,
             rebuild_artifacts::name,
-            rebuild_artifacts::diffoscope.is_not_null(),
-            rebuild_artifacts::attestation.is_not_null(),
+            diffoscope_logs::diffoscope_log.nullable().is_not_null(),
+            attestation_logs::attestation_log.nullable().is_not_null(),
             rebuild_artifacts::status,
         ))
         .get_results::<api::v1::RebuildArtifact>(connection.as_mut())
@@ -233,14 +270,18 @@ pub async fn get_build_artifact(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let artifact = rebuilds::table
-        .inner_join(rebuild_artifacts::table)
+        .inner_join(
+            rebuild_artifacts::table
+                .left_join(diffoscope_logs::table)
+                .left_join(attestation_logs::table),
+        )
         .filter(rebuilds::id.eq(path.0))
         .filter(rebuild_artifacts::id.eq(path.1))
         .select((
             rebuild_artifacts::id,
             rebuild_artifacts::name,
-            rebuild_artifacts::diffoscope.is_not_null(),
-            rebuild_artifacts::attestation.is_not_null(),
+            diffoscope_logs::diffoscope_log.nullable().is_not_null(),
+            attestation_logs::attestation_log.nullable().is_not_null(),
             rebuild_artifacts::status,
         ))
         .first::<api::v1::RebuildArtifact>(connection.as_mut())
@@ -263,10 +304,10 @@ pub async fn get_build_artifact_diffoscope(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let diffoscope = rebuilds::table
-        .inner_join(rebuild_artifacts::table)
+        .inner_join(rebuild_artifacts::table.left_join(diffoscope_logs::table))
         .filter(rebuilds::id.eq(path.0))
         .filter(rebuild_artifacts::id.eq(path.1))
-        .select(rebuild_artifacts::diffoscope)
+        .select(diffoscope_logs::diffoscope_log.nullable())
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
@@ -289,10 +330,10 @@ pub async fn get_build_artifact_attestation(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let attestation = rebuilds::table
-        .inner_join(rebuild_artifacts::table)
+        .inner_join(rebuild_artifacts::table.left_join(attestation_logs::table))
         .filter(rebuilds::id.eq(path.0))
         .filter(rebuild_artifacts::id.eq(path.1))
-        .select(rebuild_artifacts::attestation)
+        .select(attestation_logs::attestation_log.nullable())
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
