@@ -4,12 +4,15 @@ use crate::api::v1::util::filters::DieselOriginFilter;
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
-use crate::db::Pool;
-use crate::models::{NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
+use crate::db::{Pool, SqliteConnectionWrap};
+use crate::models::{BuildInput, NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
 use crate::schema::{binary_packages, build_inputs, rebuild_artifacts, rebuilds, source_packages};
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
+use diesel::dsl::{exists, not, select};
+use diesel::r2d2::{ConnectionManager, PooledConnection};
+use diesel::sql_types::Integer;
 use diesel::NullableExpressionMethods;
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl};
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
@@ -105,6 +108,30 @@ pub async fn submit_package_report(
     let report = request.into_inner();
 
     for package_report in report.packages {
+        // check if this package already exists - this is used later to determine if we should copy over existing build
+        // results to this package.
+        let mut sql = source_packages::table
+            .filter(source_packages::name.eq(&package_report.name))
+            .filter(source_packages::version.eq(&package_report.version))
+            .filter(source_packages::distribution.eq(&report.distribution))
+            .into_boxed();
+
+        if let Some(release) = &report.release {
+            sql = sql.filter(source_packages::release.eq(release))
+        } else {
+            sql = sql.filter(source_packages::release.is_null())
+        }
+
+        if let Some(component) = &report.component {
+            sql = sql.filter(source_packages::component.eq(component))
+        } else {
+            sql = sql.filter(source_packages::component.is_null())
+        }
+
+        let is_new_package = select(not(exists(sql)))
+            .get_result::<bool>(connection.as_mut())
+            .map_err(Error::from)?;
+
         let new_source_package = NewSourcePackage {
             name: package_report.name,
             version: package_report.version,
@@ -138,6 +165,13 @@ pub async fn submit_package_report(
             new_binary_package.upsert(connection.as_mut())?;
         }
 
+        if is_new_package {
+            // in order to avoid additional rebuilds in distributions that copy existing packages between releases, we
+            // want to also copy any results relevant to newly-imported versions. This only applies within a single
+            // build backend and matches on the URL of the input artifact and its architecture.
+            copy_existing_rebuilds(&mut connection, &build_input)?;
+        }
+
         let needs_rebuild = match rebuilds::table
             .filter(rebuilds::build_input_id.eq(build_input.id))
             .select(rebuilds::status)
@@ -163,6 +197,110 @@ pub async fn submit_package_report(
     }
 
     Ok(HttpResponse::NoContent().finish())
+}
+
+fn copy_existing_rebuilds(
+    connection: &mut PooledConnection<ConnectionManager<SqliteConnectionWrap>>,
+    build_input: &BuildInput,
+) -> Result<(), Error> {
+    // check if we have any existing rebuilds that match this package
+    let b1 = diesel::alias!(build_inputs as b1);
+    let existing_build_input = build_inputs::table
+        .select(build_inputs::id)
+        .filter(build_inputs::id.ne(build_input.id))
+        .filter(
+            build_inputs::url.eq(b1
+                .filter(b1.field(build_inputs::id).eq(build_input.id))
+                .select(b1.field(build_inputs::url))
+                .single_value()
+                .assume_not_null()),
+        )
+        .filter(
+            build_inputs::backend.eq(b1
+                .filter(b1.field(build_inputs::id).eq(build_input.id))
+                .select(b1.field(build_inputs::backend))
+                .single_value()
+                .assume_not_null()),
+        )
+        .filter(
+            build_inputs::architecture.eq(b1
+                .filter(b1.field(build_inputs::id).eq(build_input.id))
+                .select(b1.field(build_inputs::architecture))
+                .single_value()
+                .assume_not_null()),
+        )
+        .order_by(build_inputs::id)
+        .limit(1)
+        .get_result::<i32>(connection.as_mut())
+        .optional()
+        .map_err(Error::from)?;
+
+    if let Some(existing_build_input) = existing_build_input {
+        // copy rebuilds
+        let has_existing_rebuild = select(exists(
+            rebuilds::table.filter(rebuilds::build_input_id.eq(existing_build_input)),
+        ))
+        .get_result::<bool>(connection.as_mut())
+        .map_err(Error::from)?;
+
+        if has_existing_rebuild {
+            let existing_rebuild_ids = rebuilds::table
+                .filter(rebuilds::build_input_id.eq(existing_build_input))
+                .select(rebuilds::id)
+                .get_results::<i32>(connection.as_mut())
+                .map_err(Error::from)?;
+
+            for existing_rebuild_id in existing_rebuild_ids {
+                let new_rebuild_id = diesel::dsl::insert_into(rebuilds::table)
+                    .values(
+                        rebuilds::table
+                            .filter(rebuilds::id.eq(existing_rebuild_id))
+                            .select((
+                                diesel::dsl::sql::<Integer>("").bind::<Integer, _>(build_input.id),
+                                rebuilds::started_at,
+                                rebuilds::built_at,
+                                rebuilds::build_log_id,
+                                rebuilds::status,
+                            )),
+                    )
+                    .into_columns((
+                        rebuilds::build_input_id,
+                        rebuilds::started_at,
+                        rebuilds::built_at,
+                        rebuilds::build_log_id,
+                        rebuilds::status,
+                    ))
+                    .returning(rebuilds::id)
+                    .get_result::<i32>(connection.as_mut())
+                    .map_err(Error::from)?;
+
+                // copy artifacts
+                diesel::dsl::insert_into(rebuild_artifacts::table)
+                    .values(
+                        rebuild_artifacts::table
+                            .filter(rebuild_artifacts::rebuild_id.eq(existing_rebuild_id))
+                            .select((
+                                diesel::dsl::sql::<Integer>("").bind::<Integer, _>(new_rebuild_id),
+                                rebuild_artifacts::name,
+                                rebuild_artifacts::diffoscope_log_id,
+                                rebuild_artifacts::attestation_log_id,
+                                rebuild_artifacts::status,
+                            )),
+                    )
+                    .into_columns((
+                        rebuild_artifacts::rebuild_id,
+                        rebuild_artifacts::name,
+                        rebuild_artifacts::diffoscope_log_id,
+                        rebuild_artifacts::attestation_log_id,
+                        rebuild_artifacts::status,
+                    ))
+                    .execute(connection.as_mut())
+                    .map_err(Error::from)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[get("/source")]

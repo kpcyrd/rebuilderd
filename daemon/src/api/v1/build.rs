@@ -151,6 +151,8 @@ pub async fn submit_rebuild_report(
 
     let new_log_id = new_log.insert(connection.as_mut())?;
 
+    let mut artifact_logs: HashMap<&String, (Option<i32>, Option<i32>)> = HashMap::new();
+
     for build_input_id in build_inputs {
         let new_rebuild = NewRebuild {
             build_input_id,
@@ -161,8 +163,6 @@ pub async fn submit_rebuild_report(
         };
 
         let new_rebuild_id = new_rebuild.insert(connection.as_mut())?;
-
-        let mut artifact_logs: HashMap<&String, (Option<i32>, Option<i32>)> = HashMap::new();
 
         for artifact_report in &report.artifacts {
             let entry = artifact_logs.entry(&artifact_report.name);
