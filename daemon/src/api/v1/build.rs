@@ -26,6 +26,8 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[diesel::dsl::auto_type]
@@ -106,6 +108,35 @@ pub async fn submit_rebuild_report(
         .get_result::<Queued>(connection.as_mut())
         .map_err(Error::from)?;
 
+    // figure out any other build inputs that should share this result (same input, backend, and arch). Will include the
+    // enqueued build ID as well, so no need to add it later.
+    let b1 = diesel::alias!(build_inputs as b1);
+    let build_inputs = build_inputs::table
+        .select(build_inputs::id)
+        .filter(
+            build_inputs::url.eq(b1
+                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
+                .select(b1.field(build_inputs::url))
+                .single_value()
+                .assume_not_null()),
+        )
+        .filter(
+            build_inputs::backend.eq(b1
+                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
+                .select(b1.field(build_inputs::backend))
+                .single_value()
+                .assume_not_null()),
+        )
+        .filter(
+            build_inputs::architecture.eq(b1
+                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
+                .select(b1.field(build_inputs::architecture))
+                .single_value()
+                .assume_not_null()),
+        )
+        .load::<i32>(connection.as_mut())
+        .map_err(Error::from)?;
+
     let encoded_log = if is_zstd_compressed(&report.build_log) {
         report.build_log
     } else {
@@ -120,66 +151,81 @@ pub async fn submit_rebuild_report(
 
     let new_log_id = new_log.insert(connection.as_mut())?;
 
-    let new_rebuild = NewRebuild {
-        build_input_id: queued.build_input_id,
-        started_at: queued.started_at,
-        built_at: Some(report.built_at),
-        build_log_id: new_log_id,
-        status: Some(report.status.to_string()),
-    };
-
-    let new_rebuild_id = new_rebuild.insert(connection.as_mut())?;
-
-    for artifact_report in report.artifacts {
-        let encoded_diffoscope = if let Some(diffoscope) = artifact_report.diffoscope {
-            Some(if is_zstd_compressed(&diffoscope) {
-                diffoscope
-            } else {
-                zstd_compress(&diffoscope[..]).await.map_err(Error::from)?
-            })
-        } else {
-            None::<Vec<u8>>
+    for build_input_id in build_inputs {
+        let new_rebuild = NewRebuild {
+            build_input_id,
+            started_at: queued.started_at,
+            built_at: Some(report.built_at),
+            build_log_id: new_log_id,
+            status: Some(report.status.to_string()),
         };
 
-        let encoded_attestation = if let Some(attestation) = artifact_report.attestation {
-            Some(if is_zstd_compressed(&attestation) {
-                attestation
-            } else {
-                zstd_compress(&attestation[..]).await.map_err(Error::from)?
-            })
-        } else {
-            None::<Vec<u8>>
-        };
+        let new_rebuild_id = new_rebuild.insert(connection.as_mut())?;
 
-        let new_diffoscope_id = if let Some(encoded_diffoscope) = encoded_diffoscope {
-            let new_diffoscope_log = NewDiffoscopeLog {
-                diffoscope_log: encoded_diffoscope,
+        let mut artifact_logs: HashMap<&String, (Option<i32>, Option<i32>)> = HashMap::new();
+
+        for artifact_report in &report.artifacts {
+            let entry = artifact_logs.entry(&artifact_report.name);
+
+            let logs = match entry {
+                Entry::Occupied(oc) => oc.into_mut(),
+                Entry::Vacant(vc) => {
+                    let encoded_diffoscope = if let Some(diffoscope) = &artifact_report.diffoscope {
+                        Some(if is_zstd_compressed(diffoscope) {
+                            diffoscope.clone()
+                        } else {
+                            zstd_compress(&diffoscope[..]).await.map_err(Error::from)?
+                        })
+                    } else {
+                        None::<Vec<u8>>
+                    };
+
+                    let encoded_attestation =
+                        if let Some(attestation) = &artifact_report.attestation {
+                            Some(if is_zstd_compressed(attestation) {
+                                attestation.clone()
+                            } else {
+                                zstd_compress(&attestation[..]).await.map_err(Error::from)?
+                            })
+                        } else {
+                            None::<Vec<u8>>
+                        };
+
+                    let new_diffoscope_id = if let Some(encoded_diffoscope) = encoded_diffoscope {
+                        let new_diffoscope_log = NewDiffoscopeLog {
+                            diffoscope_log: encoded_diffoscope.clone(),
+                        };
+
+                        Some(new_diffoscope_log.insert(connection.as_mut())?)
+                    } else {
+                        None::<i32>
+                    };
+
+                    let new_attestation_id = if let Some(encoded_attestation) = encoded_attestation
+                    {
+                        let new_attestation_log = NewAttestationLog {
+                            attestation_log: encoded_attestation.clone(),
+                        };
+
+                        Some(new_attestation_log.insert(connection.as_mut())?)
+                    } else {
+                        None::<i32>
+                    };
+
+                    vc.insert((new_diffoscope_id, new_attestation_id))
+                }
             };
 
-            Some(new_diffoscope_log.insert(connection.as_mut())?)
-        } else {
-            None::<i32>
-        };
-
-        let new_attestation_id = if let Some(encoded_attestation) = encoded_attestation {
-            let new_attestation_log = NewAttestationLog {
-                attestation_log: encoded_attestation,
+            let new_rebuild_artifact = NewRebuildArtifact {
+                rebuild_id: new_rebuild_id,
+                name: artifact_report.name.clone(),
+                diffoscope_log_id: logs.0,
+                attestation_log_id: logs.1,
+                status: Some(artifact_report.status.to_string()),
             };
 
-            Some(new_attestation_log.insert(connection.as_mut())?)
-        } else {
-            None::<i32>
-        };
-
-        let new_rebuild_artifact = NewRebuildArtifact {
-            rebuild_id: new_rebuild_id,
-            name: artifact_report.name,
-            diffoscope_log_id: new_diffoscope_id,
-            attestation_log_id: new_attestation_id,
-            status: Some(artifact_report.status.to_string()),
-        };
-
-        new_rebuild_artifact.insert(connection.as_mut())?;
+            new_rebuild_artifact.insert(connection.as_mut())?;
+        }
     }
 
     queued.delete(connection.as_mut())?;
