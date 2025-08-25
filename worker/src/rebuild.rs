@@ -5,10 +5,10 @@ use crate::heartbeat::HeartBeat;
 use crate::proc;
 use in_toto::crypto::PrivateKey;
 use in_toto::runlib::in_toto_run;
-use rebuilderd_common::api::{BuildStatus, Rebuild};
+use rebuilderd_common::api::v1::{ArtifactStatus, QueuedJobArtifact, RebuildArtifactReport};
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::PkgArtifact;
+use rebuilderd_common::utils::zstd_compress;
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
@@ -20,7 +20,7 @@ use tokio::select;
 use tokio::time;
 
 pub struct Context<'a> {
-    pub artifacts: Vec<PkgArtifact>,
+    pub artifacts: Vec<QueuedJobArtifact>,
     pub input_url: Option<String>,
     pub backend: config::Backend,
     pub build: config::Build,
@@ -99,7 +99,7 @@ pub async fn rebuild_with_heartbeat(
     ctx: &Context<'_>,
     log: &mut Vec<u8>,
     hb: &dyn HeartBeat,
-) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+) -> Result<Vec<RebuildArtifactReport>> {
     let mut rebuild = Box::pin(rebuild(ctx, log));
     loop {
         select! {
@@ -111,7 +111,7 @@ pub async fn rebuild_with_heartbeat(
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<(PkgArtifact, Rebuild)>> {
+pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<RebuildArtifactReport>> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -162,13 +162,25 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<(PkgArt
                 "No output artifact found, marking as BAD: {:?}",
                 output_path
             );
-            Rebuild::new(BuildStatus::Bad)
+
+            RebuildArtifactReport {
+                name: artifact.name,
+                diffoscope: None,
+                attestation: None,
+                status: ArtifactStatus::Bad,
+            }
         } else if compare_files(&artifact_path, &output_path).await? {
             info!(
                 "Output artifacts is identical, marking as GOOD: {:?}",
                 output_path
             );
-            let mut res = Rebuild::new(BuildStatus::Good);
+
+            let mut res = RebuildArtifactReport {
+                name: artifact.name,
+                diffoscope: None,
+                attestation: None,
+                status: ArtifactStatus::Good,
+            };
 
             info!("Generating signed link");
             match in_toto_run(
@@ -193,7 +205,12 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<(PkgArt
 
                     let attestation = serde_json::to_string(&signed_link)
                         .context("Failed to serialize attestation")?;
-                    res.attestation = Some(attestation);
+
+                    let encoded_attestation = zstd_compress(attestation.as_bytes())
+                        .await
+                        .map_err(Error::from)?;
+
+                    res.attestation = Some(encoded_attestation);
                 }
                 Err(err) => warn!("Failed to generate in-toto attestation: {:#?}", err),
             }
@@ -201,20 +218,30 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<(PkgArt
             res
         } else {
             info!("Output artifact differs, marking as BAD: {:?}", output_path);
-            let mut res = Rebuild::new(BuildStatus::Bad);
+
+            let mut res = RebuildArtifactReport {
+                name: artifact.name,
+                diffoscope: None,
+                attestation: None,
+                status: ArtifactStatus::Bad,
+            };
 
             // generate diffoscope diff if enabled
             if ctx.diffoscope.enabled {
                 let diff = diffoscope(&artifact_path, &output_path, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
-                res.diffoscope = Some(diff);
+
+                let encoded_diffoscope =
+                    zstd_compress(diff.as_bytes()).await.map_err(Error::from)?;
+
+                res.diffoscope = Some(encoded_diffoscope);
             }
 
             res
         };
 
-        results.push((artifact, result));
+        results.push(result);
     }
 
     Ok(results)
