@@ -1,7 +1,5 @@
 use crate::schema::*;
-use diesel::dsl;
 use diesel::prelude::*;
-use rebuilderd_common::api::v0::{PkgArtifact, PkgGroup};
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, Selectable, AsChangeset, Clone, PartialEq, Eq, Debug)]
@@ -15,70 +13,6 @@ pub struct SourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
-}
-
-impl SourcePackage {
-    pub fn get_id(my_id: i32, connection: &mut SqliteConnection) -> Result<SourcePackage> {
-        use crate::schema::source_packages::dsl::*;
-        let pkgbase = source_packages
-            .filter(id.eq(my_id))
-            .first::<SourcePackage>(connection)?;
-        Ok(pkgbase)
-    }
-
-    #[dsl::auto_type(no_type_alias)]
-    pub fn filter_by<'a>(
-        name: Option<&'a str>,
-        distribution: Option<&'a str>,
-        release: Option<&'a str>,
-        component: Option<&'a str>,
-        architecture: Option<&'a str>,
-    ) -> _ {
-        let mut query = source_packages::table
-            .inner_join(build_inputs::table)
-            .into_boxed::<'a, diesel::sqlite::Sqlite>();
-
-        if let Some(name) = name {
-            query = query.filter(source_packages::name.eq(name));
-        }
-
-        if let Some(distribution) = distribution {
-            query = query.filter(source_packages::distribution.eq(distribution));
-        }
-
-        if let Some(release) = release {
-            query = query.filter(source_packages::release.eq(release));
-        }
-
-        if let Some(component) = component {
-            query = query.filter(source_packages::release.eq(component));
-        }
-
-        if let Some(architecture) = architecture {
-            query = query.filter(build_inputs::architecture.eq(architecture));
-        }
-
-        query
-    }
-
-    pub fn into_api_item(
-        self,
-        architecture: String,
-        input_url: Option<String>,
-        artifacts: Vec<PkgArtifact>,
-    ) -> Result<PkgGroup> {
-        Ok(PkgGroup {
-            name: self.name,
-            version: self.version,
-
-            distro: self.distribution,
-            suite: self.component.unwrap_or_default(),
-            architecture,
-
-            input_url,
-            artifacts,
-        })
-    }
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]

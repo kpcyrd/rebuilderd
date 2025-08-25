@@ -1,4 +1,3 @@
-pub mod v0;
 pub mod v1;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";

@@ -1,13 +1,11 @@
-use crate::diesel::ExpressionMethods;
-use crate::diesel::QueryDsl;
 use crate::models::SourcePackage;
 use crate::schema::*;
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
+use diesel::ExpressionMethods;
 use diesel::{
     AsChangeset, Associations, Identifiable, Insertable, Queryable, RunQueryDsl, Selectable,
     SelectableHelper, SqliteConnection,
 };
-use log::debug;
 use rebuilderd_common::errors::*;
 
 #[derive(
@@ -25,36 +23,6 @@ pub struct BuildInput {
     pub architecture: String,
     pub retries: i32,
     pub next_retry: Option<NaiveDateTime>,
-}
-
-impl BuildInput {
-    pub fn schedule_retry(
-        &mut self,
-        retry_delay_base: i64,
-        connection: &mut SqliteConnection,
-    ) -> Result<()> {
-        let hours = (self.retries as i64 + 1) * retry_delay_base;
-        debug!("scheduling retry in {} hours", hours);
-
-        let delay = Duration::hours(hours);
-        self.next_retry = Some((Utc::now() + delay).naive_utc());
-
-        self.update(connection)
-    }
-
-    pub fn clear_retry(&mut self, connection: &mut SqliteConnection) -> Result<()> {
-        self.next_retry = None;
-
-        self.update(connection)
-    }
-
-    pub fn update(&self, connection: &mut SqliteConnection) -> Result<()> {
-        diesel::update(build_inputs::table.filter(build_inputs::id.eq(self.id)))
-            .set(self)
-            .execute(connection)?;
-
-        Ok(())
-    }
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]

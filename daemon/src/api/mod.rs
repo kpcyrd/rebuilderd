@@ -4,8 +4,6 @@ use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header}
 use actix_web::{HttpRequest, HttpResponse};
 use rebuilderd_common::errors::{format_err, Context, Error};
 
-pub mod auth;
-pub mod v0;
 pub mod v1;
 
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;

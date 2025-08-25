@@ -1,8 +1,4 @@
-extern crate diesel;
-extern crate diesel_migrations;
-
 use crate::config::Config;
-use crate::dashboard::DashboardState;
 use actix_web::middleware::Logger;
 use actix_web::web::{scope, Data};
 use actix_web::{middleware, App, HttpServer};
@@ -14,11 +10,9 @@ pub mod api;
 pub mod attestation;
 pub mod code_migrations;
 pub mod config;
-pub mod dashboard;
 pub mod db;
 pub mod models;
 pub mod schema;
-pub mod sync;
 pub mod util;
 pub mod web;
 
@@ -86,26 +80,6 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
                                 .service(api::v1::unregister_worker),
                         ),
                 ),
-            )
-            .service(api::v0::push_queue)
-            .service(api::v0::pop_queue)
-            .service(api::v0::drop_from_queue)
-            .service(api::v0::requeue_pkgbase)
-            .service(api::v0::ping_build)
-            .service(api::v0::get_build_log)
-            .service(api::v0::get_diffoscope)
-            .service(api::v0::get_attestation)
-            .service(api::v0::get_dashboard)
-            .service(api::v0::get_public_key)
-            .service(
-                web::resource("/api/v0/build/report")
-                    .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                    .route(web::post().to(api::v0::report_build)),
-            )
-            .service(
-                web::resource("/api/v0/pkgs/sync")
-                    .app_data(web::JsonConfig::default().limit(config.post_body_size_limit))
-                    .route(web::post().to(api::v0::sync_work)),
             )
     })
     .bind(&bind_addr)?
