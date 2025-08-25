@@ -13,7 +13,6 @@ pub mod config;
 pub mod db;
 pub mod models;
 pub mod schema;
-pub mod util;
 pub mod web;
 
 pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {

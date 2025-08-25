@@ -18,7 +18,7 @@ pub struct RebuildReport {
     pub artifacts: Vec<RebuildArtifactReport>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, clap::ValueEnum)]
 #[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
 #[cfg_attr(feature = "diesel", diesel(sql_type = Text))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
@@ -73,6 +73,7 @@ impl TryFrom<&str> for BuildStatus {
             "GOOD" => Ok(BuildStatus::Good),
             "BAD" => Ok(BuildStatus::Bad),
             "FAIL" => Ok(BuildStatus::Fail),
+            "UNKWN" => Ok(BuildStatus::Unknown),
             _ => Err(BuildStatusParseError {
                 value: value.to_string(),
             }),
@@ -140,7 +141,7 @@ pub struct ArtifactStatusParseError {
 impl fmt::Display for ArtifactStatusParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let value = &self.value;
-        write!(f, "could not parse \"{value}\" as a build status")
+        write!(f, "could not parse \"{value}\" as an artifact status")
     }
 }
 
@@ -153,6 +154,7 @@ impl TryFrom<&str> for ArtifactStatus {
         match value {
             "GOOD" => Ok(ArtifactStatus::Good),
             "BAD" => Ok(ArtifactStatus::Bad),
+            "UNKWN" => Ok(ArtifactStatus::Unknown),
             _ => Err(ArtifactStatusParseError {
                 value: value.to_string(),
             }),

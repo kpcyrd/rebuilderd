@@ -21,6 +21,12 @@ reqwest = { version = "0.12", features = ["blocking", "json", "stream", "rustls-
 serde = { version = "1.0.137", features = ["derive"] }
 toml = "0.9"
 url = "2.2.2"
+zstd = "0.13.3"
+tokio = "1.44.2"
+async-trait = "0.1.88"
+
+[dev-dependencies]
+tokio-test = "0.4.4"
 
 [features]
 diesel = ["dep:diesel"]

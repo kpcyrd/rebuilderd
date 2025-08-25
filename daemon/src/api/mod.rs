@@ -1,8 +1,8 @@
-use crate::util::{is_zstd_compressed, zstd_decompress};
 use crate::web;
 use actix_web::http::header::{AcceptEncoding, ContentEncoding, Encoding, Header};
 use actix_web::{HttpRequest, HttpResponse};
 use rebuilderd_common::errors::{format_err, Context, Error};
+use rebuilderd_common::utils::{is_zstd_compressed, zstd_decompress};
 
 pub mod v1;
 

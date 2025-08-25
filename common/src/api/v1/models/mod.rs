@@ -1,11 +1,13 @@
 mod build;
 mod dashboard;
+mod meta;
 mod package;
 mod queue;
 mod worker;
 
 pub use build::*;
 pub use dashboard::*;
+pub use meta::*;
 pub use package::*;
 pub use queue::*;
 use serde::{Deserialize, Serialize};

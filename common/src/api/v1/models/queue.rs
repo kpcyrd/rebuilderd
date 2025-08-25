@@ -1,3 +1,5 @@
+use crate::api::v1::BuildStatus;
+use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -10,6 +12,8 @@ pub struct QueueJobRequest {
     pub name: Option<String>,
     pub version: Option<String>,
     pub architecture: Option<String>,
+    pub status: Option<BuildStatus>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,7 +23,7 @@ pub struct PopQueuedJobRequest {
     pub supported_architectures: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "diesel", derive(Queryable))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
 pub struct QueuedJob {
@@ -32,4 +36,28 @@ pub struct QueuedJob {
     pub architecture: String,
     pub backend: String,
     pub url: String,
+    pub queued_at: NaiveDateTime,
+    pub started_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(Queryable))]
+#[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
+pub struct QueuedJobArtifact {
+    pub name: String,
+    pub version: String,
+    pub architecture: String,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueuedJobWithArtifacts {
+    pub job: QueuedJob,
+    pub artifacts: Vec<QueuedJobArtifact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum JobAssignment {
+    Nothing,
+    Rebuild(Box<QueuedJobWithArtifacts>),
 }

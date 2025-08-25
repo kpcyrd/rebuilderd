@@ -7,7 +7,6 @@ use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewRebuild, NewRebuildArtifact, Queued};
 use crate::schema::{build_inputs, queue, rebuild_artifacts, rebuilds, source_packages};
-use crate::util::{is_zstd_compressed, zstd_compress};
 use crate::{attestation, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use diesel::dsl::update;
@@ -21,8 +20,6 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 #[diesel::dsl::auto_type]

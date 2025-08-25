@@ -1954,6 +1954,7 @@ name = "rebuilderd-common"
 version = "0.25.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "clap",
  "colored",
@@ -1962,8 +1963,11 @@ dependencies = [
  "log",
  "reqwest",
  "serde",
+ "tokio",
+ "tokio-test",
  "toml",
  "url",
+ "zstd",
 ]
 
 [[package]]

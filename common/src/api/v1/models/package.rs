@@ -1,3 +1,4 @@
+use crate::api::v1::{ArtifactStatus, BuildStatus};
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,8 @@ pub struct SourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
+    pub status: Option<BuildStatus>,
+    pub build_id: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,4 +54,7 @@ pub struct BinaryPackage {
     pub component: Option<String>,
     pub architecture: String,
     pub url: String,
+    pub status: Option<ArtifactStatus>,
+    pub build_id: Option<i32>,
+    pub artifact_id: Option<i32>,
 }
