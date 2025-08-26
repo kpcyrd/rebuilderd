@@ -6,15 +6,17 @@ use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::{Pool, SqliteConnectionWrap};
 use crate::models::{BuildInput, NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
-use crate::schema::{binary_packages, build_inputs, rebuild_artifacts, rebuilds, source_packages};
+use crate::schema::{
+    binary_packages, build_inputs, queue, rebuild_artifacts, rebuilds, source_packages,
+};
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
 use diesel::dsl::{exists, not, select};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
-use diesel::NullableExpressionMethods;
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl};
+use diesel::{NullableExpressionMethods, TextExpressionMethods};
 use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter, PackageReport, Page, ResultPage};
 use rebuilderd_common::errors::Error;
@@ -173,7 +175,7 @@ pub async fn submit_package_report(
         }
 
         let needs_rebuild = match rebuilds::table
-            .filter(rebuilds::build_input_id.eq(build_input.id))
+            .filter(rebuilds::build_input_id.eq(&build_input.id))
             .select(rebuilds::status)
             .order_by(rebuilds::built_at.desc())
             .get_result::<Option<String>>(connection.as_mut())
@@ -185,7 +187,24 @@ pub async fn submit_package_report(
             Some(value) => value != "GOOD",
         };
 
-        if needs_rebuild {
+        let has_queued_friend = select(exists(
+            queue::table
+                .filter(queue::build_input_id.ne(&build_input.id))
+                .filter(
+                    queue::build_input_id.eq_any(
+                        build_inputs::table
+                            .filter(build_inputs::url.like(&build_input.url))
+                            .filter(build_inputs::backend.eq(&build_input.backend))
+                            .filter(build_inputs::architecture.eq(&build_input.architecture))
+                            .select(build_inputs::id),
+                    ),
+                )
+                .select(queue::id),
+        ))
+        .get_result::<bool>(connection.as_mut())
+        .map_err(Error::from)?;
+
+        if needs_rebuild && !has_queued_friend {
             let new_queued_job = NewQueued {
                 build_input_id: build_input.id,
                 priority: DEFAULT_QUEUE_PRIORITY,
