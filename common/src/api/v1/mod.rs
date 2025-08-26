@@ -519,7 +519,9 @@ impl QueueRestApi for Client {
     }
 
     async fn ping_job(&self, id: i32) -> Result<()> {
+        // nginx dies if proxying a request without a Content-Length header
         self.post(Cow::Owned(format!("api/v1/queue/{id}/ping")))
+            .header("Content-Length", 0)
             .send()
             .await?
             .error_for_status()?;
