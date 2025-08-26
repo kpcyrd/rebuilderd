@@ -215,11 +215,13 @@ async fn main() -> Result<()> {
                 cookie,
             )?;
 
-            client
-                .register_worker(RegisterWorkerRequest {
-                    name: args.name.unwrap_or("worker".to_string()),
-                })
-                .await?;
+            if config.signup_secret.is_some() {
+                client
+                    .register_worker(RegisterWorkerRequest {
+                        name: args.name.unwrap_or("worker".to_string()),
+                    })
+                    .await?;
+            }
 
             run_worker_loop(&client, &profile.privkey, &config).await?;
         }
