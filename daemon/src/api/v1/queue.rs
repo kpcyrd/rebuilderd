@@ -324,7 +324,11 @@ pub async fn request_work(
 
                 diesel::update(queue::table)
                     .filter(queue::id.eq(record.id))
-                    .set((queue::worker.eq(worker.id), queue::last_ping.eq(now)))
+                    .set((
+                        queue::started_at.eq(now),
+                        queue::worker.eq(worker.id),
+                        queue::last_ping.eq(now),
+                    ))
                     .execute(conn)
                     .map_err(Error::from)?;
 
