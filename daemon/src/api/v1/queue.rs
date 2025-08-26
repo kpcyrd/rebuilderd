@@ -10,7 +10,7 @@ use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packa
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::ExpressionMethods;
+use diesel::{define_sql_function, ExpressionMethods};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{
@@ -275,6 +275,11 @@ fn standardize_architectures(architectures: &Vec<String>) -> Vec<String> {
     new_architectures.into_iter().collect()
 }
 
+define_sql_function! {
+    #[sql_name = "RANDOM"]
+    fn sqlite_random() -> Integer
+}
+
 #[post("/pop")]
 pub async fn request_work(
     req: HttpRequest,
@@ -291,7 +296,6 @@ pub async fn request_work(
 
     let worker = check_worker?;
 
-    // TODO: retry logic?
     let pop_request = request.into_inner();
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
 
@@ -306,6 +310,7 @@ pub async fn request_work(
                 )
                 .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
+                .order_by((queue::priority, queue::queued_at, sqlite_random()))
                 .first::<QueuedJob>(conn)
                 .optional()
                 .map_err(Error::from)?
