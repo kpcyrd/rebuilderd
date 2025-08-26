@@ -254,7 +254,7 @@ pub async fn submit_rebuild_report(
 
         let new_queue = NewQueued {
             build_input_id: queued.build_input_id,
-            priority: DEFAULT_QUEUE_PRIORITY,
+            priority: DEFAULT_QUEUE_PRIORITY + 1,
             queued_at: now.naive_utc(),
         };
 
