@@ -34,6 +34,7 @@ fn queue_base() -> _ {
             build_inputs::architecture,
             build_inputs::backend,
             build_inputs::url,
+            build_inputs::next_retry,
             queue::queued_at,
             queue::started_at,
         ))
@@ -298,6 +299,11 @@ pub async fn request_work(
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
             if let Some(record) = queue_base()
                 .filter(queue::worker.is_null())
+                .filter(
+                    build_inputs::next_retry
+                        .is_null()
+                        .or(build_inputs::next_retry.le(diesel::dsl::now)),
+                )
                 .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
                 .first::<QueuedJob>(conn)

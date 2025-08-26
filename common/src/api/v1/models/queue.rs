@@ -36,6 +36,7 @@ pub struct QueuedJob {
     pub architecture: String,
     pub backend: String,
     pub url: String,
+    pub next_retry: Option<NaiveDateTime>,
     pub queued_at: NaiveDateTime,
     pub started_at: Option<NaiveDateTime>,
 }

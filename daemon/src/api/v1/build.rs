@@ -1,12 +1,13 @@
-use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::DieselIdentityFilter;
 use crate::api::v1::util::filters::DieselOriginFilter;
 use crate::api::v1::util::pagination::PaginateDsl;
+use crate::api::{forward_compressed_data, DEFAULT_QUEUE_PRIORITY};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{
-    NewAttestationLog, NewBuildLog, NewDiffoscopeLog, NewRebuild, NewRebuildArtifact, Queued,
+    NewAttestationLog, NewBuildLog, NewDiffoscopeLog, NewQueued, NewRebuild, NewRebuildArtifact,
+    Queued,
 };
 use crate::schema::{
     attestation_logs, build_inputs, build_logs, diffoscope_logs, queue, rebuild_artifacts,
@@ -14,6 +15,7 @@ use crate::schema::{
 };
 use crate::{attestation, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use chrono::{Duration, Utc};
 use diesel::dsl::update;
 use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
@@ -22,7 +24,7 @@ use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{
-    IdentityFilter, OriginFilter, Page, Rebuild, RebuildReport, ResultPage,
+    BuildStatus, IdentityFilter, OriginFilter, Page, Rebuild, RebuildReport, ResultPage,
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
@@ -229,6 +231,35 @@ pub async fn submit_rebuild_report(
     }
 
     queued.delete(connection.as_mut())?;
+
+    if report.status != BuildStatus::Good {
+        // increment retries and requeue
+        let retry_count = build_inputs::table
+            .filter(build_inputs::id.eq(queued.build_input_id))
+            .select(build_inputs::retries)
+            .get_result::<i32>(connection.as_mut())
+            .map_err(Error::from)?;
+
+        let now = Utc::now();
+        let then = now + Duration::hours(((retry_count + 1) * 24) as i64);
+
+        update(build_inputs::table)
+            .filter(build_inputs::id.eq(queued.build_input_id))
+            .set((
+                build_inputs::retries.eq(build_inputs::retries + 1),
+                build_inputs::next_retry.eq(then.naive_utc()),
+            ))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
+
+        let new_queue = NewQueued {
+            build_input_id: queued.build_input_id,
+            priority: DEFAULT_QUEUE_PRIORITY,
+            queued_at: now.naive_utc(),
+        };
+
+        new_queue.upsert(connection.as_mut())?;
+    }
 
     Ok(HttpResponse::NoContent())
 }
