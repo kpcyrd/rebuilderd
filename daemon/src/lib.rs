@@ -1,5 +1,5 @@
 use crate::config::Config;
-use actix_web::middleware::Logger;
+use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::{scope, Data, JsonConfig};
 use actix_web::{middleware, App, HttpServer};
 use in_toto::crypto::PrivateKey;
@@ -27,6 +27,7 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
         App::new()
             .wrap(Logger::default())
             .wrap(middleware::Compress::default())
+            .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
             .app_data(json_config)
             .app_data(Data::new(pool.clone()))
             .app_data(Data::new(config.clone()))
