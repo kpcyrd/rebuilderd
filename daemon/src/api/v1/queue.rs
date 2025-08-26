@@ -9,7 +9,8 @@ use crate::models::NewQueued;
 use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packages, workers};
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
-use chrono::Utc;
+use chrono::{Duration, NaiveDateTime, Utc};
+use diesel::dsl::update;
 use diesel::{define_sql_function, ExpressionMethods};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
@@ -17,6 +18,7 @@ use rebuilderd_common::api::v1::{
     BuildStatus, IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest,
     QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
 };
+use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::Error;
 use std::collections::HashSet;
 
@@ -296,6 +298,26 @@ pub async fn request_work(
 
     let worker = check_worker?;
 
+    // clear any stale jobs before we consider available jobs in the queue
+    let now = Utc::now();
+    let then = now - Duration::seconds(PING_DEADLINE);
+
+    update(
+        queue::table.filter(
+            queue::last_ping
+                .is_not_null()
+                .and(queue::last_ping.lt(then.naive_utc())),
+        ),
+    )
+    .set((
+        queue::worker.eq(None::<i32>),
+        queue::started_at.eq(None::<NaiveDateTime>),
+        queue::last_ping.eq(None::<NaiveDateTime>),
+    ))
+    .execute(connection.as_mut())
+    .map_err(Error::from)?;
+
+    // see if we can dig up any available work for this worker
     let pop_request = request.into_inner();
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
 
