@@ -220,7 +220,7 @@ pub async fn submit_rebuild_report(
         let then = now + Duration::hours(((retry_count + 1) * 24) as i64);
 
         update(build_inputs::table)
-            .filter(build_inputs::id.eq(queued.build_input_id))
+            .filter(build_inputs::id.eq_any(friends))
             .set((
                 build_inputs::retries.eq(build_inputs::retries + 1),
                 build_inputs::next_retry.eq(then.naive_utc()),
@@ -228,6 +228,7 @@ pub async fn submit_rebuild_report(
             .execute(connection.as_mut())
             .map_err(Error::from)?;
 
+        // only requeue this build ID
         let new_queue = NewQueued {
             build_input_id: queued.build_input_id,
             priority: DEFAULT_QUEUE_PRIORITY + 1,
