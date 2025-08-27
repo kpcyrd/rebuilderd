@@ -101,7 +101,7 @@ INSERT INTO build_logs(build_log)
 SELECT COALESCE(builds.build_log, x'28b52ffd240001000099e9d851')
 FROM builds;
 
-CREATE INDEX build_logs_build_log_idx ON build_logs (build_log);
+CREATE INDEX _temp_build_logs_build_log_idx ON build_logs (build_log);
 
 CREATE TABLE diffoscope_logs
 (
@@ -114,7 +114,7 @@ SELECT diffoscope
 FROM builds
 WHERE diffoscope IS NOT NULL;
 
-CREATE INDEX diffoscope_logs_diffoscope_log_idx ON diffoscope_logs (diffoscope_log);
+CREATE INDEX _temp_diffoscope_logs_diffoscope_log_idx ON diffoscope_logs (diffoscope_log);
 
 CREATE TABLE attestation_logs
 (
@@ -127,7 +127,7 @@ SELECT attestation
 FROM builds
 WHERE attestation IS NOT NULL;
 
-CREATE INDEX attestation_logs_attestation_log_idx ON attestation_logs (attestation_log);
+CREATE INDEX _temp_attestation_logs_attestation_log_idx ON attestation_logs (attestation_log);
 
 -- rebuilds
 CREATE TABLE rebuilds
@@ -236,5 +236,9 @@ CREATE INDEX workers_online_idx ON workers (online);
 DROP TABLE builds;
 DROP TABLE packages;
 DROP TABLE pkgbases;
+
+DROP INDEX _temp_build_logs_build_log_idx;
+DROP INDEX _temp_diffoscope_logs_diffoscope_log_idx;
+DROP INDEX _temp_attestation_logs_attestation_log_idx;
 
 PRAGMA foreign_keys= ON;
