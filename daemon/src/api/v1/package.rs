@@ -19,7 +19,9 @@ use diesel::{
     BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
     OptionalExtension, QueryDsl, RunQueryDsl,
 };
-use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter, PackageReport, Page, ResultPage};
+use rebuilderd_common::api::v1::{
+    BuildStatus, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
+};
 use rebuilderd_common::errors::Error;
 
 use crate::api::v1::util::friends::build_input_friends;
@@ -176,17 +178,17 @@ pub async fn submit_package_report(
             copy_existing_rebuilds(&mut connection, &build_input)?;
         }
 
-        let needs_rebuild = match rebuilds::table
+        let current_status = match rebuilds::table
             .filter(rebuilds::build_input_id.eq(&build_input.id))
             .select(rebuilds::status)
             .order_by(rebuilds::built_at.desc())
-            .get_result::<Option<String>>(connection.as_mut())
+            .get_result::<Option<BuildStatus>>(connection.as_mut())
             .optional()
             .map_err(Error::from)?
             .flatten()
         {
-            None => true,
-            Some(value) => value != "GOOD",
+            None => BuildStatus::Unknown,
+            Some(value) => value,
         };
 
         let has_queued_friend = select(exists(
@@ -206,10 +208,23 @@ pub async fn submit_package_report(
         .get_result::<bool>(connection.as_mut())
         .map_err(Error::from)?;
 
-        if needs_rebuild && !has_queued_friend {
+        let has_queued_self = select(exists(
+            queue::table
+                .filter(queue::build_input_id.eq(&build_input.id))
+                .select(queue::id),
+        ))
+        .get_result::<bool>(connection.as_mut())
+        .map_err(Error::from)?;
+
+        if current_status != BuildStatus::Good && !has_queued_friend && !has_queued_self {
+            let priority = match current_status {
+                BuildStatus::Bad => DEFAULT_QUEUE_PRIORITY + 1,
+                _ => DEFAULT_QUEUE_PRIORITY,
+            };
+
             let new_queued_job = NewQueued {
                 build_input_id: build_input.id,
-                priority: DEFAULT_QUEUE_PRIORITY,
+                priority,
                 queued_at: Utc::now().naive_utc(),
             };
 
