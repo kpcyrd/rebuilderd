@@ -1,6 +1,7 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::DieselIdentityFilter;
 use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::friends::get_build_input_friends;
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::{forward_compressed_data, DEFAULT_QUEUE_PRIORITY};
 use crate::config::Config;
@@ -112,32 +113,7 @@ pub async fn submit_rebuild_report(
 
     // figure out any other build inputs that should share this result (same input, backend, and arch). Will include the
     // enqueued build ID as well, so no need to add it later.
-    let b1 = diesel::alias!(build_inputs as b1);
-    let build_inputs = build_inputs::table
-        .select(build_inputs::id)
-        .filter(
-            build_inputs::url.eq(b1
-                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
-                .select(b1.field(build_inputs::url))
-                .single_value()
-                .assume_not_null()),
-        )
-        .filter(
-            build_inputs::backend.eq(b1
-                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
-                .select(b1.field(build_inputs::backend))
-                .single_value()
-                .assume_not_null()),
-        )
-        .filter(
-            build_inputs::architecture.eq(b1
-                .filter(b1.field(build_inputs::id).eq(queued.build_input_id))
-                .select(b1.field(build_inputs::architecture))
-                .single_value()
-                .assume_not_null()),
-        )
-        .load::<i32>(connection.as_mut())
-        .map_err(Error::from)?;
+    let friends = get_build_input_friends(connection.as_mut(), queued.build_input_id).await?;
 
     let encoded_log = if is_zstd_compressed(&report.build_log) {
         report.build_log
@@ -155,9 +131,9 @@ pub async fn submit_rebuild_report(
 
     let mut artifact_logs: HashMap<&String, (Option<i32>, Option<i32>)> = HashMap::new();
 
-    for build_input_id in build_inputs {
+    for build_input_id in &friends {
         let new_rebuild = NewRebuild {
-            build_input_id,
+            build_input_id: *build_input_id,
             started_at: queued.started_at,
             built_at: Some(report.built_at),
             build_log_id: new_log_id,

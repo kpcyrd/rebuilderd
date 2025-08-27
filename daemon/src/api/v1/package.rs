@@ -15,12 +15,14 @@ use chrono::Utc;
 use diesel::dsl::{exists, not, select};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
-use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl};
-use diesel::{NullableExpressionMethods, TextExpressionMethods};
-use diesel::{OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
+    OptionalExtension, QueryDsl, RunQueryDsl,
+};
 use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter, PackageReport, Page, ResultPage};
 use rebuilderd_common::errors::Error;
 
+use crate::api::v1::util::friends::build_input_friends;
 use aliases::*;
 
 mod aliases {
@@ -193,7 +195,7 @@ pub async fn submit_package_report(
                 .filter(
                     queue::build_input_id.eq_any(
                         build_inputs::table
-                            .filter(build_inputs::url.like(&build_input.url))
+                            .filter(build_inputs::url.eq(&build_input.url))
                             .filter(build_inputs::backend.eq(&build_input.backend))
                             .filter(build_inputs::architecture.eq(&build_input.architecture))
                             .select(build_inputs::id),
@@ -223,31 +225,8 @@ fn copy_existing_rebuilds(
     build_input: &BuildInput,
 ) -> Result<(), Error> {
     // check if we have any existing rebuilds that match this package
-    let b1 = diesel::alias!(build_inputs as b1);
-    let existing_build_input = build_inputs::table
-        .select(build_inputs::id)
+    let existing_build_input = build_input_friends(build_input.id)
         .filter(build_inputs::id.ne(build_input.id))
-        .filter(
-            build_inputs::url.eq(b1
-                .filter(b1.field(build_inputs::id).eq(build_input.id))
-                .select(b1.field(build_inputs::url))
-                .single_value()
-                .assume_not_null()),
-        )
-        .filter(
-            build_inputs::backend.eq(b1
-                .filter(b1.field(build_inputs::id).eq(build_input.id))
-                .select(b1.field(build_inputs::backend))
-                .single_value()
-                .assume_not_null()),
-        )
-        .filter(
-            build_inputs::architecture.eq(b1
-                .filter(b1.field(build_inputs::id).eq(build_input.id))
-                .select(b1.field(build_inputs::architecture))
-                .single_value()
-                .assume_not_null()),
-        )
         .order_by(build_inputs::id)
         .limit(1)
         .get_result::<i32>(connection.as_mut())
