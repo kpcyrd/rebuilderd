@@ -332,7 +332,11 @@ pub async fn request_work(
                 )
                 .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
-                .order_by((queue::priority, queue::queued_at, sqlite_random()))
+                .order_by((
+                    queue::priority,
+                    diesel::dsl::date(queue::queued_at),
+                    sqlite_random(),
+                ))
                 .first::<QueuedJob>(conn)
                 .optional()
                 .map_err(Error::from)?
