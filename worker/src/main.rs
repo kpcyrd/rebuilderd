@@ -124,7 +124,10 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                     }
                 };
 
-            let encoded_log = zstd_compress(&log[..]).await.map_err(Error::from)?;
+            let utf8_sanitized_log = String::from_utf8_lossy(&log).into_owned();
+            let encoded_log = zstd_compress(utf8_sanitized_log.as_bytes())
+                .await
+                .map_err(Error::from)?;
 
             let report = RebuildReport {
                 queue_id: rb.job.id,
