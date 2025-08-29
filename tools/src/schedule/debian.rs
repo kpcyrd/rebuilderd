@@ -318,23 +318,22 @@ impl SyncState {
 
         match report
             .packages
-            .iter_mut()
-            .find(|p| src.base == p.name && src.version == p.version)
+            .iter()
+            .position(|p| src.base == p.name && src.version == p.version)
         {
-            Some(_) => {}
+            Some(i) => &mut report.packages[i],
             None => {
                 let source_report = SourcePackageReport {
                     name: src.base.clone(),
                     version: src.version.clone(),
-                    url: src.buildinfo_url(&architecture),
+                    url: src.buildinfo_url(architecture),
                     artifacts: Vec::new(),
                 };
 
                 report.packages.push(source_report);
+                report.packages.last_mut().unwrap()
             }
-        };
-
-        report.packages.last_mut().unwrap()
+        }
     }
 
     pub fn push(
