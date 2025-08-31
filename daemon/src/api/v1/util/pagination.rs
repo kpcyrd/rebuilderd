@@ -59,22 +59,44 @@ where
                 )));
             }
 
+            let mut conditions: Vec<Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>> =
+                Vec::new();
+
             if let Some(after) = &self.page.after {
-                let formatted = format!("WHERE (base_query.{field}, base_query.id) > ((SELECT base_query.{field} FROM base_query WHERE base_query.id = ", field = sort);
-                out.push_sql(&formatted);
-                out.push_bind_param::<Integer, _>(after)?;
-                out.push_sql("), ");
-                out.push_bind_param::<Integer, _>(after)?;
-                out.push_sql(") ");
+                conditions.push(Box::new(|ast| {
+                    let formatted = format!("(base_query.{field}, base_query.id) > ((SELECT base_query.{field} FROM base_query WHERE base_query.id = ", field = sort);
+                    ast.push_sql(&formatted);
+                    ast.push_bind_param::<Integer, _>(after)?;
+                    ast.push_sql("), ");
+                    ast.push_bind_param::<Integer, _>(after)?;
+                    ast.push_sql(") ");
+
+                    Ok(())
+                }));
             }
 
             if let Some(before) = &self.page.before {
-                let formatted = format!("WHERE (base_query.{field}, base_query.id) < ((SELECT base_query.{field} FROM base_query WHERE base_query.id = ", field = sort);
-                out.push_sql(&formatted);
-                out.push_bind_param::<Integer, _>(before)?;
-                out.push_sql("), ");
-                out.push_bind_param::<Integer, _>(before)?;
-                out.push_sql(") ");
+                conditions.push(Box::new(|ast| {
+                    let formatted = format!("(base_query.{field}, base_query.id) < ((SELECT base_query.{field} FROM base_query WHERE base_query.id = ", field = sort);
+                    ast.push_sql(&formatted);
+                    ast.push_bind_param::<Integer, _>(before)?;
+                    ast.push_sql("), ");
+                    ast.push_bind_param::<Integer, _>(before)?;
+                    ast.push_sql(") ");
+
+                    Ok(())
+                }));
+            }
+
+            let mut it = conditions.iter().peekable();
+            if it.peek().is_some() {
+                out.push_sql("WHERE");
+                while let Some(condition) = it.next() {
+                    condition(&mut out)?;
+                    if it.peek().is_some() {
+                        out.push_sql(" AND ")
+                    }
+                }
             }
 
             let direction = self
@@ -96,16 +118,32 @@ where
 
             out.push_sql(&formatted);
         } else {
+            let mut conditions: Vec<Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>> =
+                Vec::new();
+
             if let Some(after) = &self.page.after {
-                out.push_sql("WHERE base_query.id > ");
-                out.push_bind_param::<Integer, _>(after)?;
-                out.push_sql(")");
+                conditions.push(Box::new(|ast| {
+                    ast.push_sql("base_query.id >");
+                    ast.push_bind_param::<Integer, _>(after)
+                }));
             }
 
             if let Some(before) = &self.page.before {
-                out.push_sql("WHERE base_query.id < ");
-                out.push_bind_param::<Integer, _>(before)?;
-                out.push_sql(")");
+                conditions.push(Box::new(|ast| {
+                    ast.push_sql("base_query.id <");
+                    ast.push_bind_param::<Integer, _>(before)
+                }));
+            }
+
+            let mut it = conditions.iter().peekable();
+            if it.peek().is_some() {
+                out.push_sql("WHERE ");
+                while let Some(condition) = it.next() {
+                    condition(&mut out)?;
+                    if it.peek().is_some() {
+                        out.push_sql(" AND ")
+                    }
+                }
             }
 
             let direction = self
