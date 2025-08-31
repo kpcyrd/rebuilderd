@@ -20,7 +20,7 @@ use diesel::{
     OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods,
 };
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
+    BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
 };
 use rebuilderd_common::errors::Error;
 
@@ -57,6 +57,8 @@ fn source_packages_base() -> _ {
             source_packages::component.nullable(),
             r1.field(rebuilds::status).nullable(),
             r1.field(rebuilds::id).nullable(),
+            source_packages::last_seen,
+            source_packages::seen_in_last_sync,
         ))
 }
 
@@ -95,6 +97,8 @@ fn binary_packages_base() -> _ {
             rebuild_artifacts::status.nullable(),
             r1.field(rebuilds::id).nullable(),
             rebuild_artifacts::id.nullable(),
+            source_packages::last_seen,
+            source_packages::seen_in_last_sync,
         ))
 }
 
@@ -335,12 +339,17 @@ pub async fn get_source_packages(
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
     identity_filter: web::Query<IdentityFilter>,
+    freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
     let mut sql = source_packages_base().into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
+
+    if freshness_filter.seen_only.unwrap_or(false) {
+        sql = sql.filter(source_packages::seen_in_last_sync.is(true));
+    }
 
     let records = sql
         .paginate(page.into_inner())
@@ -350,6 +359,10 @@ pub async fn get_source_packages(
     let mut total_sql = source_packages_base().into_boxed();
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
+
+    if freshness_filter.seen_only.unwrap_or(false) {
+        total_sql = total_sql.filter(source_packages::seen_in_last_sync.is(true));
+    }
 
     let total = total_sql
         .count()
@@ -384,12 +397,17 @@ pub async fn get_binary_packages(
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
     identity_filter: web::Query<IdentityFilter>,
+    freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
     let mut sql = binary_packages_base().into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, binary_packages::name, binary_packages::version);
+
+    if freshness_filter.seen_only.unwrap_or(false) {
+        sql = sql.filter(source_packages::seen_in_last_sync.is(true));
+    }
 
     let records = sql
         .paginate(page.into_inner())
@@ -399,6 +417,10 @@ pub async fn get_binary_packages(
     let mut total_sql = binary_packages_base().into_boxed();
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, binary_packages::name, binary_packages::version);
+
+    if freshness_filter.seen_only.unwrap_or(false) {
+        total_sql = total_sql.filter(source_packages::seen_in_last_sync.is(true));
+    }
 
     let total = total_sql
         .count()

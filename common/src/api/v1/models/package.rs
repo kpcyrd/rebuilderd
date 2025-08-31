@@ -1,4 +1,5 @@
 use crate::api::v1::{ArtifactStatus, BuildStatus};
+use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -40,6 +41,8 @@ pub struct SourcePackage {
     pub component: Option<String>,
     pub status: Option<BuildStatus>,
     pub build_id: Option<i32>,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -57,4 +60,6 @@ pub struct BinaryPackage {
     pub status: Option<ArtifactStatus>,
     pub build_id: Option<i32>,
     pub artifact_id: Option<i32>,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }

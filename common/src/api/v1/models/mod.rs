@@ -47,3 +47,8 @@ pub struct IdentityFilter {
     pub name: Option<String>,
     pub version: Option<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FreshnessFilter {
+    pub seen_only: Option<bool>,
+}
