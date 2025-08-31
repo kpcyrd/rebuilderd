@@ -12,12 +12,12 @@ use crate::schema::{
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::dsl::{exists, not, select};
+use diesel::dsl::{exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    OptionalExtension, QueryDsl, RunQueryDsl,
+    BoolExpressionMethods, Connection, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
+    OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods,
 };
 use rebuilderd_common::api::v1::{
     BuildStatus, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
@@ -98,6 +98,23 @@ fn binary_packages_base() -> _ {
         ))
 }
 
+fn mark_scoped_packages_unseen(
+    connection: &mut SqliteConnection,
+    report: &PackageReport,
+) -> Result<(), Error> {
+    // mark all packages potentially affected by this report as unseen
+    update(source_packages::table)
+        .filter(source_packages::distribution.eq(&report.distribution))
+        .filter(source_packages::release.eq(&report.release))
+        .filter(source_packages::release.is(&report.release))
+        .filter(source_packages::component.is(&report.component))
+        .set(source_packages::seen_in_last_sync.eq(false))
+        .execute(connection)
+        .map_err(Error::from)?;
+
+    Ok(())
+}
+
 #[post("")]
 pub async fn submit_package_report(
     req: HttpRequest,
@@ -111,126 +128,122 @@ pub async fn submit_package_report(
 
     let mut connection = pool.get().map_err(Error::from)?;
 
+    let now = Utc::now();
     let report = request.into_inner();
+    connection.transaction(|conn| {
+        mark_scoped_packages_unseen(conn.as_mut(), &report)?;
 
-    for package_report in report.packages {
-        // check if this package already exists - this is used later to determine if we should copy over existing build
-        // results to this package.
-        let mut sql = source_packages::table
-            .filter(source_packages::name.eq(&package_report.name))
-            .filter(source_packages::version.eq(&package_report.version))
-            .filter(source_packages::distribution.eq(&report.distribution))
-            .into_boxed();
+        for package_report in report.packages {
+            // check if this package already exists - this is used later to determine if we should copy over existing build
+            // results to this package.
+            let is_new_package = select(not(exists(
+                source_packages::table
+                    .filter(source_packages::name.is(&package_report.name))
+                    .filter(source_packages::version.is(&package_report.version))
+                    .filter(source_packages::distribution.is(&report.distribution))
+                    .filter(source_packages::release.is(&report.release))
+                    .filter(source_packages::component.is(&report.component)),
+            )))
+            .get_result::<bool>(conn.as_mut())?;
 
-        if let Some(release) = &report.release {
-            sql = sql.filter(source_packages::release.eq(release))
-        } else {
-            sql = sql.filter(source_packages::release.is_null())
-        }
+            let new_source_package = NewSourcePackage {
+                name: package_report.name,
+                version: package_report.version,
+                distribution: report.distribution.clone(),
+                release: report.release.clone(),
+                component: report.component.clone(),
+                last_seen: now.naive_utc(),
+                seen_in_last_sync: true,
+            };
 
-        if let Some(component) = &report.component {
-            sql = sql.filter(source_packages::component.eq(component))
-        } else {
-            sql = sql.filter(source_packages::component.is_null())
-        }
+            let source_package = new_source_package.upsert(conn.as_mut())?;
 
-        let is_new_package = select(not(exists(sql)))
-            .get_result::<bool>(connection.as_mut())
+            let new_build_input = NewBuildInput {
+                source_package_id: source_package.id,
+                url: package_report.url,
+                backend: report.distribution.clone(),
+                architecture: report.architecture.clone(),
+                retries: 0,
+            };
+
+            let build_input = new_build_input.upsert(conn.as_mut())?;
+
+            for artifact_report in package_report.artifacts {
+                let new_binary_package = NewBinaryPackage {
+                    source_package_id: source_package.id,
+                    build_input_id: build_input.id,
+                    name: artifact_report.name,
+                    version: artifact_report.version,
+                    architecture: report.architecture.clone(),
+                    artifact_url: artifact_report.url,
+                };
+
+                new_binary_package.upsert(conn.as_mut())?;
+            }
+
+            if is_new_package {
+                // in order to avoid additional rebuilds in distributions that copy existing packages between releases, we
+                // want to also copy any results relevant to newly-imported versions. This only applies within a single
+                // build backend and matches on the URL of the input artifact and its architecture.
+                copy_existing_rebuilds(conn, &build_input)?;
+            }
+
+            let current_status = match rebuilds::table
+                .filter(rebuilds::build_input_id.eq(&build_input.id))
+                .select(rebuilds::status)
+                .order_by(rebuilds::built_at.desc())
+                .get_result::<Option<BuildStatus>>(conn.as_mut())
+                .optional()
+                .map_err(Error::from)?
+                .flatten()
+            {
+                None => BuildStatus::Unknown,
+                Some(value) => value,
+            };
+
+            let has_queued_friend = select(exists(
+                queue::table
+                    .filter(queue::build_input_id.ne(&build_input.id))
+                    .filter(
+                        queue::build_input_id.eq_any(
+                            build_inputs::table
+                                .filter(build_inputs::url.eq(&build_input.url))
+                                .filter(build_inputs::backend.eq(&build_input.backend))
+                                .filter(build_inputs::architecture.eq(&build_input.architecture))
+                                .select(build_inputs::id),
+                        ),
+                    )
+                    .select(queue::id),
+            ))
+            .get_result::<bool>(conn.as_mut())
             .map_err(Error::from)?;
 
-        let new_source_package = NewSourcePackage {
-            name: package_report.name,
-            version: package_report.version,
-            distribution: report.distribution.clone(),
-            release: report.release.clone(),
-            component: report.component.clone(),
-        };
+            let has_queued_self = select(exists(
+                queue::table
+                    .filter(queue::build_input_id.eq(&build_input.id))
+                    .select(queue::id),
+            ))
+            .get_result::<bool>(conn.as_mut())
+            .map_err(Error::from)?;
 
-        let source_package = new_source_package.upsert(connection.as_mut())?;
+            if current_status != BuildStatus::Good && !has_queued_friend && !has_queued_self {
+                let priority = match current_status {
+                    BuildStatus::Bad => DEFAULT_QUEUE_PRIORITY + 1,
+                    _ => DEFAULT_QUEUE_PRIORITY,
+                };
 
-        let new_build_input = NewBuildInput {
-            source_package_id: source_package.id,
-            url: package_report.url,
-            backend: report.distribution.clone(),
-            architecture: report.architecture.clone(),
-            retries: 0,
-        };
+                let new_queued_job = NewQueued {
+                    build_input_id: build_input.id,
+                    priority,
+                    queued_at: Utc::now().naive_utc(),
+                };
 
-        let build_input = new_build_input.upsert(connection.as_mut())?;
-
-        for artifact_report in package_report.artifacts {
-            let new_binary_package = NewBinaryPackage {
-                source_package_id: source_package.id,
-                build_input_id: build_input.id,
-                name: artifact_report.name,
-                version: artifact_report.version,
-                architecture: report.architecture.clone(),
-                artifact_url: artifact_report.url,
-            };
-
-            new_binary_package.upsert(connection.as_mut())?;
+                new_queued_job.upsert(conn.as_mut())?;
+            }
         }
 
-        if is_new_package {
-            // in order to avoid additional rebuilds in distributions that copy existing packages between releases, we
-            // want to also copy any results relevant to newly-imported versions. This only applies within a single
-            // build backend and matches on the URL of the input artifact and its architecture.
-            copy_existing_rebuilds(&mut connection, &build_input)?;
-        }
-
-        let current_status = match rebuilds::table
-            .filter(rebuilds::build_input_id.eq(&build_input.id))
-            .select(rebuilds::status)
-            .order_by(rebuilds::built_at.desc())
-            .get_result::<Option<BuildStatus>>(connection.as_mut())
-            .optional()
-            .map_err(Error::from)?
-            .flatten()
-        {
-            None => BuildStatus::Unknown,
-            Some(value) => value,
-        };
-
-        let has_queued_friend = select(exists(
-            queue::table
-                .filter(queue::build_input_id.ne(&build_input.id))
-                .filter(
-                    queue::build_input_id.eq_any(
-                        build_inputs::table
-                            .filter(build_inputs::url.eq(&build_input.url))
-                            .filter(build_inputs::backend.eq(&build_input.backend))
-                            .filter(build_inputs::architecture.eq(&build_input.architecture))
-                            .select(build_inputs::id),
-                    ),
-                )
-                .select(queue::id),
-        ))
-        .get_result::<bool>(connection.as_mut())
-        .map_err(Error::from)?;
-
-        let has_queued_self = select(exists(
-            queue::table
-                .filter(queue::build_input_id.eq(&build_input.id))
-                .select(queue::id),
-        ))
-        .get_result::<bool>(connection.as_mut())
-        .map_err(Error::from)?;
-
-        if current_status != BuildStatus::Good && !has_queued_friend && !has_queued_self {
-            let priority = match current_status {
-                BuildStatus::Bad => DEFAULT_QUEUE_PRIORITY + 1,
-                _ => DEFAULT_QUEUE_PRIORITY,
-            };
-
-            let new_queued_job = NewQueued {
-                build_input_id: build_input.id,
-                priority,
-                queued_at: Utc::now().naive_utc(),
-            };
-
-            new_queued_job.upsert(connection.as_mut())?;
-        }
-    }
+        Ok::<(), Error>(())
+    })?;
 
     Ok(HttpResponse::NoContent().finish())
 }

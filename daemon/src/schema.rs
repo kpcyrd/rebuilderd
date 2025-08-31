@@ -87,6 +87,8 @@ diesel::table! {
         distribution -> Text,
         release -> Nullable<Text>,
         component -> Nullable<Text>,
+        last_seen -> Timestamp,
+        seen_in_last_sync -> Bool
     }
 }
 

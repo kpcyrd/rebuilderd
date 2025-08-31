@@ -1,4 +1,6 @@
 use crate::schema::*;
+use chrono::NaiveDateTime;
+use diesel::dsl::update;
 use diesel::prelude::*;
 use rebuilderd_common::errors::*;
 
@@ -13,9 +15,11 @@ pub struct SourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }
 
-#[derive(Insertable, PartialEq, Eq, Debug, Clone)]
+#[derive(Insertable, AsChangeset, PartialEq, Eq, Debug, Clone)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 #[diesel(treat_none_as_null = true)]
 #[diesel(treat_none_as_default_value = false)]
@@ -26,43 +30,36 @@ pub struct NewSourcePackage {
     pub distribution: String,
     pub release: Option<String>,
     pub component: Option<String>,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }
 
 impl NewSourcePackage {
     pub fn upsert(&self, connection: &mut SqliteConnection) -> Result<SourcePackage> {
-        let result = diesel::insert_into(source_packages::table)
+        let existing = diesel::insert_into(source_packages::table)
             .values(self)
             .on_conflict_do_nothing() // TODO: two round trips here because Diesel doesn't support on_conflict() with no target, and we have uniqueness semantics for nullable columns
             .returning(SourcePackage::as_select())
             .get_result::<SourcePackage>(connection)
             .optional()?;
 
-        if let Some(result) = result {
-            return Ok(result);
+        if let Some(existing) = existing {
+            return Ok(existing);
         }
 
-        let mut sql = source_packages::table
+        let updated = update(source_packages::table)
             .filter(
                 source_packages::name
-                    .eq(&self.name)
-                    .and(source_packages::version.eq(&self.version))
-                    .and(source_packages::distribution.eq(&self.distribution)),
+                    .is(&self.name)
+                    .and(source_packages::version.is(&self.version))
+                    .and(source_packages::distribution.is(&self.distribution)),
             )
-            .into_boxed();
+            .filter(source_packages::release.is(&self.release))
+            .filter(source_packages::component.is(&self.component))
+            .set(self)
+            .returning(SourcePackage::as_select())
+            .get_result::<SourcePackage>(connection)?;
 
-        if let Some(release) = &self.release {
-            sql = sql.filter(source_packages::release.eq(release));
-        } else {
-            sql = sql.filter(source_packages::release.is_null());
-        }
-
-        if let Some(component) = &self.component {
-            sql = sql.filter(source_packages::component.eq(component));
-        } else {
-            sql = sql.filter(source_packages::component.is_null());
-        }
-
-        let existing = sql.get_result::<SourcePackage>(connection)?;
-        Ok(existing)
+        Ok(updated)
     }
 }
