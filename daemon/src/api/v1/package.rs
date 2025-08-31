@@ -35,9 +35,9 @@ mod aliases {
 fn source_packages_base() -> _ {
     source_packages::table
         .inner_join(build_inputs::table)
-        .left_join(r1.on(r1.field(rebuilds::build_input_id).eq(build_inputs::id)))
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
         .left_join(
-            r2.on(r2.field(rebuilds::build_input_id).eq(build_inputs::id).and(
+            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
                 r1.field(rebuilds::built_at)
                     .lt(r2.field(rebuilds::built_at))
                     .or(r1.fields(
@@ -65,14 +65,14 @@ fn binary_packages_base() -> _ {
     binary_packages::table
         .inner_join(source_packages::table)
         .inner_join(build_inputs::table)
-        .left_join(r1.on(r1.field(rebuilds::build_input_id).eq(build_inputs::id)))
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
         .left_join(
             rebuild_artifacts::table.on(rebuild_artifacts::rebuild_id
-                .eq(r1.field(rebuilds::id))
-                .and(rebuild_artifacts::name.eq(binary_packages::name))),
+                .is(r1.field(rebuilds::id))
+                .and(rebuild_artifacts::name.is(binary_packages::name))),
         )
         .left_join(
-            r2.on(r2.field(rebuilds::build_input_id).eq(build_inputs::id).and(
+            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
                 r1.field(rebuilds::built_at)
                     .lt(r2.field(rebuilds::built_at))
                     .or(r1.fields(
@@ -104,8 +104,8 @@ fn mark_scoped_packages_unseen(
 ) -> Result<(), Error> {
     // mark all packages potentially affected by this report as unseen
     update(source_packages::table)
-        .filter(source_packages::distribution.eq(&report.distribution))
-        .filter(source_packages::release.eq(&report.release))
+        .filter(source_packages::distribution.is(&report.distribution))
+        .filter(source_packages::release.is(&report.release))
         .filter(source_packages::release.is(&report.release))
         .filter(source_packages::component.is(&report.component))
         .set(source_packages::seen_in_last_sync.eq(false))
@@ -189,7 +189,7 @@ pub async fn submit_package_report(
             }
 
             let current_status = match rebuilds::table
-                .filter(rebuilds::build_input_id.eq(&build_input.id))
+                .filter(rebuilds::build_input_id.is(&build_input.id))
                 .select(rebuilds::status)
                 .order_by(rebuilds::built_at.desc())
                 .get_result::<Option<BuildStatus>>(conn.as_mut())
@@ -207,9 +207,9 @@ pub async fn submit_package_report(
                     .filter(
                         queue::build_input_id.eq_any(
                             build_inputs::table
-                                .filter(build_inputs::url.eq(&build_input.url))
-                                .filter(build_inputs::backend.eq(&build_input.backend))
-                                .filter(build_inputs::architecture.eq(&build_input.architecture))
+                                .filter(build_inputs::url.is(&build_input.url))
+                                .filter(build_inputs::backend.is(&build_input.backend))
+                                .filter(build_inputs::architecture.is(&build_input.architecture))
                                 .select(build_inputs::id),
                         ),
                     )
@@ -220,7 +220,7 @@ pub async fn submit_package_report(
 
             let has_queued_self = select(exists(
                 queue::table
-                    .filter(queue::build_input_id.eq(&build_input.id))
+                    .filter(queue::build_input_id.is(&build_input.id))
                     .select(queue::id),
             ))
             .get_result::<bool>(conn.as_mut())
@@ -264,14 +264,14 @@ fn copy_existing_rebuilds(
     if let Some(existing_build_input) = existing_build_input {
         // copy rebuilds
         let has_existing_rebuild = select(exists(
-            rebuilds::table.filter(rebuilds::build_input_id.eq(existing_build_input)),
+            rebuilds::table.filter(rebuilds::build_input_id.is(existing_build_input)),
         ))
         .get_result::<bool>(connection.as_mut())
         .map_err(Error::from)?;
 
         if has_existing_rebuild {
             let existing_rebuild_ids = rebuilds::table
-                .filter(rebuilds::build_input_id.eq(existing_build_input))
+                .filter(rebuilds::build_input_id.is(existing_build_input))
                 .select(rebuilds::id)
                 .get_results::<i32>(connection.as_mut())
                 .map_err(Error::from)?;
@@ -280,7 +280,7 @@ fn copy_existing_rebuilds(
                 let new_rebuild_id = diesel::dsl::insert_into(rebuilds::table)
                     .values(
                         rebuilds::table
-                            .filter(rebuilds::id.eq(existing_rebuild_id))
+                            .filter(rebuilds::id.is(existing_rebuild_id))
                             .select((
                                 diesel::dsl::sql::<Integer>("").bind::<Integer, _>(build_input.id),
                                 rebuilds::started_at,
@@ -304,7 +304,7 @@ fn copy_existing_rebuilds(
                 diesel::dsl::insert_into(rebuild_artifacts::table)
                     .values(
                         rebuild_artifacts::table
-                            .filter(rebuild_artifacts::rebuild_id.eq(existing_rebuild_id))
+                            .filter(rebuild_artifacts::rebuild_id.is(existing_rebuild_id))
                             .select((
                                 diesel::dsl::sql::<Integer>("").bind::<Integer, _>(new_rebuild_id),
                                 rebuild_artifacts::name,
@@ -367,7 +367,7 @@ pub async fn get_source_package(
     let mut connection = pool.get().map_err(Error::from)?;
 
     if let Some(record) = source_packages_base()
-        .filter(source_packages::id.eq(id.into_inner()))
+        .filter(source_packages::id.is(id.into_inner()))
         .get_result::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .optional()
         .map_err(Error::from)?
@@ -416,7 +416,7 @@ pub async fn get_binary_package(
     let mut connection = pool.get().map_err(Error::from)?;
 
     if let Some(record) = binary_packages_base()
-        .filter(binary_packages::id.eq(id.into_inner()))
+        .filter(binary_packages::id.is(id.into_inner()))
         .get_result::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .optional()
         .map_err(Error::from)?

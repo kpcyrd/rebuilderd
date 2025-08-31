@@ -11,7 +11,7 @@ use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::{Duration, NaiveDateTime, Utc};
 use diesel::dsl::update;
-use diesel::{define_sql_function, ExpressionMethods};
+use diesel::{define_sql_function, ExpressionMethods, SqliteExpressionMethods};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{
@@ -55,7 +55,7 @@ pub async fn get_queued_jobs(
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
@@ -69,7 +69,7 @@ pub async fn get_queued_jobs(
     total_sql = origin_filter.filter(total_sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        total_sql = total_sql.filter(build_inputs::architecture.eq(architecture));
+        total_sql = total_sql.filter(build_inputs::architecture.is(architecture));
     }
 
     total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
@@ -119,7 +119,7 @@ pub async fn request_rebuild(
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
@@ -128,7 +128,7 @@ pub async fn request_rebuild(
         if status == BuildStatus::Unknown {
             sql = sql.filter(rebuilds::status.is_null());
         } else {
-            sql = sql.filter(rebuilds::status.eq(status));
+            sql = sql.filter(rebuilds::status.is(status));
         }
     }
 
@@ -170,7 +170,7 @@ pub async fn drop_queued_jobs(
 
     sql = origin_filter.filter(sql);
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
@@ -192,7 +192,7 @@ pub async fn get_queued_job(
     let mut connection = pool.get().map_err(Error::from)?;
 
     if let Some(record) = queue_base()
-        .filter(source_packages::id.eq(id.into_inner()))
+        .filter(source_packages::id.is(id.into_inner()))
         .get_result::<QueuedJob>(connection.as_mut())
         .optional()
         .map_err(Error::from)?
@@ -216,7 +216,7 @@ pub async fn drop_queued_job(
 
     let mut connection = pool.get().map_err(Error::from)?;
 
-    diesel::delete(queue::table.filter(queue::id.eq(id.into_inner())))
+    diesel::delete(queue::table.filter(queue::id.is(id.into_inner())))
         .execute(connection.as_mut())
         .map_err(Error::from)?;
 
@@ -244,8 +244,8 @@ pub async fn ping_job(
         .set(queue::last_ping.eq(now.naive_utc()))
         .filter(
             queue::id
-                .eq(id.into_inner())
-                .and(queue::worker.eq(worker.id)),
+                .is(id.into_inner())
+                .and(queue::worker.is(worker.id)),
         )
         .execute(connection.as_mut())
         .map_err(Error::from)?;
@@ -342,10 +342,10 @@ pub async fn request_work(
                 .map_err(Error::from)?
             {
                 let artifacts = queue::table
-                    .filter(queue::id.eq(record.id))
+                    .filter(queue::id.is(record.id))
                     .inner_join(
                         binary_packages::table
-                            .on(queue::build_input_id.eq(binary_packages::build_input_id)),
+                            .on(queue::build_input_id.is(binary_packages::build_input_id)),
                     )
                     .select((
                         binary_packages::name,
@@ -360,7 +360,7 @@ pub async fn request_work(
                 let status = format!("working hard on {} {}", record.name, record.version);
 
                 diesel::update(queue::table)
-                    .filter(queue::id.eq(record.id))
+                    .filter(queue::id.is(record.id))
                     .set((
                         queue::started_at.eq(now),
                         queue::worker.eq(worker.id),
@@ -370,7 +370,7 @@ pub async fn request_work(
                     .map_err(Error::from)?;
 
                 diesel::update(workers::table)
-                    .filter(workers::id.eq(worker.id))
+                    .filter(workers::id.is(worker.id))
                     .set((
                         workers::online.eq(true),
                         workers::last_ping.eq(now),

@@ -8,8 +8,7 @@ use crate::schema::workers;
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::ExpressionMethods;
-use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{Page, RegisterWorkerRequest, ResultPage};
 use rebuilderd_common::api::WORKER_KEY_HEADER;
 use rebuilderd_common::errors::{format_err, Context, Error};
@@ -90,7 +89,7 @@ pub async fn get_worker(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Resul
     let mut connection = pool.get().map_err(Error::from)?;
 
     if let Some(record) = workers_base()
-        .filter(workers::id.eq(id.into_inner()))
+        .filter(workers::id.is(id.into_inner()))
         .get_result::<rebuilderd_common::api::v1::Worker>(connection.as_mut())
         .optional()
         .map_err(Error::from)?
@@ -116,7 +115,7 @@ pub async fn unregister_worker(
     connection
         .transaction(|conn| {
             diesel::delete(workers::table)
-                .filter(workers::id.eq(id.into_inner()))
+                .filter(workers::id.is(id.into_inner()))
                 .execute(conn)
         })
         .map_err(Error::from)?;

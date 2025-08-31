@@ -1,5 +1,5 @@
 use crate::schema::build_inputs;
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection};
+use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods};
 use rebuilderd_common::errors::Error;
 
 use aliases::*;
@@ -14,19 +14,19 @@ pub fn build_input_friends(id: i32) -> _ {
         .select(build_inputs::id)
         .filter(
             build_inputs::url.eq_any(
-                b1.filter(b1.field(build_inputs::id).eq(id))
+                b1.filter(b1.field(build_inputs::id).is(id))
                     .select(b1.field(build_inputs::url)),
             ),
         )
         .filter(
             build_inputs::backend.eq_any(
-                b1.filter(b1.field(build_inputs::id).eq(id))
+                b1.filter(b1.field(build_inputs::id).is(id))
                     .select(b1.field(build_inputs::backend)),
             ),
         )
         .filter(
             build_inputs::architecture.eq_any(
-                b1.filter(b1.field(build_inputs::id).eq(id))
+                b1.filter(b1.field(build_inputs::id).is(id))
                     .select(b1.field(build_inputs::architecture)),
             ),
         )

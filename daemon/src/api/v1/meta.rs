@@ -2,8 +2,7 @@ use crate::db::Pool;
 use crate::schema::{build_inputs, source_packages};
 use crate::{attestation, web};
 use actix_web::{get, HttpResponse, Responder};
-use diesel::ExpressionMethods;
-use diesel::{QueryDsl, RunQueryDsl};
+use diesel::{QueryDsl, RunQueryDsl, SqliteExpressionMethods};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::Error;
 use serde_json::json;
@@ -30,7 +29,7 @@ pub async fn get_distribution_releases(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let distribution_releases = source_packages::table
-        .filter(source_packages::distribution.eq(distribution.into_inner()))
+        .filter(source_packages::distribution.is(distribution.into_inner()))
         .select(source_packages::release)
         .distinct()
         .load::<Option<String>>(connection.as_mut())
@@ -48,7 +47,7 @@ pub async fn get_distribution_architectures(
 
     let distribution_architectures = source_packages::table
         .inner_join(build_inputs::table)
-        .filter(source_packages::distribution.eq(distribution.into_inner()))
+        .filter(source_packages::distribution.is(distribution.into_inner()))
         .select(build_inputs::architecture)
         .distinct()
         .load::<String>(connection.as_mut())
@@ -65,7 +64,7 @@ pub async fn get_distribution_components(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let distribution_components = source_packages::table
-        .filter(source_packages::distribution.eq(distribution.into_inner()))
+        .filter(source_packages::distribution.is(distribution.into_inner()))
         .select(source_packages::component)
         .distinct()
         .load::<Option<String>>(connection.as_mut())
@@ -83,8 +82,8 @@ pub async fn get_distribution_release_architectures(
 
     let distribution_release_architectures = source_packages::table
         .inner_join(build_inputs::table)
-        .filter(source_packages::distribution.eq(&path.0))
-        .filter(source_packages::release.eq(&path.1))
+        .filter(source_packages::distribution.is(&path.0))
+        .filter(source_packages::release.is(&path.1))
         .select(build_inputs::architecture)
         .distinct()
         .load::<String>(connection.as_mut())
@@ -101,8 +100,8 @@ pub async fn get_distribution_release_components(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let distribution_release_components = source_packages::table
-        .filter(source_packages::distribution.eq(&path.0))
-        .filter(source_packages::release.eq(&path.1))
+        .filter(source_packages::distribution.is(&path.0))
+        .filter(source_packages::release.is(&path.1))
         .select(source_packages::component)
         .distinct()
         .load::<Option<String>>(connection.as_mut())
@@ -120,9 +119,9 @@ pub async fn get_distribution_release_component_architectures(
 
     let distribution_release_component_architectures = source_packages::table
         .inner_join(build_inputs::table)
-        .filter(source_packages::distribution.eq(&path.0))
-        .filter(source_packages::release.eq(&path.1))
-        .filter(source_packages::component.eq(&path.2))
+        .filter(source_packages::distribution.is(&path.0))
+        .filter(source_packages::release.is(&path.1))
+        .filter(source_packages::component.is(&path.2))
         .select(build_inputs::architecture)
         .distinct()
         .load::<String>(connection.as_mut())

@@ -18,9 +18,9 @@ use crate::{attestation, web};
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::{Duration, Utc};
 use diesel::dsl::update;
-use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
+use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
@@ -66,7 +66,7 @@ pub async fn get_builds(
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
@@ -80,7 +80,7 @@ pub async fn get_builds(
     total_sql = origin_filter.filter(total_sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        total_sql = total_sql.filter(build_inputs::architecture.eq(architecture));
+        total_sql = total_sql.filter(build_inputs::architecture.is(architecture));
     }
 
     total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
@@ -107,7 +107,7 @@ pub async fn submit_rebuild_report(
 
     let report = request.into_inner();
     let queued = queue::table
-        .filter(queue::id.eq(report.queue_id))
+        .filter(queue::id.is(report.queue_id))
         .get_result::<Queued>(connection.as_mut())
         .map_err(Error::from)?;
 
@@ -211,7 +211,7 @@ pub async fn submit_rebuild_report(
     if report.status != BuildStatus::Good {
         // increment retries and requeue
         let retry_count = build_inputs::table
-            .filter(build_inputs::id.eq(queued.build_input_id))
+            .filter(build_inputs::id.is(queued.build_input_id))
             .select(build_inputs::retries)
             .get_result::<i32>(connection.as_mut())
             .map_err(Error::from)?;
@@ -247,7 +247,7 @@ pub async fn get_build(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result
 
     if let Some(record) = rebuilds::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
-        .filter(rebuilds::id.eq(*id))
+        .filter(rebuilds::id.is(*id))
         .select((
             rebuilds::id,
             source_packages::name,
@@ -281,7 +281,7 @@ pub async fn get_build_log(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let build_log = rebuilds::table
-        .filter(rebuilds::id.eq(id.into_inner()))
+        .filter(rebuilds::id.is(id.into_inner()))
         .inner_join(build_logs::table)
         .select(build_logs::build_log)
         .first::<Vec<u8>>(connection.as_mut())
@@ -302,7 +302,7 @@ pub async fn get_build_artifacts(
                 .left_join(diffoscope_logs::table)
                 .left_join(attestation_logs::table),
         )
-        .filter(rebuilds::id.eq(id.into_inner()))
+        .filter(rebuilds::id.is(id.into_inner()))
         .select((
             rebuild_artifacts::id,
             rebuild_artifacts::name,
@@ -329,8 +329,8 @@ pub async fn get_build_artifact(
                 .left_join(diffoscope_logs::table)
                 .left_join(attestation_logs::table),
         )
-        .filter(rebuilds::id.eq(path.0))
-        .filter(rebuild_artifacts::id.eq(path.1))
+        .filter(rebuilds::id.is(path.0))
+        .filter(rebuild_artifacts::id.is(path.1))
         .select((
             rebuild_artifacts::id,
             rebuild_artifacts::name,
@@ -359,8 +359,8 @@ pub async fn get_build_artifact_diffoscope(
 
     let diffoscope = rebuilds::table
         .inner_join(rebuild_artifacts::table.left_join(diffoscope_logs::table))
-        .filter(rebuilds::id.eq(path.0))
-        .filter(rebuild_artifacts::id.eq(path.1))
+        .filter(rebuilds::id.is(path.0))
+        .filter(rebuild_artifacts::id.is(path.1))
         .select(diffoscope_logs::diffoscope_log.nullable())
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
@@ -385,8 +385,8 @@ pub async fn get_build_artifact_attestation(
 
     let attestation = rebuilds::table
         .inner_join(rebuild_artifacts::table.left_join(attestation_logs::table))
-        .filter(rebuilds::id.eq(path.0))
-        .filter(rebuild_artifacts::id.eq(path.1))
+        .filter(rebuilds::id.is(path.0))
+        .filter(rebuild_artifacts::id.is(path.1))
         .select(attestation_logs::attestation_log.nullable())
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
@@ -405,14 +405,14 @@ pub async fn get_build_artifact_attestation(
 
         if has_new_signature {
             let attestation_id = rebuild_artifacts::table
-                .filter(rebuild_artifacts::id.eq(path.1))
+                .filter(rebuild_artifacts::id.is(path.1))
                 .select(rebuild_artifacts::attestation_log_id.assume_not_null())
                 .get_result::<i32>(connection.as_mut())
                 .map_err(Error::from)?;
 
             // TODO: GET with side effects?
             update(attestation_logs::table)
-                .filter(attestation_logs::id.eq(attestation_id))
+                .filter(attestation_logs::id.is(attestation_id))
                 .set(attestation_logs::attestation_log.eq(bytes.clone()))
                 .execute(connection.as_mut())
                 .map_err(Error::from)?;

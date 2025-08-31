@@ -27,9 +27,9 @@ pub async fn get_dashboard(
 
     let mut sql = source_packages::table
         .inner_join(build_inputs::table)
-        .left_join(r1.on(r1.field(rebuilds::build_input_id).eq(build_inputs::id)))
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
         .left_join(
-            r2.on(r2.field(rebuilds::build_input_id).eq(build_inputs::id).and(
+            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
                 r1.field(rebuilds::built_at)
                     .lt(r2.field(rebuilds::built_at))
                     .or(r1.fields(
@@ -45,7 +45,7 @@ pub async fn get_dashboard(
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     // dashboards rarely care about historical data for sums
@@ -84,7 +84,7 @@ pub async fn get_dashboard(
     sql = origin_filter.filter(sql);
 
     if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.eq(architecture));
+        sql = sql.filter(build_inputs::architecture.is(architecture));
     }
 
     let jobs = sql

@@ -21,7 +21,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn get_and_refresh(key: &str, connection: &mut SqliteConnection) -> Result<Worker> {
-        let worker = diesel::update(workers::table.filter(workers::key.eq(key)))
+        let worker = diesel::update(workers::table.filter(workers::key.is(key)))
             .set((
                 workers::last_ping.eq(Utc::now().naive_utc()),
                 workers::online.eq(true),

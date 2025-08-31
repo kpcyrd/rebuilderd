@@ -4,7 +4,7 @@ use clap::Parser;
 use colored::Colorize;
 use diesel::dsl::update;
 use diesel::query_dsl::QueryDsl;
-use diesel::{ExpressionMethods, NullableExpressionMethods, RunQueryDsl};
+use diesel::{ExpressionMethods, NullableExpressionMethods, RunQueryDsl, SqliteExpressionMethods};
 use env_logger::Env;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd::attestation::{self, Attestation};
@@ -553,7 +553,7 @@ async fn main() -> Result<()> {
                 let attestation = attestation.to_compressed_bytes().await?;
 
                 update(attestation_logs::table)
-                    .filter(attestation_logs::id.eq(artifact.0))
+                    .filter(attestation_logs::id.is(artifact.0))
                     .set(attestation_logs::attestation_log.eq(attestation))
                     .execute(connection.as_mut())?;
             }

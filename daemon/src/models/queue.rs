@@ -22,7 +22,7 @@ pub struct Queued {
 impl Queued {
     pub fn delete(&self, connection: &mut SqliteConnection) -> Result<()> {
         use crate::schema::queue::columns::*;
-        diesel::delete(queue::table.filter(id.eq(self.id))).execute(connection)?;
+        diesel::delete(queue::table.filter(id.is(self.id))).execute(connection)?;
         Ok(())
     }
 }

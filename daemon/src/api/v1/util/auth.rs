@@ -3,8 +3,8 @@ use crate::config::Config;
 use crate::models::Worker;
 use crate::schema::workers;
 use actix_web::HttpRequest;
-use diesel::ExpressionMethods;
 use diesel::QueryDsl;
+use diesel::SqliteExpressionMethods;
 use diesel::{RunQueryDsl, SqliteConnection};
 use log::debug;
 use rebuilderd_common::api::{AUTH_COOKIE_HEADER, SIGNUP_SECRET_HEADER, WORKER_KEY_HEADER};
@@ -38,7 +38,7 @@ pub fn worker(
     }
 
     let key_is_registered = diesel::dsl::select(diesel::dsl::exists(
-        workers::table.filter(workers::key.eq(worker_key)),
+        workers::table.filter(workers::key.is(worker_key)),
     ))
     .get_result::<bool>(connection)?;
 
