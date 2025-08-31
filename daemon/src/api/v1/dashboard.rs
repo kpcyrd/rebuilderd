@@ -5,10 +5,10 @@ use crate::web;
 use actix_web::{get, HttpResponse, Responder};
 use diesel::dsl::{case_when, sum};
 use diesel::sql_types::Integer;
-use diesel::ExpressionMethods;
 use diesel::NullableExpressionMethods;
 use diesel::RunQueryDsl;
 use diesel::{BoolExpressionMethods, JoinOnDsl, QueryDsl};
+use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{DashboardState, OriginFilter, QueuedJob};
 use rebuilderd_common::errors::Error;
 
@@ -47,6 +47,9 @@ pub async fn get_dashboard(
     if let Some(architecture) = &origin_filter.architecture {
         sql = sql.filter(build_inputs::architecture.eq(architecture));
     }
+
+    // dashboards rarely care about historical data for sums
+    sql = sql.filter(source_packages::seen_in_last_sync.is(true));
 
     let sums = sql
         .select((
