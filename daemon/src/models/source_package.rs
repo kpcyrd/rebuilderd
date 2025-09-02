@@ -1,7 +1,7 @@
 use crate::schema::*;
 use chrono::NaiveDateTime;
-use diesel::dsl::update;
 use diesel::prelude::*;
+use diesel::sql_types::Text;
 use rebuilderd_common::errors::*;
 
 #[derive(Identifiable, Queryable, Selectable, AsChangeset, Clone, PartialEq, Eq, Debug)]
@@ -36,30 +36,13 @@ pub struct NewSourcePackage {
 
 impl NewSourcePackage {
     pub fn upsert(&self, connection: &mut SqliteConnection) -> Result<SourcePackage> {
-        let existing = diesel::insert_into(source_packages::table)
+        diesel::insert_into(source_packages::table)
             .values(self)
-            .on_conflict_do_nothing() // TODO: two round trips here because Diesel doesn't support on_conflict() with no target, and we have uniqueness semantics for nullable columns
-            .returning(SourcePackage::as_select())
-            .get_result::<SourcePackage>(connection)
-            .optional()?;
-
-        if let Some(existing) = existing {
-            return Ok(existing);
-        }
-
-        let updated = update(source_packages::table)
-            .filter(
-                source_packages::name
-                    .is(&self.name)
-                    .and(source_packages::version.is(&self.version))
-                    .and(source_packages::distribution.is(&self.distribution)),
-            )
-            .filter(source_packages::release.is(&self.release))
-            .filter(source_packages::component.is(&self.component))
+            .on_conflict(diesel::dsl::sql::<Text>(""))
+            .do_update()
             .set(self)
             .returning(SourcePackage::as_select())
-            .get_result::<SourcePackage>(connection)?;
-
-        Ok(updated)
+            .get_result::<SourcePackage>(connection)
+            .map_err(Error::from)
     }
 }
