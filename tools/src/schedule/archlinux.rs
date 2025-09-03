@@ -158,52 +158,53 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
     let mut reports = Vec::new();
     for arch in &sync.architectures {
-        let suite = sync.suite.clone().unwrap();
-        let db = mirror_to_url(source, &suite, arch, &format!("{}.db", suite))?;
-        let bytes = fetch_url_or_path(http, &db).await?;
+        for component in &sync.components {
+            let db = mirror_to_url(source, component, arch, &format!("{}.db", component))?;
+            let bytes = fetch_url_or_path(http, &db).await?;
 
-        let mut report = PackageReport {
-            distribution: "archlinux".to_string(),
-            release: None,
-            component: Some(suite.clone()),
-            architecture: arch.clone(),
-            packages: Vec::new(),
-        };
-
-        let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
-
-        info!("Parsing index ({} bytes)...", bytes.len());
-        for pkg in extract_pkgs(&bytes)? {
-            if !pkg.matches(sync) {
-                continue;
-            }
-
-            let url = mirror_to_url(source, &suite, arch, &pkg.filename)?;
-            let artifact = BinaryPackageReport {
-                name: pkg.name,
-                version: pkg.version.clone(),
-                architecture: pkg.architecture,
-                url: url.clone(),
+            let mut report = PackageReport {
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some(component.clone()),
+                architecture: arch.clone(),
+                packages: Vec::new(),
             };
 
-            if let Some(group) = bases.get_mut(&pkg.base) {
-                // TODO: multiple architectures could have the exact same package with arch=any
-                group.artifacts.push(artifact);
-            } else {
-                let mut group = SourcePackageReport {
-                    name: pkg.base.clone(),
+            let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
+
+            info!("Parsing index ({} bytes)...", bytes.len());
+            for pkg in extract_pkgs(&bytes)? {
+                if !pkg.matches(sync) {
+                    continue;
+                }
+
+                let url = mirror_to_url(source, component, arch, &pkg.filename)?;
+                let artifact = BinaryPackageReport {
+                    name: pkg.name,
                     version: pkg.version.clone(),
-                    url: url.clone(), // use first artifact's url as the source URL for now
-                    artifacts: Vec::new(),
+                    architecture: pkg.architecture,
+                    url: url.clone(),
                 };
 
-                group.artifacts.push(artifact);
-                bases.insert(pkg.base, group);
-            }
-        }
+                if let Some(group) = bases.get_mut(&pkg.base) {
+                    // TODO: multiple architectures could have the exact same package with arch=any
+                    group.artifacts.push(artifact);
+                } else {
+                    let mut group = SourcePackageReport {
+                        name: pkg.base.clone(),
+                        version: pkg.version.clone(),
+                        url: url.clone(), // use first artifact's url as the source URL for now
+                        artifacts: Vec::new(),
+                    };
 
-        report.packages = bases.into_values().collect();
-        reports.push(report);
+                    group.artifacts.push(artifact);
+                    bases.insert(pkg.base, group);
+                }
+            }
+
+            report.packages = bases.into_values().collect();
+            reports.push(report);
+        }
     }
 
     Ok(reports)

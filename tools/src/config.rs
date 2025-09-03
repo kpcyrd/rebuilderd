@@ -21,19 +21,32 @@ impl SyncConfigFile {
 #[derive(Debug, Deserialize)]
 pub struct SyncProfile {
     pub distro: String,
+
     pub sync_method: Option<String>,
+
+    #[deprecated]
     pub suite: Option<String>,
+
+    #[serde(default)]
+    pub components: Vec<String>,
+
     #[serde(default)]
     pub releases: Vec<String>,
+
+    #[deprecated]
     pub architecture: Option<String>,
+
     #[serde(default)]
     pub architectures: Vec<String>,
+
     pub source: String,
 
     #[serde(default)]
     pub maintainers: Vec<String>,
+
     #[serde(default)]
     pub pkgs: Vec<String>,
+
     #[serde(default)]
     pub excludes: Vec<String>,
 }

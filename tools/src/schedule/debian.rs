@@ -363,6 +363,7 @@ impl SyncState {
         pkg: DebianBinPkg,
         sources: &SourcePkgBucket,
         release: &String,
+        component: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         // Debian combines arch:all and arch:any packages.
@@ -379,13 +380,7 @@ impl SyncState {
             src.base, src.version
         );
 
-        self.push(
-            &src,
-            pkg,
-            &sync.source,
-            release,
-            &sync.suite.clone().unwrap(),
-        );
+        self.push(&src, pkg, &sync.source, release, component);
         Ok(())
     }
 
@@ -394,10 +389,11 @@ impl SyncState {
         bytes: &[u8],
         sources: &SourcePkgBucket,
         release: &String,
+        component: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
-            self.import_binary_pkg(pkg, sources, release, sync)?;
+            self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
         Ok(())
     }
@@ -407,10 +403,11 @@ impl SyncState {
         bytes: &[u8],
         sources: &SourcePkgBucket,
         release: &String,
+        component: &String,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
-            self.import_binary_pkg(pkg, sources, release, sync)?;
+            self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
         Ok(())
     }
@@ -420,29 +417,32 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     let mut state = SyncState::new();
 
     for release in &sync.releases {
-        let suite = sync.suite.clone().unwrap();
-        let mut sources = SourcePkgBucket::new();
+        for component in &sync.components {
+            let mut sources = SourcePkgBucket::new();
 
-        // Downloading source package index
-        let db_url = format!(
-            "{}/dists/{}/{}/source/Sources.xz",
-            sync.source, release, suite
-        );
-
-        let bytes = fetch_url_or_path(http, &db_url).await?;
-
-        info!("Building map of all source packages");
-        sources.import_compressed_source_package_file(&bytes)?;
-
-        for arch in &sync.architectures {
-            // Downloading binary package index
+            // Downloading source package index
             let db_url = format!(
-                "{}/dists/{}/{}/binary-{}/Packages.xz",
-                sync.source, release, suite, arch
+                "{}/dists/{}/{}/source/Sources.xz",
+                sync.source, release, component
             );
 
             let bytes = fetch_url_or_path(http, &db_url).await?;
-            state.import_compressed_binary_package_file(&bytes, &sources, release, &sync)?;
+
+            info!("Building map of all source packages");
+            sources.import_compressed_source_package_file(&bytes)?;
+
+            for arch in &sync.architectures {
+                // Downloading binary package index
+                let db_url = format!(
+                    "{}/dists/{}/{}/binary-{}/Packages.xz",
+                    sync.source, release, component, arch
+                );
+
+                let bytes = fetch_url_or_path(http, &db_url).await?;
+                state.import_compressed_binary_package_file(
+                    &bytes, &sources, release, component, sync,
+                )?;
+            }
         }
     }
 
@@ -1463,7 +1463,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
         let mut state = SyncState::new();
         let sync = PkgsSync {
             distro: "debian".to_string(),
-            suite: Some("main".to_string()),
+            components: vec!["main".to_string()],
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string()],
             print_json: true,
@@ -1480,6 +1480,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                 &bytes[..],
                 &sources,
                 &"sid".to_string(),
+                &"main".to_string(),
                 &sync,
             )
             .unwrap();
@@ -1488,6 +1489,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                 &bytes[..],
                 &sources,
                 &"testing".to_string(),
+                &"main".to_string(),
                 &sync,
             )
             .unwrap();
@@ -1546,7 +1548,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
 
         let sync = PkgsSync {
             distro: "debian".to_string(),
-            suite: Some("main".to_string()),
+            components: vec!["main".to_string()],
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string(), "all".to_string()],
             print_json: true,
@@ -1654,7 +1656,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
             sources
                 .import_uncompressed_source_package_file(&source[..])
                 .unwrap();
-            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &sync)
+            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &"main".to_string(), &sync)
                 .unwrap();
         }
 
@@ -1727,9 +1729,9 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
         ] {
             let mut sources = SourcePkgBucket::new();
             sources
-                .import_uncompressed_source_package_file(source)
+                .import_uncompressed_source_package_file(&source[..])
                 .unwrap();
-            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &sync)
+            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &"main".to_string(), &sync)
                 .unwrap();
         }
 

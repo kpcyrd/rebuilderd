@@ -152,6 +152,12 @@ async fn main() -> Result<()> {
                 .remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
 
+            // TODO: remove this after we've deprecated suite=
+            if let Some(suite) = profile.suite {
+                warn!("Deprecated option in config: replace `suite = \"{}\"` with `components = [\"{}\"]`", suite, suite);
+                profile.components.push(suite)
+            }
+
             // TODO: remove this after we've deprecated architecture=
             if let Some(arch) = profile.architecture {
                 warn!("Deprecated option in config: replace `architecture = \"{}\"` with `architectures = [\"{}\"]`", arch, arch);
@@ -163,7 +169,7 @@ async fn main() -> Result<()> {
                 PkgsSync {
                     distro: profile.distro,
                     sync_method: profile.sync_method,
-                    suite: profile.suite,
+                    components: profile.components,
                     releases: profile.releases,
                     architectures: profile.architectures,
                     source: profile.source,

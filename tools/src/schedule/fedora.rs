@@ -12,61 +12,61 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     let mut reports = Vec::new();
 
     for release in &sync.releases {
-        for arch in &sync.architectures {
-            let suite = &sync.suite.clone().unwrap();
+        for component in &sync.components {
+            for arch in &sync.architectures {
+                let url = format!("{}/{}/{}/{}/os/", sync.source, release, component, arch);
+                let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
+                let location = get_primary_location_from_xml(&bytes)?;
 
-            let url = format!("{}/{}/{}/{}/os/", sync.source, release, suite, arch);
-            let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
-            let location = get_primary_location_from_xml(&bytes)?;
+                let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
+                info!("Parsing index ({} bytes)...", bytes.len());
 
-            let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
-            info!("Parsing index ({} bytes)...", bytes.len());
+                let comp = decompress::detect_compression(&bytes);
+                let data = decompress::stream(comp, &bytes)?;
+                let packages = parse_package_index(data)?;
 
-            let comp = decompress::detect_compression(&bytes);
-            let data = decompress::stream(comp, &bytes)?;
-            let packages = parse_package_index(data)?;
-
-            let mut report = PackageReport {
-                distribution: "archlinux".to_string(),
-                release: None,
-                component: Some(suite.clone()),
-                architecture: arch.clone(),
-                packages: Vec::new(),
-            };
-
-            let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
-
-            for pkg in packages {
-                if !pkg.matches(sync) {
-                    continue;
-                }
-
-                let url = format!("{url}{}", pkg.location.href);
-                let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
-                let artifact = BinaryPackageReport {
-                    name: pkg.name,
-                    version,
-                    architecture: pkg.arch,
-                    url: url.clone(),
+                let mut report = PackageReport {
+                    distribution: "archlinux".to_string(),
+                    release: None,
+                    component: Some(component.clone()),
+                    architecture: arch.clone(),
+                    packages: Vec::new(),
                 };
 
-                if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
-                    group.artifacts.push(artifact);
-                } else {
-                    let mut group = SourcePackageReport {
-                        name: pkg.format.sourcerpm.clone(),
-                        version: format!("{}-{}", pkg.version.ver, pkg.version.rel),
-                        url: url.clone(), // use first artifact's url as the source URL for now
-                        artifacts: Vec::new(),
+                let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
+
+                for pkg in packages {
+                    if !pkg.matches(sync) {
+                        continue;
+                    }
+
+                    let url = format!("{url}{}", pkg.location.href);
+                    let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
+                    let artifact = BinaryPackageReport {
+                        name: pkg.name,
+                        version,
+                        architecture: pkg.arch,
+                        url: url.clone(),
                     };
 
-                    group.artifacts.push(artifact);
-                    bases.insert(pkg.format.sourcerpm, group);
-                }
-            }
+                    if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
+                        group.artifacts.push(artifact);
+                    } else {
+                        let mut group = SourcePackageReport {
+                            name: pkg.format.sourcerpm.clone(),
+                            version: format!("{}-{}", pkg.version.ver, pkg.version.rel),
+                            url: url.clone(), // use first artifact's url as the source URL for now
+                            artifacts: Vec::new(),
+                        };
 
-            report.packages = bases.into_values().collect();
-            reports.push(report);
+                        group.artifacts.push(artifact);
+                        bases.insert(pkg.format.sourcerpm, group);
+                    }
+                }
+
+                report.packages = bases.into_values().collect();
+                reports.push(report);
+            }
         }
     }
 

@@ -75,20 +75,30 @@ pub struct PkgsSyncStdin {
 #[derive(Debug, Parser)]
 pub struct PkgsSync {
     pub distro: String,
-    pub suite: Option<String>,
+
+    #[arg(long = "component")]
+    pub components: Vec<String>,
+
     pub source: String,
+
     #[arg(long = "architecture")]
     pub architectures: Vec<String>,
+
     #[arg(long)]
     pub print_json: bool,
+
     #[arg(long = "maintainer")]
     pub maintainers: Vec<String>,
+
     #[arg(long = "release")]
     pub releases: Vec<String>,
+
     #[arg(long = "pkg")]
     pub pkgs: Vec<Pattern>,
+
     #[arg(long = "exclude")]
     pub excludes: Vec<Pattern>,
+
     #[arg(long)]
     pub sync_method: Option<String>,
 }
