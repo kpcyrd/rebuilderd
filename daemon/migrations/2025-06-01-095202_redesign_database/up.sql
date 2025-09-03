@@ -53,6 +53,7 @@ SELECT id, input_url, distro, architecture, retries, next_retry
 FROM pkgbases;
 
 CREATE INDEX build_inputs_source_package_id_idx ON build_inputs (source_package_id);
+CREATE INDEX build_inputs_url_idx ON build_inputs (url);
 CREATE INDEX build_inputs_backend_idx ON build_inputs (backend);
 CREATE INDEX build_inputs_architecture_idx ON build_inputs (architecture);
 CREATE INDEX build_inputs_next_retry_idx ON build_inputs (next_retry);
