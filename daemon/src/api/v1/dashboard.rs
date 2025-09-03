@@ -102,6 +102,8 @@ pub async fn get_dashboard(
             queue::queued_at,
             queue::started_at,
         ))
+        .order_by((queue::started_at.desc(), queue::id))
+        .limit(1000)
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;
 
