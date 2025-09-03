@@ -374,13 +374,19 @@ impl SyncState {
 
         debug!("Found binary package: {:?} {:?}", pkg.name, pkg.version);
 
-        let src = sources.get(&pkg)?;
-        debug!(
-            "Matched binary package to source package: {:?} {:?}",
-            src.base, src.version
-        );
+        match sources.get(&pkg) {
+            Ok(source) => {
+                debug!(
+                    "Matched binary package to source package: {:?} {:?}",
+                    source.base, source.version
+                );
 
-        self.push(&src, pkg, &sync.source, release, component);
+                self.push(&source, pkg, &sync.source, release, component);
+            }
+            Err(e) => {
+                warn!("{}, skipping", e)
+            }
+        }
         Ok(())
     }
 
@@ -417,9 +423,9 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     let mut state = SyncState::new();
 
     for release in &sync.releases {
-        for component in &sync.components {
-            let mut sources = SourcePkgBucket::new();
+        let mut sources = SourcePkgBucket::new();
 
+        for component in &sync.components {
             // Downloading source package index
             let db_url = format!(
                 "{}/dists/{}/{}/source/Sources.xz",
@@ -438,10 +444,16 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     sync.source, release, component, arch
                 );
 
-                let bytes = fetch_url_or_path(http, &db_url).await?;
-                state.import_compressed_binary_package_file(
-                    &bytes, &sources, release, component, sync,
-                )?;
+                match fetch_url_or_path(http, &db_url).await {
+                    Ok(bytes) => {
+                        state.import_compressed_binary_package_file(
+                            &bytes, &sources, release, component, sync,
+                        )?;
+                    }
+                    Err(e) => {
+                        warn!("{}, skipping", e);
+                    }
+                }
             }
         }
     }

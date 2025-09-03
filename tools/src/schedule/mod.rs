@@ -7,7 +7,14 @@ use std::fs;
 pub async fn fetch_url_or_path(client: &http::Client, path: &str) -> Result<Vec<u8>> {
     let bytes = if path.starts_with("https://") || path.starts_with("http://") {
         info!("Downloading {:?}...", path);
-        client.get(path).send().await?.bytes().await?.to_vec()
+        client
+            .get(path)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?
+            .to_vec()
     } else {
         info!("Reading {:?}...", path);
         fs::read(path)?
@@ -62,7 +69,7 @@ mod tests {
         PkgsSync {
             distro: "archlinux".to_string(),
             sync_method: None,
-            suite: Some("community".to_string()),
+            components: vec!["community".to_string()],
             architectures: vec!["x86_64".to_string()],
             source: "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch".to_string(),
             releases: Vec::new(),
