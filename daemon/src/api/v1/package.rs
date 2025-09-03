@@ -207,7 +207,6 @@ pub async fn submit_package_report(
 
             let has_queued_friend = select(exists(
                 queue::table
-                    .filter(queue::build_input_id.ne(&build_input.id))
                     .filter(
                         queue::build_input_id.eq_any(
                             build_inputs::table
@@ -222,15 +221,7 @@ pub async fn submit_package_report(
             .get_result::<bool>(conn.as_mut())
             .map_err(Error::from)?;
 
-            let has_queued_self = select(exists(
-                queue::table
-                    .filter(queue::build_input_id.is(&build_input.id))
-                    .select(queue::id),
-            ))
-            .get_result::<bool>(conn.as_mut())
-            .map_err(Error::from)?;
-
-            if current_status != BuildStatus::Good && !has_queued_friend && !has_queued_self {
+            if current_status != BuildStatus::Good && !has_queued_friend {
                 let priority = match current_status {
                     BuildStatus::Bad => DEFAULT_QUEUE_PRIORITY + 1,
                     _ => DEFAULT_QUEUE_PRIORITY,
