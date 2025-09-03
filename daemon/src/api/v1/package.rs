@@ -21,6 +21,7 @@ use diesel::{
 };
 use rebuilderd_common::api::v1::{
     BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
+    SourcePackageReport,
 };
 use rebuilderd_common::errors::Error;
 
@@ -137,22 +138,14 @@ pub async fn submit_package_report(
     connection.transaction(|conn| {
         mark_scoped_packages_unseen(conn.as_mut(), &report)?;
 
-        for package_report in report.packages {
+        for package_report in &report.packages {
             // check if this package already exists - this is used later to determine if we should copy over existing build
             // results to this package.
-            let is_new_package = select(not(exists(
-                source_packages::table
-                    .filter(source_packages::name.is(&package_report.name))
-                    .filter(source_packages::version.is(&package_report.version))
-                    .filter(source_packages::distribution.is(&report.distribution))
-                    .filter(source_packages::release.is(&report.release))
-                    .filter(source_packages::component.is(&report.component)),
-            )))
-            .get_result::<bool>(conn.as_mut())?;
+            let is_new_package = is_new_package(&report, conn, package_report)?;
 
             let new_source_package = NewSourcePackage {
-                name: package_report.name,
-                version: package_report.version,
+                name: package_report.name.clone(),
+                version: package_report.version.clone(),
                 distribution: report.distribution.clone(),
                 release: report.release.clone(),
                 component: report.component.clone(),
@@ -164,7 +157,7 @@ pub async fn submit_package_report(
 
             let new_build_input = NewBuildInput {
                 source_package_id: source_package.id,
-                url: package_report.url,
+                url: package_report.url.clone(),
                 backend: report.distribution.clone(),
                 architecture: report.architecture.clone(),
                 retries: 0,
@@ -172,14 +165,14 @@ pub async fn submit_package_report(
 
             let build_input = new_build_input.upsert(conn.as_mut())?;
 
-            for artifact_report in package_report.artifacts {
+            for artifact_report in &package_report.artifacts {
                 let new_binary_package = NewBinaryPackage {
                     source_package_id: source_package.id,
                     build_input_id: build_input.id,
-                    name: artifact_report.name,
-                    version: artifact_report.version,
+                    name: artifact_report.name.clone(),
+                    version: artifact_report.version.clone(),
                     architecture: report.architecture.clone(),
-                    artifact_url: artifact_report.url,
+                    artifact_url: artifact_report.url.clone(),
                 };
 
                 new_binary_package.upsert(conn.as_mut())?;
@@ -192,34 +185,8 @@ pub async fn submit_package_report(
                 copy_existing_rebuilds(conn, &build_input)?;
             }
 
-            let current_status = match rebuilds::table
-                .filter(rebuilds::build_input_id.is(&build_input.id))
-                .select(rebuilds::status)
-                .order_by(rebuilds::built_at.desc())
-                .get_result::<Option<BuildStatus>>(conn.as_mut())
-                .optional()
-                .map_err(Error::from)?
-                .flatten()
-            {
-                None => BuildStatus::Unknown,
-                Some(value) => value,
-            };
-
-            let has_queued_friend = select(exists(
-                queue::table
-                    .filter(
-                        queue::build_input_id.eq_any(
-                            build_inputs::table
-                                .filter(build_inputs::url.is(&build_input.url))
-                                .filter(build_inputs::backend.is(&build_input.backend))
-                                .filter(build_inputs::architecture.is(&build_input.architecture))
-                                .select(build_inputs::id),
-                        ),
-                    )
-                    .select(queue::id),
-            ))
-            .get_result::<bool>(conn.as_mut())
-            .map_err(Error::from)?;
+            let current_status = get_current_rebuild_status(conn, &build_input)?;
+            let has_queued_friend = has_queued_friend(conn, &build_input)?;
 
             if current_status != BuildStatus::Good && !has_queued_friend {
                 let priority = match current_status {
@@ -241,6 +208,64 @@ pub async fn submit_package_report(
     })?;
 
     Ok(HttpResponse::NoContent().finish())
+}
+
+fn is_new_package(
+    report: &PackageReport,
+    conn: &mut PooledConnection<ConnectionManager<SqliteConnectionWrap>>,
+    source_package_report: &SourcePackageReport,
+) -> Result<bool, Error> {
+    let is_new_package = select(not(exists(
+        source_packages::table
+            .filter(source_packages::name.is(&source_package_report.name))
+            .filter(source_packages::version.is(&source_package_report.version))
+            .filter(source_packages::distribution.is(&report.distribution))
+            .filter(source_packages::release.is(&report.release))
+            .filter(source_packages::component.is(&report.component)),
+    )))
+    .get_result::<bool>(conn.as_mut())?;
+
+    Ok(is_new_package)
+}
+
+fn get_current_rebuild_status(
+    conn: &mut PooledConnection<ConnectionManager<SqliteConnectionWrap>>,
+    build_input: &BuildInput,
+) -> Result<BuildStatus, Error> {
+    let current_status = rebuilds::table
+        .filter(rebuilds::build_input_id.is(&build_input.id))
+        .select(rebuilds::status)
+        .order_by(rebuilds::built_at.desc())
+        .get_result::<Option<BuildStatus>>(conn.as_mut())
+        .optional()
+        .map_err(Error::from)?
+        .flatten()
+        .unwrap_or(BuildStatus::Unknown);
+
+    Ok(current_status)
+}
+
+fn has_queued_friend(
+    conn: &mut PooledConnection<ConnectionManager<SqliteConnectionWrap>>,
+    build_input: &BuildInput,
+) -> Result<bool, Error> {
+    let has_queued_friend = select(exists(
+        queue::table
+            .filter(
+                queue::build_input_id.eq_any(
+                    build_inputs::table
+                        .filter(build_inputs::url.is(&build_input.url))
+                        .filter(build_inputs::backend.is(&build_input.backend))
+                        .filter(build_inputs::architecture.is(&build_input.architecture))
+                        .select(build_inputs::id),
+                ),
+            )
+            .select(queue::id),
+    ))
+    .get_result::<bool>(conn.as_mut())
+    .map_err(Error::from)?;
+
+    Ok(has_queued_friend)
 }
 
 fn copy_existing_rebuilds(
