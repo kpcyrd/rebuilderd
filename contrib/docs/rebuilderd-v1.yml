@@ -878,18 +878,48 @@ components:
     DashboardState:
       type: object
       properties:
+        rebuilds:
+          $ref: '#/components/schemas/DashboardRebuildState'
+        jobs:
+          $ref: '#/components/schemas/DashboardJobState'
+    DashboardJobState:
+      type: object
+      properties:
         good:
+          description: The number of packages that were successfully reproduced
           type: integer
         bad:
+          description: The number of packages that could not be reproduced
           type: integer
         fail:
+          description: The number of packages that failed to build outright
           type: integer
         unknown:
+          description: The number of packages that haven't been attempted yet
           type: integer
-        active_builds:
-          type: array
-          items:
-            $ref: '#/components/schemas/QueuedJob'
+      required:
+        - good
+        - bad
+        - fail
+        - unknown
+      additionalProperties: false
+    DashboardRebuildState:
+      type: object
+      properties:
+        running:
+          description: The number of jobs actively being worked on
+          type: integer
+        available:
+          description: The number of jobs that could be claimed by a worker
+          type: integer
+        pending:
+          description: The number of jobs enqueued but not yet available to workers
+          type: integer
+      required:
+        - running
+        - available
+        - pending
+      additionalProperties: false
     QueueJobRequest:
       type: object
       properties:
