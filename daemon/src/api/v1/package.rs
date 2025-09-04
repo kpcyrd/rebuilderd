@@ -12,7 +12,7 @@ use crate::schema::{
 use crate::web;
 use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use diesel::dsl::{exists, not, select, update};
+use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
 use diesel::{
@@ -103,6 +103,11 @@ fn binary_packages_base() -> _ {
         ))
 }
 
+/// Marks packages potentially affected by the given report as not having been
+/// seen in the last sync.
+///
+/// The expectation is that all seen flags are set to false just before a sync
+/// runs, which will flip the flag back to true for seen packages.
 fn mark_scoped_packages_unseen(
     connection: &mut SqliteConnection,
     report: &PackageReport,
@@ -111,11 +116,40 @@ fn mark_scoped_packages_unseen(
     update(source_packages::table)
         .filter(source_packages::distribution.is(&report.distribution))
         .filter(source_packages::release.is(&report.release))
-        .filter(source_packages::release.is(&report.release))
         .filter(source_packages::component.is(&report.component))
         .set(source_packages::seen_in_last_sync.eq(false))
         .execute(connection)
         .map_err(Error::from)?;
+
+    Ok(())
+}
+
+/// Drops enqueued rebuild jobs for source packages potentially affected by the
+/// given report that were not seen in the last sync.
+///
+/// The expectation is that all jobs belonging to an unseen package are dropped
+/// after a sync completes. Jobs that have already been picked up by a worker
+/// are unaffected, however.
+fn drop_unseen_scoped_jobs(
+    connection: &mut SqliteConnection,
+    report: &PackageReport,
+) -> Result<(), Error> {
+    delete(
+        queue::table.filter(queue::worker.is_null()).filter(
+            queue::build_input_id.eq_any(
+                build_inputs::table
+                    .inner_join(source_packages::table)
+                    .filter(source_packages::distribution.is(&report.distribution))
+                    .filter(source_packages::release.is(&report.release))
+                    .filter(source_packages::component.is(&report.component))
+                    .filter(source_packages::seen_in_last_sync.is(false))
+                    .group_by(build_inputs::id)
+                    .select(build_inputs::id),
+            ),
+        ),
+    )
+    .execute(connection)
+    .map_err(Error::from)?;
 
     Ok(())
 }
@@ -203,6 +237,8 @@ pub async fn submit_package_report(
                 new_queued_job.upsert(conn.as_mut())?;
             }
         }
+
+        drop_unseen_scoped_jobs(conn.as_mut(), &report)?;
 
         Ok::<(), Error>(())
     })?;
