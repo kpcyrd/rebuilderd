@@ -1,11 +1,22 @@
-use crate::api::v1::models::queue::QueuedJob;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DashboardState {
+    pub rebuilds: DashboardRebuildState,
+    pub jobs: DashboardJobState,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DashboardRebuildState {
     pub good: i64,
     pub bad: i64,
     pub fail: i64,
     pub unknown: i64,
-    pub active_builds: Vec<QueuedJob>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DashboardJobState {
+    pub running: i64,
+    pub available: i64,
+    pub pending: i64,
 }

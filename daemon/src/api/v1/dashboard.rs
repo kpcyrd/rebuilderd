@@ -3,19 +3,41 @@ use crate::db::Pool;
 use crate::schema::{build_inputs, queue, rebuilds, source_packages};
 use crate::web;
 use actix_web::{get, HttpResponse, Responder};
+use chrono::Utc;
 use diesel::dsl::{case_when, sum};
 use diesel::sql_types::Integer;
+use diesel::sqlite::Sqlite;
 use diesel::NullableExpressionMethods;
 use diesel::RunQueryDsl;
 use diesel::{BoolExpressionMethods, JoinOnDsl, QueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{DashboardState, OriginFilter, QueuedJob};
+use rebuilderd_common::api::v1::{
+    DashboardJobState, DashboardRebuildState, DashboardState, OriginFilter,
+};
 use rebuilderd_common::errors::Error;
 
 use aliases::*;
 
 mod aliases {
     diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);
+}
+
+#[diesel::dsl::auto_type]
+fn queue_count_base<'a>(origin_filter: &'a web::Query<OriginFilter>) -> _ {
+    let mut sql = queue::table
+        .inner_join(build_inputs::table.inner_join(source_packages::table))
+        .into_boxed::<'a, Sqlite>();
+
+    sql = origin_filter.filter(sql);
+
+    if let Some(architecture) = &origin_filter.architecture {
+        sql = sql.filter(build_inputs::architecture.is(architecture));
+    }
+
+    // dashboards rarely care about historical data for sums
+    sql = sql.filter(source_packages::seen_in_last_sync.is(true));
+
+    sql
 }
 
 #[get("")]
@@ -77,42 +99,48 @@ pub async fn get_dashboard(
         .get_result::<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut sql = queue::table
-        .inner_join(build_inputs::table.inner_join(source_packages::table))
-        .into_boxed();
+    let now = Utc::now();
 
-    sql = origin_filter.filter(sql);
+    let running_jobs = queue_count_base(&origin_filter)
+        .filter(queue::worker.is_not_null())
+        .count()
+        .get_result::<i64>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
+    let available_jobs = queue_count_base(&origin_filter)
+        .filter(queue::worker.is_null())
+        .filter(
+            build_inputs::next_retry
+                .is_null()
+                .or(build_inputs::next_retry.le(now.naive_utc())),
+        )
+        .count()
+        .get_result::<i64>(connection.as_mut())
+        .map_err(Error::from)?;
 
-    let jobs = sql
-        .select((
-            queue::id,
-            source_packages::name,
-            source_packages::version,
-            source_packages::distribution,
-            source_packages::release,
-            source_packages::component,
-            build_inputs::architecture,
-            build_inputs::backend,
-            build_inputs::url,
-            build_inputs::next_retry,
-            queue::queued_at,
-            queue::started_at,
-        ))
-        .order_by((queue::started_at.desc(), queue::id))
-        .limit(1000)
-        .load::<QueuedJob>(connection.as_mut())
+    let pending_jobs = queue_count_base(&origin_filter)
+        .filter(queue::worker.is_null())
+        .filter(
+            build_inputs::next_retry
+                .is_not_null()
+                .and(build_inputs::next_retry.gt(now.naive_utc())),
+        )
+        .count()
+        .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
 
     let dashboard = DashboardState {
-        good: sums.0.unwrap_or(0),
-        bad: sums.1.unwrap_or(0),
-        fail: sums.2.unwrap_or(0),
-        unknown: sums.3.unwrap_or(0),
-        active_builds: jobs,
+        rebuilds: DashboardRebuildState {
+            good: sums.0.unwrap_or(0),
+            bad: sums.1.unwrap_or(0),
+            fail: sums.2.unwrap_or(0),
+            unknown: sums.3.unwrap_or(0),
+        },
+        jobs: DashboardJobState {
+            running: running_jobs,
+            available: available_jobs,
+            pending: pending_jobs,
+        },
     };
 
     Ok(HttpResponse::Ok().json(dashboard))
