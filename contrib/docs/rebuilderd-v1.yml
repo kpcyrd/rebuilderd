@@ -645,6 +645,8 @@ paths:
       description: Gets known distributions in the database
       tags:
         - meta
+      parameters:
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -666,6 +668,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -689,6 +692,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -712,6 +716,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -741,6 +746,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -770,6 +776,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -805,6 +812,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/seen_only'
       responses:
         "200":
           description: Success
@@ -1503,6 +1511,14 @@ components:
         type: string
       description: |-
         Filters the results by the architecture of the package.
+    seen_only:
+      in: query
+      name: seen_only
+      required: false
+      schema:
+        type: bool
+      description: |-
+        Filters the results by packages only seen in the latest sync.
   securitySchemes:
     AuthCookie:
       type: apiKey

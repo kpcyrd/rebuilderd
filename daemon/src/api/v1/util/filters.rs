@@ -1,9 +1,9 @@
 use crate::schema::source_packages;
 use diesel::query_dsl::filter_dsl::FilterDsl;
 use diesel::sql_types::Text;
-use diesel::ExpressionMethods;
 use diesel::{Column, Expression};
-use rebuilderd_common::api::v1::{IdentityFilter, OriginFilter};
+use diesel::{ExpressionMethods, SqliteExpressionMethods};
+use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter};
 
 pub trait DieselOriginFilter<'a> {
     fn filter<Q>(&'a self, sql: Q) -> Q
@@ -59,6 +59,25 @@ impl<'a> DieselIdentityFilter<'a> for IdentityFilter {
 
         if let Some(version) = &self.version {
             sql = sql.filter(version_column.eq(version));
+        }
+
+        sql
+    }
+}
+
+pub trait DieselFreshnessFilter<'a> {
+    fn filter<Q>(&'a self, sql: Q) -> Q
+    where
+        Q: FilterDsl<diesel::dsl::Is<source_packages::seen_in_last_sync, &'a bool>, Output = Q>;
+}
+
+impl<'a> DieselFreshnessFilter<'a> for FreshnessFilter {
+    fn filter<Q>(&'a self, mut sql: Q) -> Q
+    where
+        Q: FilterDsl<diesel::dsl::Is<source_packages::seen_in_last_sync, &'a bool>, Output = Q>,
+    {
+        if let Some(seen_only) = &self.seen_only {
+            sql = sql.filter(source_packages::seen_in_last_sync.is(seen_only));
         }
 
         sql
