@@ -1,6 +1,5 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::DieselIdentityFilter;
-use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::get_build_input_friends;
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::{forward_compressed_data, DEFAULT_QUEUE_PRIORITY};
@@ -62,30 +61,36 @@ pub async fn get_builds(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = builds_base().into_boxed();
-    sql = origin_filter.filter(sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-
-    let records = sql
+    let records = builds_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .paginate(page.into_inner())
         .load::<Rebuild>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = builds_base().into_boxed();
-    total_sql = origin_filter.filter(total_sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        total_sql = total_sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
-
-    let total = total_sql
+    let total = builds_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;

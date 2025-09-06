@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::DieselIdentityFilter;
-use crate::api::v1::util::filters::{DieselOriginFilter, IntoFilter};
+use crate::api::v1::util::filters::IntoOriginFilter;
+use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
@@ -395,24 +395,38 @@ pub async fn get_source_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages_base()
+    let records = source_packages_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .filter(freshness_filter.clone().into_inner().into_filter())
-        .into_boxed();
-    sql = origin_filter.filter(sql);
-    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-
-    let records = sql
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = source_packages_base()
+    let total = source_packages_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .filter(freshness_filter.into_inner().into_filter())
-        .into_boxed();
-    total_sql = origin_filter.filter(total_sql);
-    total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
-
-    let total = total_sql
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -449,26 +463,38 @@ pub async fn get_binary_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = binary_packages_base()
+    let records = binary_packages_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(binary_packages::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .filter(freshness_filter.clone().into_inner().into_filter())
-        .into_boxed();
-
-    sql = origin_filter.filter(sql);
-    sql = identity_filter.filter(sql, binary_packages::name, binary_packages::version);
-
-    let records = sql
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = binary_packages_base()
+    let total = binary_packages_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
         .filter(freshness_filter.into_inner().into_filter())
-        .into_boxed();
-
-    total_sql = origin_filter.filter(total_sql);
-    total_sql = identity_filter.filter(total_sql, binary_packages::name, binary_packages::version);
-
-    let total = total_sql
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;

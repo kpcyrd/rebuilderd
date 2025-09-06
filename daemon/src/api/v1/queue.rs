@@ -1,6 +1,5 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::DieselIdentityFilter;
-use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
@@ -51,30 +50,36 @@ pub async fn get_queued_jobs(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = queue_base().into_boxed();
-    sql = origin_filter.filter(sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-
-    let records = sql
+    let records = queue_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .paginate(page.into_inner())
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = queue_base().into_boxed();
-    total_sql = origin_filter.filter(total_sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        total_sql = total_sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
-
-    let total = total_sql
+    let total = queue_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -112,17 +117,18 @@ pub async fn request_rebuild(
     let mut sql = source_packages::table
         .inner_join(build_inputs::table.left_join(rebuilds::table))
         .inner_join(binary_packages::table)
+        .filter(
+            origin_filter
+                .clone()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .select(build_inputs::id)
         .into_boxed();
-
-    // TODO: allow matching on binary package names and architectures
-    sql = origin_filter.filter(sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
 
     if let Some(status) = queue_request.status {
         if status == BuildStatus::Unknown {
@@ -163,19 +169,23 @@ pub async fn drop_queued_jobs(
 
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = queue::table
+    let ids = queue::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::name, source_packages::version),
+        )
         .select(queue::id)
-        .into_boxed();
-
-    sql = origin_filter.filter(sql);
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
-
-    sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-
-    let ids = sql.load::<i32>(connection.as_mut()).map_err(Error::from)?;
+        .load::<i32>(connection.as_mut())
+        .map_err(Error::from)?;
 
     diesel::delete(queue::table.filter(queue::id.eq_any(ids)))
         .execute(connection.as_mut())

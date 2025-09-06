@@ -34,7 +34,7 @@ pub struct ResultPage<T> {
     pub records: Vec<T>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OriginFilter {
     pub distribution: Option<String>,
     pub release: Option<String>,
@@ -42,7 +42,7 @@ pub struct OriginFilter {
     pub architecture: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityFilter {
     pub name: Option<String>,
     pub version: Option<String>,

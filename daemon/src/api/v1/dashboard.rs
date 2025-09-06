@@ -1,4 +1,3 @@
-use crate::api::v1::util::filters::DieselOriginFilter;
 use crate::db::Pool;
 use crate::schema::{build_inputs, queue, rebuilds, source_packages};
 use crate::web;
@@ -16,6 +15,7 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::errors::Error;
 
+use crate::api::v1::util::filters::IntoOriginFilter;
 use aliases::*;
 
 mod aliases {
@@ -23,16 +23,10 @@ mod aliases {
 }
 
 #[diesel::dsl::auto_type]
-fn queue_count_base<'a>(origin_filter: &'a web::Query<OriginFilter>) -> _ {
+fn queue_count_base<'a>() -> _ {
     let mut sql = queue::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
         .into_boxed::<'a, Sqlite>();
-
-    sql = origin_filter.filter(sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
 
     // dashboards rarely care about historical data for sums
     sql = sql.filter(source_packages::seen_in_last_sync.is(true));
@@ -62,13 +56,13 @@ pub async fn get_dashboard(
             )),
         )
         .filter(r2.field(rebuilds::id).is_null())
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
         .into_boxed();
-
-    sql = origin_filter.filter(sql);
-
-    if let Some(architecture) = &origin_filter.architecture {
-        sql = sql.filter(build_inputs::architecture.is(architecture));
-    }
 
     // dashboards rarely care about historical data for sums
     sql = sql.filter(source_packages::seen_in_last_sync.is(true));
@@ -101,13 +95,25 @@ pub async fn get_dashboard(
 
     let now = Utc::now();
 
-    let running_jobs = queue_count_base(&origin_filter)
+    let running_jobs = queue_count_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
         .filter(queue::worker.is_not_null())
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let available_jobs = queue_count_base(&origin_filter)
+    let available_jobs = queue_count_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
         .filter(queue::worker.is_null())
         .filter(
             build_inputs::next_retry
@@ -118,7 +124,13 @@ pub async fn get_dashboard(
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let pending_jobs = queue_count_base(&origin_filter)
+    let pending_jobs = queue_count_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(build_inputs::architecture),
+        )
         .filter(queue::worker.is_null())
         .filter(
             build_inputs::next_retry

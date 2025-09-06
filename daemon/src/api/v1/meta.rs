@@ -134,7 +134,7 @@ pub async fn get_distribution_release_component_architectures(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut distribution_release_component_architectures = source_packages::table
+    let distribution_release_component_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
         .filter(source_packages::release.is(&path.1))
