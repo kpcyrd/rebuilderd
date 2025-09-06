@@ -55,11 +55,19 @@ impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
 async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
     let supported_backends = config.backends.keys().map(String::from).collect::<Vec<_>>();
+
+    // default to our native architecture if the user hasn't specified any explicit architectures
+    let supported_architectures = if config.supported_architectures.is_empty() {
+        vec![std::env::consts::ARCH.to_string()]
+    } else {
+        config.supported_architectures.clone()
+    };
+
     match client
         .request_work(PopQueuedJobRequest {
             supported_backends,
             architecture: std::env::consts::ARCH.to_string(),
-            supported_architectures: vec![std::env::consts::ARCH.to_string()], // TODO: allow multiple architectures
+            supported_architectures,
         })
         .await?
     {

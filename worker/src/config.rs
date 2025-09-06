@@ -15,6 +15,8 @@ pub struct ConfigFile {
     pub diffoscope: Diffoscope,
     #[serde(default, rename = "backend")]
     pub backends: HashMap<String, Backend>,
+    #[serde(default)]
+    pub supported_architectures: Vec<String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
