@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::DieselOriginFilter;
-use crate::api::v1::util::filters::{DieselFreshnessFilter, DieselIdentityFilter};
+use crate::api::v1::util::filters::DieselIdentityFilter;
+use crate::api::v1::util::filters::{DieselOriginFilter, IntoFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
@@ -395,20 +395,22 @@ pub async fn get_source_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages_base().into_boxed();
+    let mut sql = source_packages_base()
+        .filter(freshness_filter.clone().into_inner().into_filter())
+        .into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-    sql = freshness_filter.filter(sql);
 
     let records = sql
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = source_packages_base().into_boxed();
+    let mut total_sql = source_packages_base()
+        .filter(freshness_filter.into_inner().into_filter())
+        .into_boxed();
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
-    total_sql = freshness_filter.filter(total_sql);
 
     let total = total_sql
         .count()
@@ -447,23 +449,24 @@ pub async fn get_binary_packages(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = binary_packages_base().into_boxed();
+    let mut sql = binary_packages_base()
+        .filter(freshness_filter.clone().into_inner().into_filter())
+        .into_boxed();
+
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, binary_packages::name, binary_packages::version);
-
-    if freshness_filter.seen_only.unwrap_or(false) {
-        sql = sql.filter(source_packages::seen_in_last_sync.is(true));
-    }
 
     let records = sql
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let mut total_sql = binary_packages_base().into_boxed();
+    let mut total_sql = binary_packages_base()
+        .filter(freshness_filter.into_inner().into_filter())
+        .into_boxed();
+
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, binary_packages::name, binary_packages::version);
-    total_sql = freshness_filter.filter(total_sql);
 
     let total = total_sql
         .count()

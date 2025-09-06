@@ -1,4 +1,4 @@
-use crate::api::v1::util::filters::DieselFreshnessFilter;
+use crate::api::v1::util::filters::IntoFilter;
 use crate::db::Pool;
 use crate::schema::{build_inputs, source_packages};
 use crate::{attestation, web};
@@ -17,13 +17,9 @@ pub async fn get_distributions(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distributions = source_packages::table
+        .filter(freshness_filter.into_inner().into_filter())
         .select(source_packages::distribution)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distributions = sql
         .distinct()
         .load::<String>(connection.as_mut())
         .map_err(Error::from)?;
@@ -39,14 +35,10 @@ pub async fn get_distribution_releases(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distribution_releases = source_packages::table
         .filter(source_packages::distribution.is(distribution.into_inner()))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(source_packages::release)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_releases = sql
         .distinct()
         .load::<Option<String>>(connection.as_mut())
         .map_err(Error::from)?;
@@ -62,15 +54,11 @@ pub async fn get_distribution_architectures(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distribution_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(distribution.into_inner()))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(build_inputs::architecture)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_architectures = sql
         .distinct()
         .load::<String>(connection.as_mut())
         .map_err(Error::from)?;
@@ -86,14 +74,10 @@ pub async fn get_distribution_components(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distribution_components = source_packages::table
         .filter(source_packages::distribution.is(distribution.into_inner()))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(source_packages::component)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_components = sql
         .distinct()
         .load::<Option<String>>(connection.as_mut())
         .map_err(Error::from)?;
@@ -109,16 +93,12 @@ pub async fn get_distribution_release_architectures(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distribution_release_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
         .filter(source_packages::release.is(&path.1))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(build_inputs::architecture)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_release_architectures = sql
         .distinct()
         .load::<String>(connection.as_mut())
         .map_err(Error::from)?;
@@ -134,15 +114,11 @@ pub async fn get_distribution_release_components(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let distribution_release_components = source_packages::table
         .filter(source_packages::distribution.is(&path.0))
         .filter(source_packages::release.is(&path.1))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(source_packages::component)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_release_components = sql
         .distinct()
         .load::<Option<String>>(connection.as_mut())
         .map_err(Error::from)?;
@@ -158,17 +134,13 @@ pub async fn get_distribution_release_component_architectures(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
+    let mut distribution_release_component_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
         .filter(source_packages::release.is(&path.1))
         .filter(source_packages::component.is(&path.2))
+        .filter(freshness_filter.into_inner().into_filter())
         .select(build_inputs::architecture)
-        .into_boxed();
-
-    sql = freshness_filter.filter(sql);
-
-    let distribution_release_component_architectures = sql
         .distinct()
         .load::<String>(connection.as_mut())
         .map_err(Error::from)?;

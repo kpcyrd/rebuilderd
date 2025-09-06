@@ -48,7 +48,7 @@ pub struct IdentityFilter {
     pub version: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreshnessFilter {
     pub seen_only: Option<bool>,
 }

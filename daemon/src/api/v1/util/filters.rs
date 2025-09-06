@@ -1,7 +1,9 @@
 use crate::schema::source_packages;
+use diesel::expression::AsExpression;
 use diesel::query_dsl::filter_dsl::FilterDsl;
-use diesel::sql_types::Text;
-use diesel::{Column, Expression};
+use diesel::sql_types::{Bool, Text};
+use diesel::sqlite::Sqlite;
+use diesel::{BoxableExpression, Column, Expression, SelectableExpression};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter};
 
@@ -65,21 +67,22 @@ impl<'a> DieselIdentityFilter<'a> for IdentityFilter {
     }
 }
 
-pub trait DieselFreshnessFilter<'a> {
-    fn filter<Q>(&'a self, sql: Q) -> Q
-    where
-        Q: FilterDsl<diesel::dsl::Is<source_packages::seen_in_last_sync, &'a bool>, Output = Q>;
+pub trait IntoFilter<QS, DB> {
+    type SqlType;
+
+    fn into_filter(self) -> Box<dyn BoxableExpression<QS, DB, SqlType = Self::SqlType>>;
 }
 
-impl<'a> DieselFreshnessFilter<'a> for FreshnessFilter {
-    fn filter<Q>(&'a self, mut sql: Q) -> Q
-    where
-        Q: FilterDsl<diesel::dsl::Is<source_packages::seen_in_last_sync, &'a bool>, Output = Q>,
-    {
-        if let Some(seen_only) = &self.seen_only {
-            sql = sql.filter(source_packages::seen_in_last_sync.is(seen_only));
-        }
+impl<T> IntoFilter<T, Sqlite> for FreshnessFilter
+where
+    source_packages::seen_in_last_sync: SelectableExpression<T>,
+{
+    type SqlType = Bool;
 
-        sql
+    fn into_filter(self) -> Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>> {
+        match self.seen_only {
+            Some(seen_only) => Box::new(source_packages::seen_in_last_sync.is(seen_only)),
+            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        }
     }
 }
