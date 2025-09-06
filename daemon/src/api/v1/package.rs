@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::DieselIdentityFilter;
 use crate::api::v1::util::filters::DieselOriginFilter;
+use crate::api::v1::util::filters::{DieselFreshnessFilter, DieselIdentityFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
@@ -398,10 +398,7 @@ pub async fn get_source_packages(
     let mut sql = source_packages_base().into_boxed();
     sql = origin_filter.filter(sql);
     sql = identity_filter.filter(sql, source_packages::name, source_packages::version);
-
-    if freshness_filter.seen_only.unwrap_or(false) {
-        sql = sql.filter(source_packages::seen_in_last_sync.is(true));
-    }
+    sql = freshness_filter.filter(sql);
 
     let records = sql
         .paginate(page.into_inner())
@@ -411,10 +408,7 @@ pub async fn get_source_packages(
     let mut total_sql = source_packages_base().into_boxed();
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, source_packages::name, source_packages::version);
-
-    if freshness_filter.seen_only.unwrap_or(false) {
-        total_sql = total_sql.filter(source_packages::seen_in_last_sync.is(true));
-    }
+    total_sql = freshness_filter.filter(total_sql);
 
     let total = total_sql
         .count()
@@ -469,10 +463,7 @@ pub async fn get_binary_packages(
     let mut total_sql = binary_packages_base().into_boxed();
     total_sql = origin_filter.filter(total_sql);
     total_sql = identity_filter.filter(total_sql, binary_packages::name, binary_packages::version);
-
-    if freshness_filter.seen_only.unwrap_or(false) {
-        total_sql = total_sql.filter(source_packages::seen_in_last_sync.is(true));
-    }
+    total_sql = freshness_filter.filter(total_sql);
 
     let total = total_sql
         .count()
