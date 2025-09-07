@@ -14,13 +14,14 @@ where
     DB: Backend,
 {
     type SqlType;
+
     type Output;
 
     fn into_filter<NameColumn, VersionColumn>(
         self,
         name_column: NameColumn,
         version_column: VersionColumn,
-    ) -> Box<dyn BoxableExpression<QS, DB, SqlType = Self::SqlType>>
+    ) -> Self::Output
     where
         NameColumn: SelectableExpression<QS>
             + Expression<SqlType = Text>
@@ -46,7 +47,7 @@ impl<T: 'static> IntoIdentityFilter<T, Sqlite> for IdentityFilter {
         self,
         name_column: NameColumn,
         version_column: VersionColumn,
-    ) -> Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>
+    ) -> Self::Output
     where
         NameColumn: SelectableExpression<T>
             + Expression<SqlType = Text>
@@ -82,12 +83,13 @@ where
     DB: Backend,
 {
     type SqlType;
+
     type Output;
 
     fn into_filter<ArchitectureColumn>(
         self,
         architecture_column: ArchitectureColumn,
-    ) -> Box<dyn BoxableExpression<QS, DB, SqlType = Self::SqlType>>
+    ) -> Self::Output
     where
         ArchitectureColumn: SelectableExpression<QS>
             + Expression<SqlType = Text>
@@ -105,12 +107,13 @@ where
     source_packages::component: SelectableExpression<T>,
 {
     type SqlType = Bool;
+
     type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
 
     fn into_filter<ArchitectureColumn>(
         self,
         architecture_column: ArchitectureColumn,
-    ) -> Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>
+    ) -> Self::Output
     where
         ArchitectureColumn: SelectableExpression<T>
             + Expression<SqlType = Text>
@@ -155,9 +158,10 @@ where
     DB: Backend,
 {
     type SqlType;
+
     type Output;
 
-    fn into_filter(self) -> Box<dyn BoxableExpression<QS, DB, SqlType = Self::SqlType>>;
+    fn into_filter(self) -> Self::Output;
 }
 
 impl<T: 'static> IntoFilter<T, Sqlite> for FreshnessFilter
@@ -168,7 +172,7 @@ where
 
     type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
 
-    fn into_filter(self) -> Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>> {
+    fn into_filter(self) -> Self::Output {
         match self.seen_only {
             Some(seen_only) => Box::new(source_packages::seen_in_last_sync.is(seen_only)),
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
