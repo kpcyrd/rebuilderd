@@ -21,8 +21,7 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
     let privkey = Arc::new(privkey);
 
     HttpServer::new(move || {
-        // allow up to 16MiB of payload
-        let json_config = JsonConfig::default().limit(16777216);
+        let json_config = JsonConfig::default().limit(config.post_body_size_limit);
 
         App::new()
             .wrap(Logger::default())
