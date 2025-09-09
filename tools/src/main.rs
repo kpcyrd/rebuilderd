@@ -75,7 +75,26 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
 }
 
 pub async fn submit_package_report(client: &Client, sync: &PackageReport) -> Result<()> {
-    info!("Sending current suite to api...");
+    let mut identity_string = "".to_owned();
+    if let Some(release) = &sync.release {
+        identity_string.push_str(format!("/{}", release).as_str())
+    }
+
+    if let Some(component) = &sync.component {
+        identity_string.push_str(format!("/{}", component).as_str())
+    }
+
+    let display_string = format!(
+        "{}{} ({})",
+        sync.distribution, identity_string, sync.architecture
+    );
+
+    info!(
+        "Sending {} to rebuilderd ({} packages)...",
+        display_string,
+        sync.packages.len()
+    );
+
     client
         .submit_package_report(sync)
         .await
