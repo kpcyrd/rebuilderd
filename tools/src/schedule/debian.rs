@@ -94,13 +94,11 @@ pub struct DebianSourcePkg {
 impl DebianSourcePkg {
     // this is necessary because the buildinfo folder structure doesn't align with `Directory:` in Sources.xz
     fn buildinfo_path(&self) -> String {
-        let idx = self.directory.find('/').unwrap();
-        let (_, directory) = self.directory.split_at(idx + 1);
-
-        let idx = directory.find('/').unwrap();
-        let (_, directory) = directory.split_at(idx + 1);
-
-        directory.to_string()
+        if self.base.starts_with("lib") {
+            self.base[..4].to_string()
+        } else {
+            self.base[..1].to_string()
+        }
     }
 
     fn buildinfo_url(&self, arch: &str) -> String {
@@ -111,8 +109,8 @@ impl DebianSourcePkg {
             &self.version
         };
         let buildinfo_url = format!(
-            "https://buildinfos.debian.net/buildinfo-pool/{}/{}_{}_{}.buildinfo",
-            directory, self.base, version_without_epoch, arch
+            "https://buildinfos.debian.net/buildinfo-pool/{}/{}/{}_{}_{}.buildinfo",
+            directory, self.base, self.base, version_without_epoch, arch
         );
         buildinfo_url
     }
