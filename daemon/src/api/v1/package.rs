@@ -492,7 +492,7 @@ pub async fn get_binary_packages(
             identity_filter
                 .clone()
                 .into_inner()
-                .into_filter(source_packages::name, source_packages::version),
+                .into_filter(binary_packages::name, binary_packages::version),
         )
         .filter(freshness_filter.clone().into_inner().into_filter())
         .paginate(page.into_inner())
@@ -511,7 +511,7 @@ pub async fn get_binary_packages(
             identity_filter
                 .clone()
                 .into_inner()
-                .into_filter(source_packages::name, source_packages::version),
+                .into_filter(binary_packages::name, binary_packages::version),
         )
         .count()
         .get_result::<i64>(connection.as_mut())
