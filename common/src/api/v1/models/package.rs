@@ -60,6 +60,8 @@ pub struct BinaryPackage {
     pub status: Option<ArtifactStatus>,
     pub build_id: Option<i32>,
     pub artifact_id: Option<i32>,
+    pub diffoscope_log_id: Option<i32>,
+    pub attestation_log_id: Option<i32>,
     pub last_seen: NaiveDateTime,
     pub seen_in_last_sync: bool,
 }
