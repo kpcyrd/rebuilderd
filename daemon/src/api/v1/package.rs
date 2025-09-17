@@ -30,6 +30,7 @@ use aliases::*;
 
 mod aliases {
     diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);
+    diesel::alias!(crate::schema::source_packages as sp: SourcePackagesAlias);
 }
 
 #[diesel::dsl::auto_type]
@@ -114,9 +115,25 @@ fn mark_scoped_packages_unseen(
 ) -> Result<(), Error> {
     // mark all packages potentially affected by this report as unseen
     update(source_packages::table)
-        .filter(source_packages::distribution.is(&report.distribution))
-        .filter(source_packages::release.is(&report.release))
-        .filter(source_packages::component.is(&report.component))
+        .filter(
+            source_packages::id.eq_any(
+                build_inputs::table
+                    .inner_join(
+                        sp.on(sp
+                            .field(source_packages::id)
+                            .is(build_inputs::source_package_id)),
+                    )
+                    .filter(
+                        sp.field(source_packages::distribution)
+                            .is(&report.distribution),
+                    )
+                    .filter(sp.field(source_packages::release).is(&report.release))
+                    .filter(sp.field(source_packages::component).is(&report.component))
+                    .filter(build_inputs::architecture.is(&report.architecture))
+                    .group_by(sp.field(source_packages::id))
+                    .select(sp.field(source_packages::id)),
+            ),
+        )
         .set(source_packages::seen_in_last_sync.eq(false))
         .execute(connection)
         .map_err(Error::from)?;
@@ -142,6 +159,7 @@ fn drop_unseen_scoped_jobs(
                     .filter(source_packages::distribution.is(&report.distribution))
                     .filter(source_packages::release.is(&report.release))
                     .filter(source_packages::component.is(&report.component))
+                    .filter(build_inputs::architecture.is(&report.architecture))
                     .filter(source_packages::seen_in_last_sync.is(false))
                     .group_by(build_inputs::id)
                     .select(build_inputs::id),
