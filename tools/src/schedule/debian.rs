@@ -700,11 +700,11 @@ Section: misc
         );
 
         let mut reports = HashMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             component: Some("main".to_string()),
-            architecture: "amd64".to_string(),
+            architecture: "all".to_string(),
             packages: vec![
                 SourcePackageReport {
                     name: "mariadb-10.5".to_string(),
@@ -719,7 +719,7 @@ Section: misc
                         }
                     ],
                 },
-            ]
+            ],
         });
 
         assert_eq!(state, SyncState { reports });
@@ -837,7 +837,7 @@ Section: misc
                         }
                     ],
                 },
-            ]
+            ],
         });
 
         assert_eq!(state, SyncState { reports });
@@ -1221,6 +1221,15 @@ Section: mail
                         },
                     ],
                 },
+            ],
+        });
+
+        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+            distribution: "debian".to_string(),
+            release: Some("sid".to_string()),
+            component: Some("main".to_string()),
+            architecture: "all".to_string(),
+            packages: vec![
                 SourcePackageReport {
                     name: "courier".to_string(),
                     version: "1.0.16-3".to_string(),
@@ -1526,7 +1535,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                         },
                     ]
                 }
-            ]
+            ],
         });
 
         reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
@@ -1548,7 +1557,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                         },
                     ]
                 }
-            ]
+            ],
         });
 
         assert_eq!(state, SyncState { reports });
@@ -1663,13 +1672,10 @@ Size: 12664
 MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
-"[..]),] {
+"[..]), ] {
             let mut sources = SourcePkgBucket::new();
-            sources
-                .import_uncompressed_source_package_file(&source[..])
-                .unwrap();
-            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &"main".to_string(), &sync)
-                .unwrap();
+            sources.import_uncompressed_source_package_file(&source[..]).unwrap();
+            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &"main".to_string(), &sync).unwrap();
         }
 
         for (source, binary) in [
@@ -1740,64 +1746,76 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 ")
         ] {
             let mut sources = SourcePkgBucket::new();
-            sources
-                .import_uncompressed_source_package_file(&source[..])
-                .unwrap();
-            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &"main".to_string(), &sync)
-                .unwrap();
+            sources.import_uncompressed_source_package_file(&source[..]).unwrap();
+            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &"main".to_string(), &sync).unwrap();
         }
 
         let mut reports = HashMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()),
-            PackageReport {
-                distribution: "debian".to_string(),
-                release: Some("sid".to_string()),
-                component: Some("main".to_string()),
-                architecture: "amd64".to_string(),
-                packages: vec![
-                    SourcePackageReport {
-                        name: "novnc".to_string(),
-                        version: "1:1.6.0-1".to_string(),
-                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
-                        artifacts: vec![
-                            BinaryPackageReport {
-                                name: "python3-novnc".to_string(),
-                                version: "1:1.6.0-1".to_string(),
-                                architecture: "all".to_string(),
-                                url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
-                            },
-                            BinaryPackageReport {
-                                name: "novnc".to_string(),
-                                version: "1:1.6.0-1".to_string(),
-                                architecture: "all".to_string(),
-                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
-                            },
-                        ]
-                    },
-                ]
-            });
-        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()),
-            PackageReport {
-                distribution: "debian".to_string(),
-                release: Some("testing".to_string()),
-                component: Some("main".to_string()),
-                architecture: "amd64".to_string(),
-                packages: vec![
-                    SourcePackageReport {
-                        name: "novnc".to_string(),
-                        version: "1:1.6.0-2".to_string(),
-                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string(),
-                        artifacts: vec![
-                            BinaryPackageReport {
-                                name: "novnc".to_string(),
-                                version: "1:1.6.0-2".to_string(),
-                                architecture: "all".to_string(),
-                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
-                            },
-                        ]
-                    },
-                ]
-            }
+
+        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()),
+           PackageReport {
+               distribution: "debian".to_string(),
+               release: Some("sid".to_string()),
+               component: Some("main".to_string()),
+               architecture: "all".to_string(),
+               packages: vec![
+                   SourcePackageReport {
+                       name: "novnc".to_string(),
+                       version: "1:1.6.0-2".to_string(),
+                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string(),
+                       artifacts: vec![
+                           BinaryPackageReport {
+                               name: "novnc".to_string(),
+                               version: "1:1.6.0-2".to_string(),
+                               architecture: "all".to_string(),
+                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                           },
+                       ]
+                   },
+                   SourcePackageReport {
+                       name: "novnc".to_string(),
+                       version: "1:1.6.0-1".to_string(),
+                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
+                       artifacts: vec![
+                           BinaryPackageReport {
+                               name: "python3-novnc".to_string(),
+                               version: "1:1.6.0-1".to_string(),
+                               architecture: "all".to_string(),
+                               url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                           },
+                       ]
+                   },
+               ],
+           });
+
+        reports.insert(("testing".to_string(), "main".to_string(), "all".to_string()),
+           PackageReport {
+               distribution: "debian".to_string(),
+               release: Some("testing".to_string()),
+               component: Some("main".to_string()),
+               architecture: "all".to_string(),
+               packages: vec![
+                   SourcePackageReport {
+                       name: "novnc".to_string(),
+                       version: "1:1.6.0-1".to_string(),
+                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
+                       artifacts: vec![
+                           BinaryPackageReport {
+                               name: "novnc".to_string(),
+                               version: "1:1.6.0-1".to_string(),
+                               architecture: "all".to_string(),
+                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                           },
+                           BinaryPackageReport {
+                               name: "python3-novnc".to_string(),
+                               version: "1:1.6.0-1".to_string(),
+                               architecture: "all".to_string(),
+                               url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                           },
+                       ]
+                   },
+               ],
+           },
         );
 
         assert_eq!(state, SyncState { reports });
