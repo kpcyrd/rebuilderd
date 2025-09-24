@@ -1,6 +1,7 @@
 use crate::code_migrations::code_migration;
 use diesel::connection::{Instrumentation, LoadConnection, SimpleConnection, TransactionManager};
 use diesel::expression::QueryMetadata;
+use diesel::migration::Migration;
 use diesel::prelude::*;
 use diesel::query_builder::{Query, QueryFragment, QueryId};
 use diesel::r2d2::{self, ConnectionManager};
@@ -26,6 +27,11 @@ pub fn setup(url: &str) -> Result<SqliteConnection> {
         let Some(next_migration) = pending_migrations.first() else {
             break;
         };
+
+        info!(
+            "Starting database migration: {}",
+            next_migration.name().version()
+        );
 
         let version = code_migration::run_code_backed_migration(&mut connection, next_migration)
             .map_err(|err| anyhow!("Failed to run pending migration: {err:#}"))?;
