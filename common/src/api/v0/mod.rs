@@ -263,6 +263,9 @@ pub enum Status {
     #[serde(rename = "UNKWN")]
     #[clap(name = "UNKWN")]
     Unknown,
+    #[serde(rename = "FAIL")]
+    #[clap(name = "FAIL")]
+    Fail,
 }
 
 impl Status {
@@ -270,6 +273,7 @@ impl Status {
         match self {
             Status::Good => "GOOD ".green().to_string(),
             Status::Bad => "BAD  ".red().to_string(),
+            Status::Fail => "FAIL ".red().to_string(),
             Status::Unknown => "UNKWN".yellow().to_string(),
         }
     }
@@ -282,6 +286,7 @@ impl Deref for Status {
         match self {
             Status::Good => "GOOD",
             Status::Bad => "BAD",
+            Status::Fail => "FAIL",
             Status::Unknown => "UNKWN",
         }
     }
@@ -295,6 +300,7 @@ impl FromStr for Status {
             "GOOD" => Ok(Status::Good),
             "BAD" => Ok(Status::Bad),
             "UNKWN" => Ok(Status::Unknown),
+            "FAIL" => Ok(Status::Fail),
             _ => bail!("Unknown status: {:?}", s),
         }
     }
