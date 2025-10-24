@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::env;
 use url::Url;
 
+pub mod v0;
 pub mod v1;
 
 pub const AUTH_COOKIE_HEADER: &str = "X-Auth-Cookie";

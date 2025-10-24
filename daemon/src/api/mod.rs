@@ -4,6 +4,7 @@ use actix_web::{HttpRequest, HttpResponse};
 use rebuilderd_common::errors::{format_err, Context, Error};
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_decompress};
 
+pub mod v0;
 pub mod v1;
 
 const DEFAULT_QUEUE_PRIORITY: i32 = 1;
