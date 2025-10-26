@@ -211,7 +211,7 @@ pub async fn list_pkgs(
         source_packages::distribution,
         binary_packages::architecture,
         binary_packages::version,
-        r1.field(rebuilds::status).nullable(),
+        rebuild_artifacts::status.nullable(),
         source_packages::component,
         binary_packages::artifact_url,
         r1.field(rebuilds::id).nullable(),
