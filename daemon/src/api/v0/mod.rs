@@ -149,7 +149,7 @@ fn filter_binary_packages_by<'a>(
     }
 
     if let Some(component) = component {
-        query = query.filter(source_packages::release.eq(component));
+        query = query.filter(source_packages::component.eq(component));
     }
 
     if let Some(architecture) = architecture {
