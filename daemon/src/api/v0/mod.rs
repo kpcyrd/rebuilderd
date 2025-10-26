@@ -137,7 +137,7 @@ fn filter_binary_packages_by<'a>(
         .into_boxed::<'a, diesel::sqlite::Sqlite>();
 
     if let Some(name) = name {
-        query = query.filter(source_packages::name.eq(name));
+        query = query.filter(binary_packages::name.eq(name));
     }
 
     if let Some(distribution) = distribution {
