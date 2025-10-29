@@ -26,7 +26,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 let packages = parse_package_index(data)?;
 
                 let mut report = PackageReport {
-                    distribution: "archlinux".to_string(),
+                    distribution: "fedora".to_string(),
                     release: None,
                     component: Some(component.clone()),
                     architecture: arch.clone(),
