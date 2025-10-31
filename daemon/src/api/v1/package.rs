@@ -13,7 +13,7 @@ use crate::schema::{
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use aliases::*;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
@@ -208,12 +208,19 @@ pub async fn submit_package_report(
 
             let source_package = new_source_package.upsert(conn.as_mut())?;
 
+            let initial_delay = if cfg.schedule.initial_delay() == Duration::seconds(0) {
+                None
+            } else {
+                Some(now + cfg.schedule.initial_delay())
+            };
+
             let new_build_input = NewBuildInput {
                 source_package_id: source_package.id,
                 url: package_report.url.clone(),
                 backend: report.distribution.clone(),
                 architecture: report.architecture.clone(),
                 retries: 0,
+                next_retry: initial_delay.map(|v| v.naive_utc()),
             };
 
             let build_input = new_build_input.upsert(conn.as_mut())?;

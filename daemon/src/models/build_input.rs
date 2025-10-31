@@ -34,6 +34,7 @@ pub struct NewBuildInput {
     pub backend: String,
     pub architecture: String,
     pub retries: i32,
+    pub next_retry: Option<NaiveDateTime>,
 }
 
 impl NewBuildInput {
