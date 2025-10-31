@@ -1,65 +1,76 @@
 use crate::args::PkgsSync;
 use crate::decompress;
 use crate::schedule::{fetch_url_or_path, Pkg};
+use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use rebuilderd_common::{PkgArtifact, PkgGroup};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
 
-pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
-    if sync.releases.len() > 1 {
-        bail!("Tracking multiple releases in the same rebuilder is currently unsupported");
-    }
-
-    let mut bases: HashMap<_, PkgGroup> = HashMap::new();
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
+    let mut reports = Vec::new();
 
     for release in &sync.releases {
-        for arch in &sync.architectures {
-            let url = format!("{}/{}/{}/{}/os/", sync.source, release, sync.suite, arch);
-            let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
-            let location = get_primary_location_from_xml(&bytes)?;
+        for component in &sync.components {
+            for arch in &sync.architectures {
+                let url = format!("{}/{}/{}/{}/os/", sync.source, release, component, arch);
+                let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
+                let location = get_primary_location_from_xml(&bytes)?;
 
-            let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
-            info!("Parsing index ({} bytes)...", bytes.len());
+                let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
+                info!("Parsing index ({} bytes)...", bytes.len());
 
-            let comp = decompress::detect_compression(&bytes);
-            let data = decompress::stream(comp, &bytes)?;
-            let packages = parse_package_index(data)?;
+                let comp = decompress::detect_compression(&bytes);
+                let data = decompress::stream(comp, &bytes)?;
+                let packages = parse_package_index(data)?;
 
-            for pkg in packages {
-                if !pkg.matches(sync) {
-                    continue;
-                }
-
-                let url = format!("{url}{}", pkg.location.href);
-                let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
-                let artifact = PkgArtifact {
-                    name: pkg.name,
-                    version,
-                    url,
+                let mut report = PackageReport {
+                    distribution: "fedora".to_string(),
+                    release: None,
+                    component: Some(component.clone()),
+                    architecture: arch.clone(),
+                    packages: Vec::new(),
                 };
 
-                if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
-                    group.add_artifact(artifact);
-                } else {
-                    let mut group = PkgGroup::new(
-                        pkg.format.sourcerpm.clone(),
-                        format!("{}-{}", pkg.version.ver, pkg.version.rel),
-                        sync.distro.to_string(),
-                        sync.suite.to_string(),
-                        pkg.arch,
-                        None,
-                    );
-                    group.add_artifact(artifact);
-                    bases.insert(pkg.format.sourcerpm, group);
+                let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
+
+                for pkg in packages {
+                    if !pkg.matches(sync) {
+                        continue;
+                    }
+
+                    let url = format!("{url}{}", pkg.location.href);
+                    let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
+                    let artifact = BinaryPackageReport {
+                        name: pkg.name,
+                        version,
+                        architecture: pkg.arch,
+                        url: url.clone(),
+                    };
+
+                    if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {
+                        group.artifacts.push(artifact);
+                    } else {
+                        let mut group = SourcePackageReport {
+                            name: pkg.format.sourcerpm.clone(),
+                            version: format!("{}-{}", pkg.version.ver, pkg.version.rel),
+                            url: url.clone(), // use first artifact's url as the source URL for now
+                            artifacts: Vec::new(),
+                        };
+
+                        group.artifacts.push(artifact);
+                        bases.insert(pkg.format.sourcerpm, group);
+                    }
                 }
+
+                report.packages = bases.into_values().collect();
+                reports.push(report);
             }
         }
     }
 
-    Ok(bases.into_values().collect())
+    Ok(reports)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

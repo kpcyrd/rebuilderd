@@ -2,9 +2,9 @@ use crate::args::PkgsSync;
 use crate::decompress;
 use crate::schedule::{fetch_url_or_path, Pkg};
 use nom::bytes::complete::take_till;
+use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use rebuilderd_common::{PkgArtifact, PkgGroup};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
@@ -148,7 +148,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
     Ok(pkgs)
 }
 
-pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>> {
+pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
     let source = if sync.source.ends_with(".db") {
         warn!("Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch");
         "https://mirrors.kernel.org/archlinux/$repo/os/$arch"
@@ -156,44 +156,58 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PkgGroup>>
         &sync.source
     };
 
-    let mut bases: HashMap<_, PkgGroup> = HashMap::new();
-
+    let mut reports = Vec::new();
     for arch in &sync.architectures {
-        let db = mirror_to_url(source, &sync.suite, arch, &format!("{}.db", sync.suite))?;
-        let bytes = fetch_url_or_path(http, &db).await?;
+        for component in &sync.components {
+            let db = mirror_to_url(source, component, arch, &format!("{}.db", component))?;
+            let bytes = fetch_url_or_path(http, &db).await?;
 
-        info!("Parsing index ({} bytes)...", bytes.len());
-        for pkg in extract_pkgs(&bytes)? {
-            if !pkg.matches(sync) {
-                continue;
-            }
-
-            let url = mirror_to_url(source, &sync.suite, arch, &pkg.filename)?;
-            let artifact = PkgArtifact {
-                name: pkg.name,
-                version: pkg.version.clone(),
-                url,
+            let mut report = PackageReport {
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some(component.clone()),
+                architecture: arch.clone(),
+                packages: Vec::new(),
             };
 
-            if let Some(group) = bases.get_mut(&pkg.base) {
-                // TODO: multiple architectures could have the exact same package with arch=any
-                group.add_artifact(artifact);
-            } else {
-                let mut group = PkgGroup::new(
-                    pkg.base.clone(),
-                    pkg.version,
-                    sync.distro.to_string(),
-                    sync.suite.to_string(),
-                    pkg.architecture,
-                    None,
-                );
-                group.add_artifact(artifact);
-                bases.insert(pkg.base, group);
+            let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
+
+            info!("Parsing index ({} bytes)...", bytes.len());
+            for pkg in extract_pkgs(&bytes)? {
+                if !pkg.matches(sync) {
+                    continue;
+                }
+
+                let url = mirror_to_url(source, component, arch, &pkg.filename)?;
+                let artifact = BinaryPackageReport {
+                    name: pkg.name,
+                    version: pkg.version.clone(),
+                    architecture: pkg.architecture,
+                    url: url.clone(),
+                };
+
+                if let Some(group) = bases.get_mut(&pkg.base) {
+                    // TODO: multiple architectures could have the exact same package with arch=any
+                    group.artifacts.push(artifact);
+                } else {
+                    let mut group = SourcePackageReport {
+                        name: pkg.base.clone(),
+                        version: pkg.version.clone(),
+                        url: url.clone(), // use first artifact's url as the source URL for now
+                        artifacts: Vec::new(),
+                    };
+
+                    group.artifacts.push(artifact);
+                    bases.insert(pkg.base, group);
+                }
             }
+
+            report.packages = bases.into_values().collect();
+            reports.push(report);
         }
     }
 
-    Ok(bases.drain().map(|(_, v)| v).collect())
+    Ok(reports)
 }
 
 #[cfg(test)]

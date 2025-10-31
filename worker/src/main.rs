@@ -3,15 +3,20 @@
 use crate::args::{Args, SubCommand};
 use crate::rebuild::Context;
 use async_trait::async_trait;
+use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
-use rebuilderd_common::api::*;
+use rebuilderd_common::api::v1::{
+    ArtifactStatus, BuildRestApi, BuildStatus, JobAssignment, PopQueuedJobRequest, QueueRestApi,
+    QueuedJobArtifact, RebuildReport, RegisterWorkerRequest, WorkerRestApi,
+};
+use rebuilderd_common::api::Client;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::PkgArtifact;
+use rebuilderd_common::utils::zstd_compress;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
@@ -40,13 +45,7 @@ impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
     }
 
     async fn ping(&self) -> Result<()> {
-        if let Err(err) = self
-            .client
-            .ping_build(&PingRequest {
-                queue_id: self.queue_id,
-            })
-            .await
-        {
+        if let Err(err) = self.client.ping_job(self.queue_id).await {
             warn!("Failed to ping: {}", err);
         }
         Ok(())
@@ -56,26 +55,38 @@ impl heartbeat::HeartBeat for HttpHeartBeat<'_> {
 async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigFile) -> Result<()> {
     info!("Requesting work from rebuilderd...");
     let supported_backends = config.backends.keys().map(String::from).collect::<Vec<_>>();
-    match client.pop_queue(&WorkQuery { supported_backends }).await? {
+
+    // default to our native architecture if the user hasn't specified any explicit architectures
+    let supported_architectures = if config.supported_architectures.is_empty() {
+        vec![std::env::consts::ARCH.to_string()]
+    } else {
+        config.supported_architectures.clone()
+    };
+
+    match client
+        .request_work(PopQueuedJobRequest {
+            supported_backends,
+            architecture: std::env::consts::ARCH.to_string(),
+            supported_architectures,
+        })
+        .await?
+    {
         JobAssignment::Nothing => {
             info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
             time::sleep(Duration::from_secs(IDLE_DELAY)).await;
         }
         JobAssignment::Rebuild(rb) => {
-            info!(
-                "Starting rebuild of {:?} {:?}",
-                rb.pkgbase.name, rb.pkgbase.version
-            );
+            info!("Starting rebuild of {:?} {:?}", rb.job.name, rb.job.version);
 
             let backend = config
                 .backends
-                .get(&rb.pkgbase.distro)
+                .get(&rb.job.distribution)
                 .cloned()
-                .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.pkgbase.distro))?;
+                .ok_or_else(|| anyhow!("No backend for {:?} configured", rb.job.distribution))?;
 
             let ctx = Context {
-                artifacts: rb.pkgbase.artifacts.clone(),
-                input_url: rb.pkgbase.input_url.clone(),
+                artifacts: rb.artifacts.clone(),
+                input_url: Some(rb.job.url.clone()),
                 backend,
                 build: config.build.clone(),
                 diffoscope: config.diffoscope.clone(),
@@ -84,47 +95,61 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
 
             let hb = HttpHeartBeat {
                 client,
-                queue_id: rb.id,
+                queue_id: rb.job.id,
             };
 
             let mut log = Vec::new();
 
-            let rebuilds = match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
-                Ok(res) => res,
-                Err(err) => {
-                    error!(
-                        "Unexpected error while rebuilding package package: {:#}",
-                        err
-                    );
-                    let msg = format!(
-                        "rebuilderd: unexpected error while rebuilding package: {:#}\n",
-                        err
-                    );
-                    if !log.is_empty() {
-                        log.extend(b"\n\n");
-                    }
-                    log.extend(msg.as_bytes());
+            let (overall_status, rebuilds) =
+                match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
+                    Ok(res) => {
+                        let overall_status = if res.iter().all(|r| r.status == ArtifactStatus::Good)
+                        {
+                            BuildStatus::Good
+                        } else {
+                            BuildStatus::Bad
+                        };
 
-                    let mut res = vec![];
-                    for artifact in &rb.pkgbase.artifacts {
-                        res.push((artifact.clone(), Rebuild::new(BuildStatus::Fail)));
+                        (overall_status, res)
                     }
-                    res
-                }
+                    Err(err) => {
+                        error!(
+                            "Unexpected error while rebuilding package package: {:#}",
+                            err
+                        );
+
+                        let msg = format!(
+                            "rebuilderd: unexpected error while rebuilding package: {:#}\n",
+                            err
+                        );
+
+                        if !log.is_empty() {
+                            log.extend(b"\n\n");
+                        }
+
+                        log.extend(msg.as_bytes());
+                        (BuildStatus::Fail, vec![]) // TODO: good or bad idea? no artifact results from failed builds
+                    }
+                };
+
+            let utf8_sanitized_log = String::from_utf8_lossy(&log).into_owned();
+            let encoded_log = zstd_compress(utf8_sanitized_log.as_bytes())
+                .await
+                .map_err(Error::from)?;
+
+            let report = RebuildReport {
+                queue_id: rb.job.id,
+                built_at: Utc::now().naive_utc(),
+                build_log: encoded_log,
+                status: overall_status,
+                artifacts: rebuilds,
             };
 
-            let build_log = String::from_utf8_lossy(&log).into_owned();
-
-            let report = BuildReport {
-                queue: *rb,
-                build_log,
-                rebuilds,
-            };
             info!("Sending build report to rebuilderd...");
             client
-                .report_build(&report)
+                .submit_build_report(report)
                 .await
-                .context("Failed to POST to rebuilderd")?;
+                .context("Failed to report build to rebuilderd")?;
         }
     }
     Ok(())
@@ -176,7 +201,7 @@ async fn main() -> Result<()> {
         debug!("Successfully loaded auth cookie");
     }
 
-    if let Some(name) = args.name {
+    if let Some(name) = &args.name {
         setup::run(&name).context("Failed to setup worker")?;
     }
     let profile = auth::load()?;
@@ -200,6 +225,15 @@ async fn main() -> Result<()> {
                 config.signup_secret.clone(),
                 cookie,
             )?;
+
+            if config.signup_secret.is_some() {
+                client
+                    .register_worker(RegisterWorkerRequest {
+                        name: args.name.unwrap_or("worker".to_string()),
+                    })
+                    .await?;
+            }
+
             run_worker_loop(&client, &profile.privkey, &config).await?;
         }
         // this is only really for debugging
@@ -225,9 +259,10 @@ async fn main() -> Result<()> {
 
             let res = rebuild::rebuild(
                 &Context {
-                    artifacts: vec![PkgArtifact {
+                    artifacts: vec![QueuedJobArtifact {
                         name: "anonymous".to_string(),
                         version: "0.0.0".to_string(),
+                        architecture: "amd64".to_string(),
                         url: build.artifact_url,
                     }],
                     input_url: build.input_url,
@@ -240,15 +275,15 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            for (artifact, res) in res {
-                trace!("rebuild result object for {:?} is {:?}", artifact, res);
+            for res in res {
+                trace!("rebuild result object {:?}", res);
 
-                if res.status == BuildStatus::Good {
+                if res.status == ArtifactStatus::Good {
                     info!("Package verified successfully");
                 } else {
                     error!("Package failed to verify");
                     if let Some(diffoscope) = res.diffoscope {
-                        io::stdout().write_all(diffoscope.as_bytes()).ok();
+                        io::stdout().write_all(&*diffoscope).ok();
                     }
                 }
             }

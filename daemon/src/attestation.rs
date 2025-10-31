@@ -1,4 +1,3 @@
-use crate::util;
 use in_toto::{
     crypto::{KeyType, PrivateKey, PublicKey, SignatureScheme},
     models::{Metablock, MetadataWrapper},
@@ -6,6 +5,7 @@ use in_toto::{
 use pem::Pem;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils;
+use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress, zstd_decompress};
 use std::borrow::Cow;
 use std::path::Path;
 
@@ -120,7 +120,7 @@ impl Attestation {
 
     pub async fn to_compressed_bytes(&self) -> Result<Vec<u8>> {
         let json = self.serialize()?;
-        let compressed = util::zstd_compress(json.as_bytes()).await?;
+        let compressed = zstd_compress(json.as_bytes()).await?;
         Ok(compressed)
     }
 }
@@ -131,8 +131,8 @@ pub async fn compressed_attestation_sign_if_necessary(
     bytes: Vec<u8>,
     privkey: &PrivateKey,
 ) -> Result<(Vec<u8>, bool)> {
-    let decompressed = if util::is_zstd_compressed(&bytes) {
-        let decompressed = util::zstd_decompress(&bytes).await.map_err(Error::from)?;
+    let decompressed = if is_zstd_compressed(&bytes) {
+        let decompressed = zstd_decompress(&bytes).await.map_err(Error::from)?;
         Cow::Owned(decompressed)
     } else {
         Cow::Borrowed(&bytes)

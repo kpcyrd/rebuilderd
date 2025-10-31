@@ -1,18 +1,26 @@
 use crate::args::Args;
+use chrono::Utc;
 use clap::Parser;
 use colored::Colorize;
+use diesel::dsl::update;
+use diesel::query_dsl::QueryDsl;
+use diesel::{ExpressionMethods, NullableExpressionMethods, RunQueryDsl, SqliteExpressionMethods};
 use env_logger::Env;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rebuilderd::attestation::{self, Attestation};
 use rebuilderd::config::Config;
 use rebuilderd::db;
-use rebuilderd::models::{Build, Package};
-use rebuilderd::util;
-use rebuilderd_common::api::*;
+use rebuilderd::schema::{attestation_logs, rebuild_artifacts};
+use rebuilderd_common::api::v1::{
+    ArtifactStatus, BinaryPackage, BinaryPackageReport, BuildRestApi, BuildStatus, JobAssignment,
+    MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, QueueJobRequest, QueueRestApi,
+    RebuildArtifactReport, RebuildReport, RegisterWorkerRequest, SourcePackageReport,
+    WorkerRestApi,
+};
+use rebuilderd_common::api::Client;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
-use rebuilderd_common::{PkgArtifact, PkgGroup, PkgRelease};
+use rebuilderd_common::utils::{zstd_compress, zstd_decompress};
 use serde_json::json;
 use std::io;
 use std::io::prelude::*;
@@ -23,16 +31,11 @@ use tempfile::TempDir;
 
 mod args;
 
-async fn list_pkgs(client: &Client) -> Result<Vec<PkgRelease>> {
+async fn list_pkgs(client: &Client) -> Result<Vec<BinaryPackage>> {
     client
-        .list_pkgs(&ListPkgs {
-            name: None,
-            status: None,
-            distro: None,
-            suite: None,
-            architecture: None,
-        })
+        .get_binary_packages(None, None, None)
         .await
+        .map(|p| p.records)
 }
 
 async fn initial_import(client: &Client) -> Result<()> {
@@ -42,28 +45,26 @@ async fn initial_import(client: &Client) -> Result<()> {
 
     let url = "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst"
         .to_string();
-    let mut group = PkgGroup::new(
-        "pkgbase".to_string(),
-        "1.4.5-1".to_string(),
-        distro.clone(),
-        suite.clone(),
-        architecture.clone(),
-        None,
-    );
-    group.add_artifact(PkgArtifact {
-        name: "zstd".to_string(),
-        version: "1.4.5-1".to_string(),
-        url,
-    });
-    let pkgs = vec![group];
 
-    client
-        .sync_suite(&SuiteImport {
-            distro,
-            suite,
-            groups: pkgs,
-        })
-        .await?;
+    let report = PackageReport {
+        distribution: distro.clone(),
+        release: None, // TODO
+        component: Some(suite.clone()),
+        architecture: architecture.clone(),
+        packages: vec![SourcePackageReport {
+            name: "pkgbase".to_string(),
+            version: "1.4.5-1".to_string(),
+            url: url.clone(),
+            artifacts: vec![BinaryPackageReport {
+                name: "zstd".to_string(),
+                version: "1.4.5-1".to_string(),
+                architecture: architecture.clone(),
+                url,
+            }],
+        }],
+    };
+
+    client.submit_package_report(&report).await?;
 
     Ok(())
 }
@@ -121,6 +122,7 @@ async fn main() -> Result<()> {
 
     config.auth.cookie = Some(args.cookie.clone());
     config.http.bind_addr = Some(addr.clone());
+    config.worker.signup_secret = Some("fake-signup-key".to_string());
     config.endpoints.insert(
         endpoint.clone(),
         EndpointConfig {
@@ -136,7 +138,7 @@ async fn main() -> Result<()> {
     let mut db = None;
 
     if !args.no_daemon {
-        let config = rebuilderd::config::from_struct(config.clone(), args.cookie)?;
+        let config = rebuilderd::config::from_struct(config.clone(), args.cookie.clone())?;
 
         let tmp_dir = TempDir::new()?;
         info!("Changing cwd to {:?}", tmp_dir);
@@ -154,6 +156,8 @@ async fn main() -> Result<()> {
 
     info!("Setting up client for {:?}", endpoint);
     let mut client = Client::new(config.clone(), Some(endpoint))?;
+    client.auth_cookie(args.cookie.clone());
+    client.signup_secret("fake-signup-key");
     client.worker_key("worker1"); // TODO: this is not a proper key
 
     test("Testing database to be empty", async {
@@ -165,10 +169,23 @@ async fn main() -> Result<()> {
     })
     .await?;
 
+    test("Testing worker signup", async {
+        client
+            .register_worker(RegisterWorkerRequest {
+                name: "test-worker".to_string(),
+            })
+            .await?;
+
+        Ok(())
+    })
+    .await?;
+
     test("Testing there is nothing to do", async {
         let task = client
-            .pop_queue(&WorkQuery {
+            .request_work(PopQueuedJobRequest {
                 supported_backends: vec!["archlinux".to_string()],
+                architecture: std::env::consts::ARCH.to_string(),
+                supported_architectures: vec![std::env::consts::ARCH.to_string()],
             })
             .await?;
 
@@ -208,12 +225,8 @@ async fn main() -> Result<()> {
             bail!("Mismatch name");
         }
 
-        if pkg.status != Status::Unknown {
+        if pkg.status.unwrap_or(ArtifactStatus::Unknown) != ArtifactStatus::Unknown {
             bail!("Status not UNKWN");
-        }
-
-        if pkg.built_at.is_some() {
-            bail!("Not None: built_at");
         }
 
         if !pkgs.is_empty() {
@@ -226,8 +239,10 @@ async fn main() -> Result<()> {
 
     test("Fetching task and reporting BAD rebuild", async {
         let task = client
-            .pop_queue(&WorkQuery {
+            .request_work(PopQueuedJobRequest {
                 supported_backends: vec!["archlinux".to_string()],
+                architecture: std::env::consts::ARCH.to_string(),
+                supported_architectures: vec![std::env::consts::ARCH.to_string()],
             })
             .await?;
 
@@ -236,24 +251,25 @@ async fn main() -> Result<()> {
             _ => bail!("Expected a job assignment"),
         };
 
-        let mut rebuilds = Vec::new();
-        for artifact in queue.pkgbase.artifacts.clone() {
-            rebuilds.push((
-                artifact,
-                Rebuild {
-                    diffoscope: None,
-                    status: BuildStatus::Bad,
-                    attestation: None,
-                },
-            ));
+        let mut artifacts = Vec::new();
+        for artifact in queue.artifacts.clone() {
+            artifacts.push(RebuildArtifactReport {
+                name: artifact.name.clone(),
+                diffoscope: None,
+                status: ArtifactStatus::Bad,
+                attestation: None,
+            });
         }
 
-        let report = BuildReport {
-            queue,
-            build_log: String::new(),
-            rebuilds,
+        let report = RebuildReport {
+            queue_id: queue.job.id,
+            built_at: Utc::now().naive_utc(),
+            build_log: String::new().into_bytes(),
+            status: BuildStatus::Bad,
+            artifacts,
         };
-        client.report_build(&report).await?;
+
+        client.submit_build_report(report).await?;
 
         Ok(())
     })
@@ -264,12 +280,8 @@ async fn main() -> Result<()> {
 
         let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
-        if pkg.status != Status::Bad {
+        if pkg.status.unwrap_or(ArtifactStatus::Unknown) != ArtifactStatus::Bad {
             bail!("Unexpected pkg status");
-        }
-
-        if pkg.built_at.is_none() {
-            bail!("Unexpected none: built_at");
         }
 
         Ok(())
@@ -278,14 +290,15 @@ async fn main() -> Result<()> {
 
     test("Requeueing BAD pkgs", async {
         client
-            .requeue_pkgs(&RequeueQuery {
+            .request_rebuild(QueueJobRequest {
+                distribution: None,
+                release: None,
+                component: None,
                 name: None,
-                status: Some(Status::Bad),
-                priority: 2,
-                distro: None,
-                suite: None,
+                version: None,
                 architecture: None,
-                reset: false,
+                status: Some(BuildStatus::Bad),
+                priority: Some(2),
             })
             .await?;
 
@@ -298,12 +311,8 @@ async fn main() -> Result<()> {
 
         let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
-        if pkg.status != Status::Bad {
+        if pkg.status.unwrap_or(ArtifactStatus::Unknown) != ArtifactStatus::Bad {
             bail!("Unexpected pkg status");
-        }
-
-        if pkg.built_at.is_none() {
-            bail!("Unexpected none: built_at");
         }
 
         Ok(())
@@ -312,8 +321,10 @@ async fn main() -> Result<()> {
 
     test("Fetching task and reporting GOOD rebuild", async {
         let task = client
-            .pop_queue(&WorkQuery {
+            .request_work(PopQueuedJobRequest {
                 supported_backends: vec!["archlinux".to_string()],
+                architecture: std::env::consts::ARCH.to_string(),
+                supported_architectures: vec![std::env::consts::ARCH.to_string()],
             })
             .await?;
 
@@ -322,24 +333,25 @@ async fn main() -> Result<()> {
             _ => bail!("Expected a job assignment"),
         };
 
-        let mut rebuilds = Vec::new();
-        for artifact in queue.pkgbase.artifacts.clone() {
-            rebuilds.push((
-                artifact,
-                Rebuild {
-                    diffoscope: None,
-                    status: BuildStatus::Good,
-                    attestation: None,
-                },
-            ));
+        let mut artifacts = Vec::new();
+        for artifact in queue.artifacts.clone() {
+            artifacts.push(RebuildArtifactReport {
+                name: artifact.name.clone(),
+                diffoscope: None,
+                status: ArtifactStatus::Good,
+                attestation: None,
+            });
         }
 
-        let report = BuildReport {
-            queue,
-            build_log: String::new(),
-            rebuilds,
+        let report = RebuildReport {
+            queue_id: queue.job.id,
+            built_at: Utc::now().naive_utc(),
+            build_log: String::new().into_bytes(),
+            status: BuildStatus::Good,
+            artifacts,
         };
-        client.report_build(&report).await?;
+
+        client.submit_build_report(report).await?;
 
         Ok(())
     })
@@ -350,12 +362,8 @@ async fn main() -> Result<()> {
 
         let pkg = pkgs.pop().ok_or_else(|| format_err!("No pkgs found"))?;
 
-        if pkg.status != Status::Good {
+        if pkg.status.unwrap_or(ArtifactStatus::Unknown) != ArtifactStatus::Good {
             bail!("Unexpected pkg status");
-        }
-
-        if pkg.built_at.is_none() {
-            bail!("Unexpected none: built_at");
         }
 
         Ok(())
@@ -367,32 +375,33 @@ async fn main() -> Result<()> {
         let suite = "main".to_string();
         let architecture = "x86_64".to_string();
 
-        let mut group = PkgGroup::new(
-            "hello-world".to_string(),
-            "1.2.3-4".to_string(),
-            distro.clone(),
-            suite.clone(),
-            architecture.clone(),
-            Some("https://example.com/hello-world-1.2.3-4.buildinfo.txt".to_string()),
-        );
-        group.add_artifact(PkgArtifact {
-            name: "foo".to_string(),
-            version: "0.1.2".to_string(),
-            url: "https://example.com/foo-0.1.2.tar.zst".to_string(),
-        });
-        group.add_artifact(PkgArtifact {
-            name: "bar".to_string(),
-            version: "0.3.4".to_string(),
-            url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
-        });
+        let report = PackageReport {
+            distribution: distro.clone(),
+            release: None,
+            component: Some(suite.clone()),
+            architecture: architecture.clone(),
+            packages: vec![SourcePackageReport {
+                name: "hello-world".to_string(),
+                version: "1.2.3-4".to_string(),
+                url: "https://example.com/hello-world-1.2.3-4.buildinfo.txt".to_string(),
+                artifacts: vec![
+                    BinaryPackageReport {
+                        name: "foo".to_string(),
+                        version: "0.1.2".to_string(),
+                        architecture: architecture.clone(),
+                        url: "https://example.com/foo-0.1.2.tar.zst".to_string(),
+                    },
+                    BinaryPackageReport {
+                        name: "bar".to_string(),
+                        version: "0.3.4".to_string(),
+                        architecture: architecture.clone(),
+                        url: "https://example.com/bar-0.3.4.tar.zst".to_string(),
+                    },
+                ],
+            }],
+        };
 
-        client
-            .sync_suite(&SuiteImport {
-                distro,
-                suite,
-                groups: vec![group],
-            })
-            .await?;
+        client.submit_package_report(&report).await?;
 
         Ok(())
     })
@@ -409,8 +418,10 @@ async fn main() -> Result<()> {
 
     test("Fetching task and reporting GOOD with attestation", async {
         let task = client
-            .pop_queue(&WorkQuery {
+            .request_work(PopQueuedJobRequest {
                 supported_backends: vec!["rebuilderd".to_string()],
+                architecture: std::env::consts::ARCH.to_string(),
+                supported_architectures: vec![std::env::consts::ARCH.to_string()],
             })
             .await?;
 
@@ -419,8 +430,8 @@ async fn main() -> Result<()> {
             _ => bail!("Expected a job assignment"),
         };
 
-        let mut rebuilds = Vec::new();
-        for artifact in queue.pkgbase.artifacts.clone() {
+        let mut artifacts = Vec::new();
+        for artifact in queue.artifacts.clone() {
             let attestation = serde_json::to_string(&json!({
                 "signatures": [
                     {
@@ -448,29 +459,31 @@ async fn main() -> Result<()> {
                     "command": []
                 },
             }))?;
-            rebuilds.push((
-                artifact,
-                Rebuild {
-                    diffoscope: None,
-                    status: BuildStatus::Good,
-                    attestation: Some(attestation),
-                },
-            ));
+
+            artifacts.push(RebuildArtifactReport {
+                name: artifact.name.clone(),
+                diffoscope: None,
+                status: ArtifactStatus::Good,
+                attestation: Some(zstd_compress(attestation.as_bytes()).await?),
+            });
         }
 
-        let report = BuildReport {
-            queue,
-            build_log: String::new(),
-            rebuilds,
+        let report = RebuildReport {
+            queue_id: queue.job.id,
+            built_at: Utc::now().naive_utc(),
+            build_log: String::new().into_bytes(),
+            status: BuildStatus::Good,
+            artifacts,
         };
-        client.report_build(&report).await?;
+
+        client.submit_build_report(report).await?;
 
         Ok(())
     })
     .await?;
 
     let public_keys = test("Fetching public keys", async {
-        let response = client.fetch_public_keys().await?;
+        let response = client.get_public_keys().await?;
 
         let mut keys = Vec::new();
         for pem in response.current {
@@ -492,15 +505,22 @@ async fn main() -> Result<()> {
         let pkgs = list_pkgs(&client).await?;
 
         for pkg in pkgs {
-            if !pkg.has_attestation {
-                continue;
-            }
-
             let Some(build_id) = pkg.build_id else {
                 continue;
             };
 
-            let attestation = client.fetch_attestation(build_id).await?;
+            let artifact = client
+                .get_build_artifact(build_id, pkg.artifact_id.unwrap())
+                .await?;
+
+            if !artifact.has_attestation {
+                continue;
+            }
+
+            let attestation = client
+                .get_build_artifact_attestation(build_id, pkg.artifact_id.unwrap())
+                .await?;
+
             let attestation = Attestation::parse(&attestation)?;
 
             // ensure the attestation verifies because the rebuilderd instance itself signed it too
@@ -515,18 +535,27 @@ async fn main() -> Result<()> {
     if let Some(db) = db {
         test("Stripping signatures from attestations", async {
             let mut connection = db.get()?;
-            let builds = Build::list(connection.as_mut())?;
-            for mut build in builds {
-                let Some(attestation) = build.attestation else {
-                    continue;
-                };
-                let attestation = util::zstd_decompress(&attestation).await?;
+            let artifacts = rebuild_artifacts::table
+                .left_join(attestation_logs::table)
+                .filter(rebuild_artifacts::attestation_log_id.is_not_null())
+                .select((
+                    rebuild_artifacts::attestation_log_id.assume_not_null(),
+                    attestation_logs::attestation_log.assume_not_null(),
+                ))
+                .load::<(i32, Vec<u8>)>(connection.as_mut())?;
+
+            for artifact in artifacts {
+                let attestation = zstd_decompress(&artifact.1).await?;
+
                 let mut attestation = Attestation::parse(&attestation)?;
+
                 attestation.metablock.signatures.clear();
                 let attestation = attestation.to_compressed_bytes().await?;
 
-                build.attestation = Some(attestation);
-                build.update(connection.as_mut())?;
+                update(attestation_logs::table)
+                    .filter(attestation_logs::id.is(artifact.0))
+                    .set(attestation_logs::attestation_log.eq(attestation))
+                    .execute(connection.as_mut())?;
             }
             Ok(())
         })
@@ -536,20 +565,27 @@ async fn main() -> Result<()> {
             let pkgs = list_pkgs(&client).await?;
 
             for pkg in pkgs {
-                if !pkg.has_attestation {
-                    continue;
-                }
-
                 let Some(build_id) = pkg.build_id else {
                     continue;
                 };
+
+                let artifact = client
+                    .get_build_artifact(build_id, pkg.artifact_id.unwrap())
+                    .await?;
+
+                if !artifact.has_attestation {
+                    continue;
+                }
 
                 // we only query a specific package
                 if pkg.name != "foo" {
                     continue;
                 }
 
-                let attestation = client.fetch_attestation(build_id).await?;
+                let attestation = client
+                    .get_build_artifact_attestation(build_id, pkg.artifact_id.unwrap())
+                    .await?;
+
                 let attestation = Attestation::parse(&attestation)?;
 
                 // ensure the attestation verifies because the rebuilderd instance itself signed it too
@@ -562,23 +598,16 @@ async fn main() -> Result<()> {
 
         test("Verify signatures are added back into database", async {
             let mut connection = db.get()?;
-            let connection = connection.as_mut();
+            let packages = attestation_logs::table
+                .inner_join(rebuild_artifacts::table)
+                .select((rebuild_artifacts::name, attestation_logs::attestation_log))
+                .load::<(String, Vec<u8>)>(connection.as_mut())?;
 
-            let pkgs = Package::list(connection)?;
-            for pkg in pkgs {
-                let Some(build_id) = pkg.build_id else {
-                    continue;
-                };
-
-                let build = Build::get_id(build_id, connection)?;
-                let Some(attestation) = build.attestation else {
-                    continue;
-                };
-
-                let attestation = util::zstd_decompress(&attestation).await?;
+            for pkg in packages {
+                let attestation = zstd_decompress(&pkg.1).await?;
                 let attestation = Attestation::parse(&attestation)?;
 
-                match pkg.name.as_str() {
+                match pkg.0.as_str() {
                     "foo" => {
                         if attestation.metablock.signatures.len() != 1 {
                             bail!("Attestation for `foo` is expected to have exactly 1 signature");

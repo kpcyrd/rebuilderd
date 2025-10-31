@@ -1,9 +1,13 @@
-use crate::auth;
+use rand::distr::{Alphanumeric, SampleString};
+use rebuilderd_common::auth;
 use rebuilderd_common::config::{ConfigFile, ScheduleConfig, WorkerConfig};
 use rebuilderd_common::errors::*;
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_POST_BODY_SIZE_LIMIT: usize = 2_usize.pow(30); // 1 GB
 
@@ -52,7 +56,44 @@ pub fn load(path: Option<&Path>) -> Result<Config> {
         ConfigFile::default()
     };
 
-    let auth_cookie = auth::setup_auth_cookie().context("Failed to setup auth cookie")?;
+    let auth_cookie = setup_auth_cookie().context("Failed to setup auth cookie")?;
 
     from_struct(config, auth_cookie)
+}
+
+pub fn setup_auth_cookie() -> Result<String> {
+    let cookie = if let Ok(cookie) = auth::find_auth_cookie() {
+        debug!("Loaded cookie from filesystem");
+        cookie
+    } else {
+        debug!("Generating random cookie");
+        Alphanumeric.sample_string(&mut rand::rng(), 32)
+    };
+
+    let cookie_path = if let Ok(cookie_path) = env::var("REBUILDERD_COOKIE_PATH") {
+        PathBuf::from(cookie_path)
+    } else if let Some(data_dir) = dirs_next::data_dir() {
+        data_dir.join("rebuilderd-auth-cookie")
+    } else {
+        PathBuf::from("./auth-cookie")
+    };
+
+    if let Some(parent) = cookie_path.parent() {
+        debug!(
+            "Ensuring parent directory for auth cookie exists: {:?}",
+            parent
+        );
+        fs::create_dir_all(parent)?;
+    }
+
+    debug!("Writing auth cookie to {:?}", cookie_path);
+    let mut file = OpenOptions::new()
+        .mode(0o640)
+        .write(true)
+        .create(true)
+        .open(cookie_path)
+        .context("Failed to open auth cookie file")?;
+    file.write_all(format!("{}\n", cookie).as_bytes())?;
+
+    Ok(cookie)
 }

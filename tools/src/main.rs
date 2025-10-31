@@ -1,16 +1,22 @@
 use crate::args::*;
 use crate::config::SyncConfigFile;
+use crate::fancy::Fancy;
+use chrono::Utc;
 use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use glob::Pattern;
-use rebuilderd_common::api::*;
+use nom::AsBytes;
+use rebuilderd_common::api::v1::{
+    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
+    PackageRestApi, Page, QueueJobRequest, QueueRestApi, WorkerRestApi,
+};
+use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::utils;
 use serde::Serialize;
 use std::borrow::Cow;
-use std::fmt::Write as _;
 use std::io;
 use std::io::prelude::*;
 use tokio::io::AsyncReadExt;
@@ -18,6 +24,7 @@ use tokio::io::AsyncReadExt;
 pub mod args;
 pub mod config;
 pub mod decompress;
+pub mod fancy;
 pub mod pager;
 pub mod schedule;
 
@@ -43,7 +50,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
     };
 
     let http = http::client()?;
-    let mut pkgs = match method {
+    let mut reports = match method {
         "archlinux" => schedule::archlinux::sync(&http, &sync).await?,
         "debian" => schedule::debian::sync(&http, &sync).await?,
         "fedora" => schedule::fedora::sync(&http, &sync).await?,
@@ -53,49 +60,71 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
             unknown
         ),
     };
-    pkgs.sort_by(|a, b| a.name.cmp(&b.name));
+
+    reports.sort_by(|a, b| a.distribution.cmp(&b.distribution));
 
     if sync.print_json {
-        print_json(&pkgs)?;
+        print_json(&reports)?;
     } else {
-        sync_import(
-            client,
-            &SuiteImport {
-                distro: sync.distro,
-                suite: sync.suite,
-                groups: pkgs,
-            },
-        )
-        .await?;
+        for report in reports {
+            submit_package_report(&client, &report).await?;
+        }
     }
 
     Ok(())
 }
 
-pub async fn sync_import(client: &Client, sync: &SuiteImport) -> Result<()> {
-    info!("Sending current suite to api...");
+pub async fn submit_package_report(client: &Client, sync: &PackageReport) -> Result<()> {
+    let mut identity_string = "".to_owned();
+    if let Some(release) = &sync.release {
+        identity_string.push_str(format!("/{}", release).as_str())
+    }
+
+    if let Some(component) = &sync.component {
+        identity_string.push_str(format!("/{}", component).as_str())
+    }
+
+    let display_string = format!(
+        "{}{} ({})",
+        sync.distribution, identity_string, sync.architecture
+    );
+
+    info!(
+        "Sending {} to rebuilderd ({} packages)...",
+        display_string,
+        sync.packages.len()
+    );
+
     client
-        .sync_suite(sync)
+        .submit_package_report(sync)
         .await
         .context("Failed to send import to daemon")?;
     Ok(())
 }
 
-async fn fetch_build_id_by_filter(client: &Client, filter: PkgsFilter) -> Result<i32> {
-    let pkg = client
-        .match_one_pkg(&ListPkgs {
-            name: filter.name,
-            status: filter.status,
-            distro: filter.distro,
-            suite: filter.suite,
-            architecture: filter.architecture,
-        })
+async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPackage> {
+    let origin_filter = OriginFilter {
+        distribution: filter.distro,
+        release: None, // TODO: ls.filter.release,
+        component: filter.suite,
+        architecture: filter.architecture,
+    };
+
+    let identity_filter = IdentityFilter {
+        name: filter.name,
+        version: None, // TODO: ls.filter.version
+    };
+
+    let mut results = client
+        .get_binary_packages(None, Some(&origin_filter), Some(&identity_filter))
         .await
         .context("Failed to fetch package")?;
 
-    let build_id = pkg.build_id.context("Package has not been built yet")?;
+    if results.total != 1 {
+        bail!("Package lookup did not return exactly one result. Please be more specific")
+    }
 
-    Ok(build_id)
+    Ok(results.records.pop().unwrap())
 }
 
 #[tokio::main]
@@ -122,8 +151,8 @@ async fn main() -> Result<()> {
     match args.subcommand {
         SubCommand::Status => {
             let mut stdout = io::stdout();
-            for worker in client.with_auth_cookie()?.list_workers().await? {
-                let label = format!("{} ({})", worker.key.green(), worker.addr.yellow());
+            for worker in client.with_auth_cookie()?.get_workers(None).await?.records {
+                let label = format!("{} ({})", worker.name.green(), worker.address.yellow());
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
                 } else {
@@ -142,6 +171,12 @@ async fn main() -> Result<()> {
                 .remove(&args.profile)
                 .ok_or_else(|| format_err!("Profile not found: {:?}", args.profile))?;
 
+            // TODO: remove this after we've deprecated suite=
+            if let Some(suite) = profile.suite {
+                warn!("Deprecated option in config: replace `suite = \"{}\"` with `components = [\"{}\"]`", suite, suite);
+                profile.components.push(suite)
+            }
+
             // TODO: remove this after we've deprecated architecture=
             if let Some(arch) = profile.architecture {
                 warn!("Deprecated option in config: replace `architecture = \"{}\"` with `architectures = [\"{}\"]`", arch, arch);
@@ -153,7 +188,7 @@ async fn main() -> Result<()> {
                 PkgsSync {
                     distro: profile.distro,
                     sync_method: profile.sync_method,
-                    suite: profile.suite,
+                    components: profile.components,
                     releases: profile.releases,
                     architectures: profile.architectures,
                     source: profile.source,
@@ -171,140 +206,186 @@ async fn main() -> Result<()> {
             let mut buf = Vec::new();
             stdin.read_to_end(&mut buf).await?;
 
-            let pkgs = serde_json::from_slice(&buf)
+            let report = serde_json::from_slice(&buf)
                 .context("Failed to deserialize pkg import from stdin")?;
 
-            sync_import(
-                client.with_auth_cookie()?,
-                &SuiteImport {
-                    distro: sync.distro,
-                    suite: sync.suite,
-                    groups: pkgs,
-                },
-            )
-            .await?;
+            submit_package_report(client.with_auth_cookie()?, &report).await?;
         }
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
-            let pkgs = client
-                .list_pkgs(&ListPkgs {
-                    name: ls.filter.name,
-                    status: ls.filter.status,
-                    distro: ls.filter.distro,
-                    suite: ls.filter.suite,
-                    architecture: ls.filter.architecture,
-                })
-                .await?;
-            if ls.json {
-                print_json(&pkgs)?;
-            } else {
-                let mut stdout = io::stdout();
-                for pkg in pkgs {
-                    let status_str = format!("[{}]", pkg.status.fancy()).bold();
+            let origin_filter = OriginFilter {
+                distribution: ls.filter.distro,
+                release: None, // TODO: ls.filter.release,
+                component: ls.filter.suite,
+                architecture: ls.filter.architecture,
+            };
 
-                    let pkg_str = format!("{} {}", pkg.name.bold(), pkg.version.bold(),);
+            let identity_filter = IdentityFilter {
+                name: ls.filter.name,
+                version: None, // TODO: ls.filter.version
+            };
 
-                    let mut info = format!("{}, {}, {}", pkg.distro, pkg.suite, pkg.architecture,);
+            let mut page = Page {
+                limit: Some(1000),
+                before: None,
+                after: None,
+                sort: Some("name".to_string()),
+                direction: None,
+            };
 
-                    if let Some(build_id) = pkg.build_id {
-                        write!(info, ", #{}", build_id)?;
-                    }
+            loop {
+                let results = client
+                    .get_binary_packages(Some(&page), Some(&origin_filter), Some(&identity_filter))
+                    .await?;
 
-                    if writeln!(
-                        stdout,
-                        "{} {:-60} ({}) {:?}",
-                        status_str, pkg_str, info, pkg.artifact_url,
-                    )
-                    .is_err()
-                    {
-                        break;
+                if let Some(last) = results.records.last() {
+                    page.after = Some(last.id);
+                } else {
+                    break;
+                }
+
+                if ls.json {
+                    print_json(&results.records)?;
+                } else {
+                    let mut stdout = io::stdout();
+                    for package in results.records {
+                        let status_str = format!(
+                            "[{}]",
+                            package.status.unwrap_or(ArtifactStatus::Unknown).fancy()
+                        )
+                        .bold();
+
+                        let pkg_str =
+                            format!("{} {}", package.name.bold(), package.version.bold(),);
+
+                        let info = format!(
+                            "{}, {}, {}, {}",
+                            package.distribution,
+                            package.release.unwrap_or("<none>".to_string()),
+                            package.component.unwrap_or("<none>".to_string()),
+                            package.architecture,
+                        );
+
+                        if writeln!(
+                            stdout,
+                            "{} {:-60} ({}) {:?}",
+                            status_str, pkg_str, info, package.url,
+                        )
+                        .is_err()
+                        {
+                            break;
+                        }
                     }
                 }
             }
         }
-        SubCommand::Pkgs(Pkgs::Requeue(args)) => {
-            client
-                .with_auth_cookie()?
-                .requeue_pkgs(&RequeueQuery {
-                    name: args.filter.name,
-                    status: args.filter.status,
-                    priority: args.priority,
-                    distro: args.filter.distro,
-                    suite: args.filter.suite,
-                    architecture: args.filter.architecture,
-                    reset: args.reset,
-                })
-                .await?;
-        }
         SubCommand::Pkgs(Pkgs::Log(args)) => {
-            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
+            let package = lookup_package(&client, args.filter).await?;
+            if package.build_id.is_none() {
+                bail!("Package has not been built yet");
+            }
+
             let log = client
-                .fetch_log(build_id)
+                .get_build_log(package.build_id.unwrap())
                 .await
                 .context("Failed to fetch build log")?;
-            pager::write(&log)?;
+            pager::write(log.as_bytes())?;
         }
         SubCommand::Pkgs(Pkgs::Diffoscope(args)) => {
-            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
+            let package = lookup_package(&client, args.filter).await?;
+            if package.build_id.is_none() || package.artifact_id.is_none() {
+                bail!("Package has not been built yet");
+            }
+
             let diffoscope = client
-                .fetch_diffoscope(build_id)
+                .get_build_artifact_diffoscope(
+                    package.build_id.unwrap(),
+                    package.artifact_id.unwrap(),
+                )
                 .await
                 .context("Failed to fetch diffoscope")?;
-            pager::write(&diffoscope)?;
+
+            pager::write(diffoscope.as_bytes())?;
         }
         SubCommand::Pkgs(Pkgs::Attestation(args)) => {
-            let build_id = fetch_build_id_by_filter(&client, args.filter).await?;
-            let mut attestation = client
-                .fetch_attestation(build_id)
+            let package = lookup_package(&client, args.filter).await?;
+            if package.build_id.is_none() || package.artifact_id.is_none() {
+                bail!("Package has not been built yet");
+            }
+
+            let attestation = client
+                .get_build_artifact_attestation(
+                    package.build_id.unwrap(),
+                    package.artifact_id.unwrap(),
+                )
                 .await
                 .context("Failed to fetch attestation")?;
-            attestation.push(b'\n');
-            io::stdout().write_all(&attestation)?;
+
+            io::stdout().write_all(attestation.as_bytes())?;
+            io::stdout().write_all(b"\n")?;
         }
         SubCommand::Queue(Queue::Ls(ls)) => {
-            let limit = if ls.head { Some(25) } else { None };
-            let pkgs = client.list_queue(&ListQueue { limit }).await?;
+            let mut page = Page {
+                limit: if ls.head { Some(25) } else { Some(1000) },
+                before: None,
+                after: None,
+                sort: Some("name".to_string()),
+                direction: None,
+            };
 
-            if ls.json {
-                print_json(&pkgs)?;
-            } else {
-                let mut stdout = io::stdout();
-                for q in pkgs.queue {
-                    let pkg = q.pkgbase;
+            loop {
+                let results = client.get_queued_jobs(Some(&page), None, None).await?;
+                if let Some(last) = results.records.last() {
+                    page.limit = Some(1000);
+                    page.after = Some(last.id);
 
-                    let started_at = if let Some(started_at) = q.started_at {
-                        started_at.format("%Y-%m-%d %H:%M:%S").to_string()
-                    } else {
-                        String::new()
-                    };
-                    let pkg_str = format!("{} {}", pkg.name.bold(), q.version,);
-
-                    let running = format!(
-                        "{:>11}",
-                        if let Some(started_at) = q.started_at {
-                            let duration = (pkgs.now - started_at).num_seconds();
-                            Cow::Owned(utils::secs_to_human(duration))
-                        } else {
-                            Cow::Borrowed("")
-                        }
-                    );
-
-                    if writeln!(
-                        stdout,
-                        "{} {:-60} {} {:19} {:?} {:?} {:?}",
-                        q.queued_at
-                            .format("%Y-%m-%d %H:%M:%S")
-                            .to_string()
-                            .bright_black(),
-                        pkg_str,
-                        running.green(),
-                        started_at,
-                        pkg.distro,
-                        pkg.suite,
-                        pkg.architecture,
-                    )
-                    .is_err()
-                    {
+                    if ls.head {
                         break;
+                    }
+                } else {
+                    break;
+                }
+
+                if ls.json {
+                    print_json(&results.records)?;
+                } else {
+                    let mut stdout = io::stdout();
+                    for job in results.records {
+                        let started_at = if let Some(started_at) = job.started_at {
+                            started_at.format("%Y-%m-%d %H:%M:%S").to_string()
+                        } else {
+                            String::new()
+                        };
+                        let pkg_str = format!("{} {}", job.name.bold(), job.version,);
+
+                        let running = format!(
+                            "{:>11}",
+                            if let Some(started_at) = job.started_at {
+                                let duration = (Utc::now().naive_utc() - started_at).num_seconds();
+                                Cow::Owned(utils::secs_to_human(duration))
+                            } else {
+                                Cow::Borrowed("")
+                            }
+                        );
+
+                        if writeln!(
+                            stdout,
+                            "{} {:-60} {} {:19} {:?} {:?} {:?} {:?}",
+                            job.queued_at
+                                .format("%Y-%m-%d %H:%M:%S")
+                                .to_string()
+                                .bright_black(),
+                            pkg_str,
+                            running.green(),
+                            started_at,
+                            job.distribution,
+                            job.release,
+                            job.component,
+                            job.architecture,
+                        )
+                        .is_err()
+                        {
+                            break;
+                        }
                     }
                 }
             }
@@ -312,26 +393,34 @@ async fn main() -> Result<()> {
         SubCommand::Queue(Queue::Push(push)) => {
             client
                 .with_auth_cookie()?
-                .push_queue(&PushQueue {
-                    name: push.name,
+                .request_rebuild(QueueJobRequest {
+                    distribution: Some(push.distro),
+                    release: None, // TODO: push.release
+                    component: Some(push.suite),
+                    name: Some(push.name),
                     version: push.version,
-                    priority: push.priority,
-                    distro: push.distro,
-                    suite: push.suite,
                     architecture: push.architecture,
+                    status: None, // TODO: push.status
+                    priority: Some(push.priority),
                 })
                 .await?;
         }
         SubCommand::Queue(Queue::Delete(push)) => {
+            let origin_filter = OriginFilter {
+                distribution: Some(push.distro),
+                release: None, // TODO: ls.filter.release,
+                component: Some(push.suite),
+                architecture: push.architecture,
+            };
+
+            let identity_filter = IdentityFilter {
+                name: Some(push.name),
+                version: push.version,
+            };
+
             client
                 .with_auth_cookie()?
-                .drop_queue(&DropQueueItem {
-                    name: push.name,
-                    version: push.version,
-                    distro: push.distro,
-                    suite: push.suite,
-                    architecture: push.architecture,
-                })
+                .drop_queued_jobs(Some(&origin_filter), Some(&identity_filter))
                 .await?;
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,

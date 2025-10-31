@@ -1,8 +1,8 @@
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::Shell;
 use glob::Pattern;
+use rebuilderd_common::api::v1::BuildStatus;
 use rebuilderd_common::errors::*;
-use rebuilderd_common::Status;
 use std::io;
 use std::path::PathBuf;
 
@@ -49,8 +49,6 @@ pub enum Pkgs {
     SyncProfile(PkgsSyncProfile),
     /// Read a package sync from stdin
     SyncStdin(PkgsSyncStdin),
-    /// Requeue a given package
-    Requeue(PkgsRequeue),
     /// Access the build log of the last rebuild
     Log(PkgsLog),
     /// Access the diffoscope of the last rebuild (if there is any)
@@ -77,20 +75,30 @@ pub struct PkgsSyncStdin {
 #[derive(Debug, Parser)]
 pub struct PkgsSync {
     pub distro: String,
-    pub suite: String,
+
+    #[arg(long = "component")]
+    pub components: Vec<String>,
+
     pub source: String,
+
     #[arg(long = "architecture")]
     pub architectures: Vec<String>,
+
     #[arg(long)]
     pub print_json: bool,
+
     #[arg(long = "maintainer")]
     pub maintainers: Vec<String>,
+
     #[arg(long = "release")]
     pub releases: Vec<String>,
+
     #[arg(long = "pkg")]
     pub pkgs: Vec<Pattern>,
+
     #[arg(long = "exclude")]
     pub excludes: Vec<Pattern>,
+
     #[arg(long)]
     pub sync_method: Option<String>,
 }
@@ -102,7 +110,7 @@ pub struct PkgsFilter {
     pub name: Option<String>,
     /// Filter packages matching this status
     #[arg(long)]
-    pub status: Option<Status>,
+    pub status: Option<BuildStatus>,
     /// Filter packages matching this distro
     #[arg(long)]
     pub distro: Option<String>,
