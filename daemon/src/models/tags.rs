@@ -20,7 +20,7 @@ pub struct Tag {
 #[diesel(treat_none_as_null = true)]
 #[diesel(table_name = tags)]
 pub struct NewTag {
-    tag: String,
+    pub tag: String,
 }
 
 impl NewTag {
@@ -61,8 +61,8 @@ pub struct WorkerTag {
 #[diesel(treat_none_as_null = true)]
 #[diesel(table_name = worker_tags)]
 pub struct NewWorkerTag {
-    worker_id: i32,
-    tag_id: i32,
+    pub worker_id: i32,
+    pub tag_id: i32,
 }
 
 impl NewWorkerTag {
@@ -105,9 +105,9 @@ pub struct SourcePackageTagRule {
 #[diesel(treat_none_as_null = true)]
 #[diesel(table_name = source_package_tag_rules)]
 pub struct NewSourcePackageTagRule {
-    tag_id: i32,
-    source_package_name_pattern: String,
-    source_package_version_pattern: Option<String>,
+    pub tag_id: i32,
+    pub source_package_name_pattern: String,
+    pub source_package_version_pattern: Option<String>,
 }
 
 impl NewSourcePackageTagRule {
