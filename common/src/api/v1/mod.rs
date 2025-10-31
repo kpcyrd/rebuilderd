@@ -6,6 +6,95 @@ use async_trait::async_trait;
 pub use models::*;
 use std::borrow::Cow;
 
+#[cfg(feature = "diesel")]
+use diesel::{
+    deserialize::FromSql,
+    serialize::{IsNull, Output, ToSql},
+    sql_types::Integer,
+    sqlite::{Sqlite, SqliteValue},
+    {AsExpression, FromSqlRow},
+};
+use serde::{Deserialize, Serialize};
+
+/// Represents the priority of an enqueued rebuild job. The job queue is sorted based on priority and
+/// time, so the lower this number is, the more prioritized the job is. It's a little backwards, but
+/// hey.
+///
+/// There are some utility functions on the type for accessing default values for well-defined use
+/// cases. These map to constants in the same namespace as this type, and you can use either one.
+/// ```
+/// use rebuilderd::api::Priority;
+///
+/// assert_eq!(1, Priority::default())
+/// assert_eq!(2, Priority::retry())
+/// assert_eq!(0, Priority::manual())
+/// ```
+///
+/// You can also set a completely custom priority. This is mostly useful for external API calls that
+/// orchestrate rebuilds.
+/// ```
+/// use rebuilderd::api::Priority;
+///
+/// let custom = Priority(10);
+/// assert_eq!(custom.into(), 10);
+///
+/// ```
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
+#[cfg_attr(feature = "diesel", diesel(sql_type = Integer))]
+#[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
+pub struct Priority(i32);
+
+impl Priority {
+    // The default priority for enqueued rebuilds. The job queue is sorted based on priority and time,
+    // so the lower this number is, the more prioritized the job is. It's a little backwards, but hey.
+    const DEFAULT_QUEUE_PRIORITY: i32 = 1;
+
+    // The default priority used for automatically requeued jobs. This priority is lower than the one
+    // for untested packages.
+    const DEFAULT_RETRY_PRIORITY: i32 = Self::DEFAULT_QUEUE_PRIORITY + 1;
+
+    // The default priority used for manually retried jobs. This priority is higher than the one for
+    // untested packages.
+    const DEFAULT_MANUAL_PRIORITY: i32 = Self::DEFAULT_QUEUE_PRIORITY - 1;
+
+    pub fn retry() -> Self {
+        Priority(Self::DEFAULT_RETRY_PRIORITY)
+    }
+
+    pub fn manual() -> Self {
+        Priority(Self::DEFAULT_MANUAL_PRIORITY)
+    }
+}
+
+impl Default for Priority {
+    fn default() -> Self {
+        Priority(Self::DEFAULT_QUEUE_PRIORITY)
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl FromSql<Integer, Sqlite> for Priority {
+    fn from_sql(bytes: SqliteValue) -> diesel::deserialize::Result<Self> {
+        let value = <i32 as FromSql<Integer, Sqlite>>::from_sql(bytes)?;
+        Ok(Priority(value))
+    }
+}
+
+#[cfg(feature = "diesel")]
+impl ToSql<Integer, Sqlite> for Priority {
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> diesel::serialize::Result {
+        out.set_value(self.0);
+        Ok(IsNull::No)
+    }
+}
+
+impl From<i32> for Priority {
+    fn from(value: i32) -> Self {
+        Priority(value)
+    }
+}
+
 #[async_trait]
 pub trait BuildRestApi {
     async fn get_builds(
