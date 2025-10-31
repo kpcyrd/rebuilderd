@@ -142,7 +142,14 @@ pub async fn request_rebuild(
         .get_results::<i32>(connection.as_mut())
         .map_err(Error::from)?;
 
+    let now = Utc::now();
     for build_input_id in build_input_ids {
+        diesel::update(build_inputs::table)
+            .filter(build_inputs::id.eq(build_input_id))
+            .set(build_inputs::next_retry.eq(now.naive_utc()))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
+
         let new_queued_job = NewQueued {
             build_input_id,
             priority: queue_request.priority.unwrap_or(DEFAULT_QUEUE_PRIORITY),
