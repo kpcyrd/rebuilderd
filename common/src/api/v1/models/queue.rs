@@ -1,4 +1,4 @@
-use crate::api::v1::BuildStatus;
+use crate::api::v1::{BuildStatus, Priority};
 use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
@@ -13,7 +13,7 @@ pub struct QueueJobRequest {
     pub version: Option<String>,
     pub architecture: Option<String>,
     pub status: Option<BuildStatus>,
-    pub priority: Option<i32>,
+    pub priority: Option<Priority>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

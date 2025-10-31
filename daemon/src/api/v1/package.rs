@@ -2,7 +2,6 @@ use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::IntoOriginFilter;
 use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
-use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::{Pool, SqliteConnectionWrap};
 use crate::models::{BuildInput, NewBinaryPackage, NewBuildInput, NewQueued, NewSourcePackage};
@@ -20,8 +19,8 @@ use diesel::{
     OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods,
 };
 use rebuilderd_common::api::v1::{
-    BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
-    SourcePackageReport,
+    BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageReport, Page, Priority,
+    ResultPage, SourcePackageReport,
 };
 use rebuilderd_common::errors::Error;
 
@@ -244,8 +243,8 @@ pub async fn submit_package_report(
 
             if current_status != BuildStatus::Good && !has_queued_friend {
                 let priority = match current_status {
-                    BuildStatus::Bad => DEFAULT_QUEUE_PRIORITY + 1,
-                    _ => DEFAULT_QUEUE_PRIORITY,
+                    BuildStatus::Bad => Priority::retry(),
+                    _ => Priority::default(),
                 };
 
                 let new_queued_job = NewQueued {

@@ -23,23 +23,23 @@ use serde::{Deserialize, Serialize};
 /// There are some utility functions on the type for accessing default values for well-defined use
 /// cases. These map to constants in the same namespace as this type, and you can use either one.
 /// ```
-/// use rebuilderd::api::Priority;
+/// use rebuilderd_common::api::v1::Priority;
 ///
-/// assert_eq!(1, Priority::default())
-/// assert_eq!(2, Priority::retry())
-/// assert_eq!(0, Priority::manual())
+/// assert_eq!(Priority::from(1), Priority::default());
+/// assert_eq!(Priority::from(2), Priority::retry());
+/// assert_eq!(Priority::from(0), Priority::manual());
 /// ```
 ///
 /// You can also set a completely custom priority. This is mostly useful for external API calls that
 /// orchestrate rebuilds.
 /// ```
-/// use rebuilderd::api::Priority;
+/// use rebuilderd_common::api::v1::Priority;
 ///
-/// let custom = Priority(10);
-/// assert_eq!(custom.into(), 10);
+/// let custom = Priority::from(10);
+/// assert_eq!(custom, Priority::from(10));
 ///
 /// ```
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Copy, Clone)]
 #[cfg_attr(feature = "diesel", derive(FromSqlRow, AsExpression))]
 #[cfg_attr(feature = "diesel", diesel(sql_type = Integer))]
 #[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]

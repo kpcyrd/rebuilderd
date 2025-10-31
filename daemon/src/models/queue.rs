@@ -2,6 +2,7 @@ use crate::schema::*;
 use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
+use rebuilderd_common::api::v1::Priority;
 use rebuilderd_common::errors::*;
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +32,7 @@ impl Queued {
 #[diesel(table_name = queue)]
 pub struct NewQueued {
     pub build_input_id: i32,
-    pub priority: i32,
+    pub priority: Priority,
     pub queued_at: NaiveDateTime,
 }
 

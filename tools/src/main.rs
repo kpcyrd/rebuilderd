@@ -9,7 +9,7 @@ use glob::Pattern;
 use nom::AsBytes;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, QueueJobRequest, QueueRestApi, WorkerRestApi,
+    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
 };
 use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::*;
@@ -401,7 +401,7 @@ async fn main() -> Result<()> {
                     version: push.version,
                     architecture: push.architecture,
                     status: None, // TODO: push.status
-                    priority: Some(push.priority),
+                    priority: Some(Priority::from(push.priority)),
                 })
                 .await?;
         }

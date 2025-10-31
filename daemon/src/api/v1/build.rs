@@ -1,8 +1,8 @@
+use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::get_build_input_friends;
 use crate::api::v1::util::pagination::PaginateDsl;
-use crate::api::{forward_compressed_data, DEFAULT_QUEUE_PRIORITY};
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{
@@ -24,7 +24,7 @@ use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, OriginFilter, Page, Rebuild, RebuildReport, ResultPage,
+    BuildStatus, IdentityFilter, OriginFilter, Page, Priority, Rebuild, RebuildReport, ResultPage,
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
@@ -236,7 +236,7 @@ pub async fn submit_rebuild_report(
         // only requeue this build ID
         let new_queue = NewQueued {
             build_input_id: queued.build_input_id,
-            priority: DEFAULT_QUEUE_PRIORITY + 1,
+            priority: Priority::retry(),
             queued_at: now.naive_utc(),
         };
 
