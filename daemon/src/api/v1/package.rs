@@ -10,7 +10,7 @@ use crate::schema::{
 };
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
-use chrono::Utc;
+use chrono::{NaiveDateTime, Utc};
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
@@ -242,6 +242,29 @@ pub async fn submit_package_report(
             let has_queued_friend = has_queued_friend(conn, &build_input)?;
 
             if current_status != BuildStatus::Good && !has_queued_friend {
+                let retry_count = build_inputs::table
+                    .filter(build_inputs::id.is(build_input.id))
+                    .select(build_inputs::retries)
+                    .get_result::<i32>(conn)?;
+
+                // bail if we have a max retry count set and requeueing this package would exceed it
+                if let Some(max_retries) = cfg.schedule.max_retries()
+                    && retry_count + 1 > max_retries as i32
+                {
+                    // null out the next retry to mark the package as non-retried
+                    update(build_inputs::table)
+                        .filter(build_inputs::id.eq(build_input.id))
+                        .set(build_inputs::next_retry.eq(None::<NaiveDateTime>))
+                        .execute(conn)?;
+
+                    // drop any enqueued jobs for the build input
+                    delete(queue::table)
+                        .filter(queue::build_input_id.eq(build_input.id))
+                        .execute(conn)?;
+
+                    continue;
+                }
+
                 let priority = match current_status {
                     BuildStatus::Bad => Priority::retry(),
                     _ => Priority::default(),

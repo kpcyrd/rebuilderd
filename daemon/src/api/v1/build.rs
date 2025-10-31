@@ -15,7 +15,7 @@ use crate::schema::{
 };
 use crate::{attestation, web};
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
-use chrono::{Duration, Utc};
+use chrono::{Duration, NaiveDateTime, Utc};
 use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
 use diesel::dsl::update;
@@ -220,6 +220,20 @@ pub async fn submit_rebuild_report(
             .select(build_inputs::retries)
             .get_result::<i32>(connection.as_mut())
             .map_err(Error::from)?;
+
+        // bail if we have a max retry count set and requeueing this package would exceed it
+        if let Some(max_retries) = cfg.schedule.max_retries()
+            && retry_count + 1 > max_retries as i32
+        {
+            // null out the next retry to mark the package as non-retried
+            update(build_inputs::table)
+                .filter(build_inputs::id.eq_any(&friends))
+                .set(build_inputs::next_retry.eq(None::<NaiveDateTime>))
+                .execute(connection.as_mut())
+                .map_err(Error::from)?;
+
+            return Ok(HttpResponse::NoContent());
+        }
 
         let now = Utc::now();
         let then = now + Duration::hours(((retry_count + 1) * 24) as i64);
