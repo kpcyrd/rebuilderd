@@ -145,7 +145,7 @@ pub async fn request_rebuild(
     for build_input_id in build_input_ids {
         diesel::update(build_inputs::table)
             .filter(build_inputs::id.eq(build_input_id))
-            .set(build_inputs::next_retry.eq(now.naive_utc()))
+            .set(build_inputs::next_retry.eq((now - Duration::minutes(1)).naive_utc()))
             .execute(connection.as_mut())
             .map_err(Error::from)?;
 
