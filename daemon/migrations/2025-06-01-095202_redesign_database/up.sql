@@ -159,8 +159,6 @@ SELECT attestation
 
 CREATE INDEX _temp_attestation_logs_attestation_log_idx ON attestation_logs (attestation_log);
 
-VACUUM;
-
 -- rebuilds
 CREATE TABLE rebuilds
 (
