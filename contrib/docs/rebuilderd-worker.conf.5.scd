@@ -57,7 +57,7 @@ _max_bytes=_
 ## The rebuilderd to connect to
 endpoint = "http://127.0.0.1:8484"
 ## The server would either allowlist our key or require a signup secret
-#signup_secret = "your_signup_key"
+#signup_secret = "INSECURE"
 
 [build]
 #timeout = 86400 # 24 hours
