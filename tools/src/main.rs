@@ -9,8 +9,9 @@ use glob::Pattern;
 use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, Worker, WorkerRestApi,
+    ArtifactStatus, BinaryPackage, BuildRestApi, CreateTagRequest, CreateTagRuleRequest,
+    IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page, Priority, QueueJobRequest,
+    QueueRestApi, TagRestApi, Worker, WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -559,6 +560,81 @@ async fn main() -> Result<()> {
             } else {
                 writeln!(io::stderr(), "Worker {} not found", tag_target.name.green())?;
             }
+        }
+        SubCommand::Tag(TagCommand::List) => {
+            let tags = client.get_tags().await?;
+            writeln!(io::stdout(), "{}", tags.join("\n").cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Create(tag_target)) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .create_tag(CreateTagRequest {
+                    tag: tag_target.tag.clone(),
+                })
+                .await?;
+
+            writeln!(io::stdout(), "Tag {} created", tag_target.tag.cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Delete(tag_target)) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .delete_tag(tag_target.tag.clone())
+                .await?;
+
+            writeln!(io::stdout(), "Tag {} deleted", tag_target.tag.cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::List(tag_target))) => {
+            writeln!(io::stdout(), "ID\tTag\tName pattern\tVersion pattern",)?;
+
+            let tags = if let Some(tag) = tag_target.tag {
+                vec![tag]
+            } else {
+                client.get_tags().await?
+            };
+
+            for tag in tags {
+                let tag_rules = client.get_tag_rules(tag.clone()).await?;
+                for tag_rule in tag_rules {
+                    writeln!(
+                        io::stdout(),
+                        "{}\t{}\t{}\t{}",
+                        tag_rule.id.to_string().yellow(),
+                        tag.cyan(),
+                        tag_rule.name_pattern.green(),
+                        tag_rule.version_pattern.unwrap_or("".to_string()).magenta()
+                    )?;
+                }
+            }
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::Create(create_tag))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            let tag_rule = authenticated_client
+                .create_tag_rule(
+                    create_tag.tag,
+                    CreateTagRuleRequest {
+                        name_pattern: create_tag.name_pattern,
+                        version_pattern: create_tag.version_pattern,
+                    },
+                )
+                .await?;
+
+            writeln!(
+                io::stdout(),
+                "Rule created (ID {})",
+                tag_rule.id.to_string().yellow()
+            )?;
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::Delete(tag_rule_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .delete_tag_rule(tag_rule_target.tag, tag_rule_target.rule_id)
+                .await?;
+
+            writeln!(io::stdout(), "Rule deleted")?;
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }
