@@ -1,6 +1,6 @@
 use crate::db::Pool;
 use crate::models::{NewSourcePackageTagRule, NewTag};
-use crate::schema::{source_package_tag_rules, tags};
+use crate::schema::{tag_rules, tags};
 use crate::web;
 use actix_web::{delete, get, post, HttpResponse, Responder};
 use diesel::{delete, ExpressionMethods};
@@ -57,12 +57,12 @@ pub async fn get_tag_rules(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let tag_rules = tags::table
-        .inner_join(source_package_tag_rules::table)
+        .inner_join(tag_rules::table)
         .filter(tags::tag.eq(tag.into_inner()))
         .select((
-            source_package_tag_rules::id,
-            source_package_tag_rules::source_package_name_pattern,
-            source_package_tag_rules::source_package_version_pattern,
+            tag_rules::id,
+            tag_rules::name_pattern,
+            tag_rules::version_pattern,
         ))
         .get_results::<TagRule>(connection.as_mut())
         .map_err(Error::from)?;
@@ -86,8 +86,8 @@ pub async fn create_tag_rule(
 
     let tag_rule = NewSourcePackageTagRule {
         tag_id,
-        source_package_name_pattern: request.name_pattern.clone(),
-        source_package_version_pattern: request.version_pattern.clone(),
+        name_pattern: request.name_pattern.clone(),
+        version_pattern: request.version_pattern.clone(),
     }
     .ensure_exists(connection.as_mut())?;
 
@@ -109,9 +109,9 @@ pub async fn delete_tag_rule(
         .map_err(Error::from)?;
 
     delete(
-        source_package_tag_rules::table
-            .filter(source_package_tag_rules::id.eq(tag_rule_id))
-            .filter(source_package_tag_rules::tag_id.eq(tag_id)),
+        tag_rules::table
+            .filter(tag_rules::id.eq(tag_rule_id))
+            .filter(tag_rules::tag_id.eq(tag_id)),
     )
     .execute(connection.as_mut())
     .map_err(Error::from)?;

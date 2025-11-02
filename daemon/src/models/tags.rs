@@ -93,26 +93,26 @@ impl NewWorkerTag {
 #[derive(Identifiable, Queryable, AsChangeset, Selectable, Serialize, PartialEq, Eq, Debug)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 #[diesel(treat_none_as_null = true)]
-#[diesel(table_name = source_package_tag_rules)]
+#[diesel(table_name = tag_rules)]
 pub struct SourcePackageTagRule {
     pub id: i32,
     pub tag_id: i32,
-    pub source_package_name_pattern: String,
-    pub source_package_version_pattern: Option<String>,
+    pub name_pattern: String,
+    pub version_pattern: Option<String>,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
 #[diesel(treat_none_as_null = true)]
-#[diesel(table_name = source_package_tag_rules)]
+#[diesel(table_name = tag_rules)]
 pub struct NewSourcePackageTagRule {
     pub tag_id: i32,
-    pub source_package_name_pattern: String,
-    pub source_package_version_pattern: Option<String>,
+    pub name_pattern: String,
+    pub version_pattern: Option<String>,
 }
 
 impl NewSourcePackageTagRule {
     pub fn ensure_exists(self, connection: &mut SqliteConnection) -> Result<SourcePackageTagRule> {
-        use crate::schema::source_package_tag_rules::*;
+        use crate::schema::tag_rules::*;
 
         let inserted = diesel::insert_into(table)
             .values(&self)
@@ -127,8 +127,8 @@ impl NewSourcePackageTagRule {
 
         let existing = table
             .filter(tag_id.eq(self.tag_id))
-            .filter(source_package_name_pattern.eq(self.source_package_name_pattern))
-            .filter(source_package_version_pattern.is(self.source_package_version_pattern))
+            .filter(name_pattern.eq(self.name_pattern))
+            .filter(version_pattern.is(self.version_pattern))
             .select(SourcePackageTagRule::as_select())
             .get_result(connection)?;
 

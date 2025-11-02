@@ -80,11 +80,11 @@ diesel::table! {
 }
 
 diesel::table! {
-    source_package_tag_rules (id) {
+    tag_rules (id) {
         id -> Integer,
         tag_id -> Integer,
-        source_package_name_pattern -> Text,
-        source_package_version_pattern -> Nullable<Text>,
+        name_pattern -> Text,
+        version_pattern -> Nullable<Text>,
     }
 }
 
@@ -136,7 +136,7 @@ diesel::joinable!(rebuild_artifacts -> diffoscope_logs (diffoscope_log_id));
 diesel::joinable!(rebuild_artifacts -> rebuilds (rebuild_id));
 diesel::joinable!(rebuilds -> build_inputs (build_input_id));
 diesel::joinable!(rebuilds -> build_logs (build_log_id));
-diesel::joinable!(source_package_tag_rules -> tags (tag_id));
+diesel::joinable!(tag_rules -> tags (tag_id));
 diesel::joinable!(worker_tags -> tags (tag_id));
 diesel::joinable!(worker_tags -> workers (worker_id));
 
@@ -149,7 +149,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     queue,
     rebuild_artifacts,
     rebuilds,
-    source_package_tag_rules,
+    tag_rules,
     source_packages,
     tags,
     worker_tags,

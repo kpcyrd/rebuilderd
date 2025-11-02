@@ -5,8 +5,8 @@ use crate::config::Config;
 use crate::db::Pool;
 use crate::models::NewQueued;
 use crate::schema::{
-    binary_packages, build_inputs, queue, rebuilds, source_package_tag_rules, source_packages,
-    worker_tags, workers,
+    binary_packages, build_inputs, queue, rebuilds, source_packages, tag_rules, worker_tags,
+    workers,
 };
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
@@ -330,22 +330,19 @@ fn get_eligible_job(
         .get_results::<i32>(connection)?;
 
     let mut base_query = queue_base()
-        .left_join(
-            source_package_tag_rules::table.on(source_packages::name
-                .like(source_package_tag_rules::source_package_name_pattern)
-                .and(source_packages::version.like(sqlite_coalesce(
-                    source_package_tag_rules::source_package_version_pattern,
-                    "%",
-                )))),
-        )
+        .left_join(tag_rules::table.on(
+            source_packages::name.like(tag_rules::name_pattern).and(
+                source_packages::version.like(sqlite_coalesce(tag_rules::version_pattern, "%")),
+            ),
+        ))
         .into_boxed();
 
     base_query = if !worker_tag_ids.is_empty() {
         // worker has tags - only offer tagged work applicable to us
-        base_query.filter(source_package_tag_rules::id.eq_any(worker_tag_ids))
+        base_query.filter(tag_rules::id.eq_any(worker_tag_ids))
     } else {
         // worker has no tags - only offer untagged work
-        base_query.filter(source_package_tag_rules::id.is_null())
+        base_query.filter(tag_rules::id.is_null())
     };
 
     // TODO: this can produce duplicates if multiple rules match a package. It's not a breaking issue, but it does make
