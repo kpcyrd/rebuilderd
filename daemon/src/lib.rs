@@ -109,7 +109,8 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
                                     .service(api::v1::set_worker_tags)
                                     .service(api::v1::create_worker_tag)
                                     .service(api::v1::delete_worker_tag),
-                            ),
+                            )
+                            .service(scope("/tags").service(api::v1::get_tags)),
                     ),
             )
     })
