@@ -1,9 +1,11 @@
+use crate::api::v1::util::auth;
+use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewSourcePackageTagRule, NewTag};
 use crate::schema::{tag_rules, tags};
 use crate::web;
-use actix_web::{delete, get, post, HttpResponse, Responder};
-use diesel::{delete, ExpressionMethods};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
+use diesel::{ExpressionMethods, delete};
 use diesel::{QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{CreateTagRequest, CreateTagRuleRequest, TagRule};
 use rebuilderd_common::errors::Error;
@@ -22,9 +24,15 @@ pub async fn get_tags(pool: web::Data<Pool>) -> web::Result<impl Responder> {
 
 #[post("")]
 pub async fn create_tag(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     request: web::Json<CreateTagRequest>,
 ) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
 
     let tag = NewTag {
@@ -37,9 +45,15 @@ pub async fn create_tag(
 
 #[delete("/{tag}")]
 pub async fn delete_tag(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     tag: web::Path<String>,
 ) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
 
     delete(tags::table.filter(tags::tag.eq(tag.into_inner())))
@@ -72,10 +86,16 @@ pub async fn get_tag_rules(
 
 #[post("/{tag}")]
 pub async fn create_tag_rule(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     tag: web::Path<String>,
     request: web::Json<CreateTagRuleRequest>,
 ) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
 
     let tag_id = tags::table
@@ -96,9 +116,15 @@ pub async fn create_tag_rule(
 
 #[delete("/{tag}/{id}")]
 pub async fn delete_tag_rule(
+    req: HttpRequest,
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     parameters: web::Path<(String, i32)>,
 ) -> web::Result<impl Responder> {
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
+
     let mut connection = pool.get().map_err(Error::from)?;
     let (tag, tag_rule_id) = parameters.into_inner();
 
