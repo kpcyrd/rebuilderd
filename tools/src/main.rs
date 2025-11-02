@@ -10,7 +10,7 @@ use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
+    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, Worker, WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -126,6 +126,33 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
     Ok(results.records.pop().unwrap())
 }
 
+async fn find_worker(authenticated_client: &Client, name: String) -> Result<Option<Worker>> {
+    let mut page = Page {
+        limit: None,
+        before: None,
+        after: None,
+        sort: Some("id".to_string()),
+        direction: None,
+    };
+
+    loop {
+        let results = authenticated_client.get_workers(Some(&page)).await?;
+
+        if let Some(last) = results.records.last() {
+            page.after = Some(last.id);
+
+            let worker = results.records.into_iter().find(|w| w.name.eq(&name));
+
+            if let Some(worker) = worker {
+                return Ok(Some(worker));
+            }
+        } else {
+            // out of results
+            return Ok(None);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -151,7 +178,18 @@ async fn main() -> Result<()> {
         SubCommand::Status => {
             let mut stdout = io::stdout();
             for worker in client.with_auth_cookie()?.get_workers(None).await?.records {
-                let label = format!("{} ({})", worker.name.green(), worker.address.yellow());
+                let tags = client.get_worker_tags(worker.id).await?;
+                let label = if tags.is_empty() {
+                    format!("{} ({})", worker.name.green(), worker.address.yellow())
+                } else {
+                    format!(
+                        "{} [{}] ({})",
+                        worker.name.green(),
+                        tags.join(", ").cyan(),
+                        worker.address.yellow(),
+                    )
+                };
+
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
                 } else {
@@ -438,6 +476,89 @@ async fn main() -> Result<()> {
                 .with_auth_cookie()?
                 .drop_queued_jobs(Some(&origin_filter), Some(&identity_filter))
                 .await?;
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::List(worker_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) =
+                find_worker(authenticated_client, worker_target.name.clone()).await?
+            {
+                let tags = authenticated_client.get_worker_tags(worker.id).await?;
+
+                if tags.is_empty() {
+                    writeln!(io::stdout(), "{} has no tags", worker_target.name.green())?;
+                } else {
+                    writeln!(io::stdout(), "{}", tags.join("\n").cyan())?;
+                }
+            } else {
+                writeln!(
+                    io::stderr(),
+                    "Worker {} not found",
+                    worker_target.name.green()
+                )?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Set(worker_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) =
+                find_worker(authenticated_client, worker_target.name.clone()).await?
+            {
+                authenticated_client
+                    .set_worker_tags(worker.id, worker_target.tags.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{}'s tags have been set to {}",
+                    worker_target.name.green(),
+                    worker_target.tags.join(", ").cyan()
+                )?;
+            } else {
+                writeln!(
+                    io::stderr(),
+                    "Worker {} not found",
+                    worker_target.name.green()
+                )?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Add(tag_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) = find_worker(authenticated_client, tag_target.name.clone()).await?
+            {
+                authenticated_client
+                    .create_worker_tag(worker.id, tag_target.tag.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{} added to {}",
+                    tag_target.tag.cyan(),
+                    tag_target.name.green()
+                )?;
+            } else {
+                writeln!(io::stderr(), "Worker {} not found", tag_target.name.green())?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Remove(tag_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) = find_worker(authenticated_client, tag_target.name.clone()).await?
+            {
+                authenticated_client
+                    .delete_worker_tag(worker.id, tag_target.tag.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{} removed from {}",
+                    tag_target.tag.cyan(),
+                    tag_target.name.green()
+                )?;
+            } else {
+                writeln!(io::stderr(), "Worker {} not found", tag_target.name.green())?;
+            }
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }

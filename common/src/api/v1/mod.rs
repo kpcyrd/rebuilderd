@@ -196,6 +196,10 @@ pub trait WorkerRestApi {
     async fn register_worker(&self, request: RegisterWorkerRequest) -> Result<()>;
     async fn get_worker(&self, id: i32) -> Result<Worker>;
     async fn unregister_worker(&self, id: i32) -> Result<()>;
+    async fn get_worker_tags(&self, id: i32) -> Result<Vec<String>>;
+    async fn set_worker_tags(&self, id: i32, tags: Vec<String>) -> Result<()>;
+    async fn create_worker_tag(&self, id: i32, tag: String) -> Result<()>;
+    async fn delete_worker_tag(&self, id: i32, tag: String) -> Result<()>;
 }
 
 #[async_trait]
@@ -658,6 +662,46 @@ impl WorkerRestApi for Client {
 
     async fn unregister_worker(&self, id: i32) -> Result<()> {
         self.delete(Cow::Owned(format!("api/v1/workers/{id}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn get_worker_tags(&self, id: i32) -> Result<Vec<String>> {
+        let tags = self
+            .get(Cow::Owned(format!("api/v1/workers/{id}/tags")))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(tags)
+    }
+
+    async fn set_worker_tags(&self, id: i32, tags: Vec<String>) -> Result<()> {
+        self.put(Cow::Owned(format!("api/v1/workers/{id}/tags")))
+            .json(&tags)
+            .send_encoded()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn create_worker_tag(&self, id: i32, tag: String) -> Result<()> {
+        self.put(Cow::Owned(format!("api/v1/workers/{id}/tags/{tag}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn delete_worker_tag(&self, id: i32, tag: String) -> Result<()> {
+        self.delete(Cow::Owned(format!("api/v1/workers/{id}/tags/{tag}")))
             .send()
             .await?
             .error_for_status()?;

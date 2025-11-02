@@ -35,6 +35,9 @@ pub enum SubCommand {
     /// Queue related subcommands
     #[command(subcommand)]
     Queue(Queue),
+    // Worker related subcommands
+    #[command(subcommand)]
+    Worker(WorkerCommand),
     /// Generate shell completions
     Completions(Completions),
 }
@@ -201,6 +204,38 @@ pub struct QueueDrop {
 
     pub name: String,
     pub version: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub enum WorkerCommand {
+    /// Operate on worker tags
+    #[command(subcommand)]
+    Tag(WorkerTagCommand),
+}
+
+#[derive(Debug, Parser)]
+pub enum WorkerTagCommand {
+    List(WorkerTarget),
+    Set(WorkerSetTags),
+    Add(WorkerTagTarget),
+    Remove(WorkerTagTarget),
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerTarget {
+    pub name: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerTagTarget {
+    pub name: String,
+    pub tag: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerSetTags {
+    pub name: String,
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Parser)]

@@ -104,7 +104,7 @@ impl Client {
         url
     }
 
-    fn authenticated(&self, mut req: RequestBuilder) -> RequestBuilder {
+    fn add_authentication(&self, mut req: RequestBuilder) -> RequestBuilder {
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
         }
@@ -120,25 +120,20 @@ impl Client {
         req
     }
 
-    fn get(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let url = self.url_join(&path);
-        debug!("Sending GET request to {}", url.as_str());
-        let req = self.client.get(url);
-        self.authenticated(req)
+    fn get(&self, path: Cow<'static, str>) -> RequestBuilder {
+        self.add_authentication(self.client.get(self.url_join(&path)))
     }
 
-    fn post(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let url = self.url_join(&path);
-        debug!("Sending POST request to {}", url.as_str());
-        let req = self.client.post(url);
-        self.authenticated(req)
+    fn post(&self, path: Cow<'static, str>) -> RequestBuilder {
+        self.add_authentication(self.client.post(self.url_join(&path)))
     }
 
-    fn delete(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let url = self.url_join(&path);
-        debug!("Sending DELETE request to {}", url.as_str());
-        let req = self.client.delete(url);
-        self.authenticated(req)
+    fn put(&self, path: Cow<'static, str>) -> RequestBuilder {
+        self.add_authentication(self.client.put(self.url_join(&path)))
+    }
+
+    fn delete(&self, path: Cow<'static, str>) -> RequestBuilder {
+        self.add_authentication(self.client.delete(self.url_join(&path)))
     }
 }
 

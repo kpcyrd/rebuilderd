@@ -104,7 +104,11 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
                                     .service(api::v1::get_workers)
                                     .service(api::v1::register_worker)
                                     .service(api::v1::get_worker)
-                                    .service(api::v1::unregister_worker),
+                                    .service(api::v1::unregister_worker)
+                                    .service(api::v1::get_worker_tags)
+                                    .service(api::v1::set_worker_tags)
+                                    .service(api::v1::create_worker_tag)
+                                    .service(api::v1::delete_worker_tag),
                             ),
                     ),
             )
