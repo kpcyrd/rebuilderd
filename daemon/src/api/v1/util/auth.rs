@@ -25,6 +25,15 @@ pub fn worker(
     req: &HttpRequest,
     connection: &mut SqliteConnection,
 ) -> rebuilderd_common::errors::Result<Worker> {
+
+    // Check if auth is required BEFORE trying to extract the header
+    if cfg.worker.authorized_workers.is_empty() && cfg.worker.signup_secret.is_none() {
+        // When no auth is configured, try to get the worker key if provided, otherwise use a default key
+        let worker_key = api::header(req, WORKER_KEY_HEADER).unwrap_or("unauthenticated");
+        return Worker::get_or_create(worker_key, "anonymous", connection);
+    }
+
+    // Auth is configured, so the worker key is required
     let worker_key = api::header(req, WORKER_KEY_HEADER).context("Failed to get worker key")?;
 
     if !cfg.worker.authorized_workers.is_empty()
