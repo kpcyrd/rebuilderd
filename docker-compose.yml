@@ -1,5 +1,4 @@
 ---
-version: '3'
 services:
   daemon:
     build: .
@@ -25,6 +24,8 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+    depends_on:
+    - daemon
   worker-archlinux:
     build:
       context: .
@@ -37,6 +38,8 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+    depends_on:
+    - daemon
   worker-debian:
     build:
       context: .
@@ -51,6 +54,8 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+    depends_on:
+    - daemon
   worker-fedora:
     build:
       context: .
@@ -63,6 +68,8 @@ services:
     - REBUILDERD_COOKIE_PATH=/secret/auth
     volumes:
     - ./secret:/secret
+    depends_on:
+    - daemon
   worker-tails:
     build:
       context: .
@@ -80,3 +87,5 @@ services:
     - /proc:/proc
     - /sys:/sys
     - /var/run/libvirt:/var/run/libvirt
+    depends_on:
+    - daemon
