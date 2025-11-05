@@ -21,7 +21,7 @@ use diesel::{
 };
 use rebuilderd_common::api::v1::{
     BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageReport, Page, ResultPage,
-    SourcePackageReport,
+    SourcePackageReport, StatusFilter,
 };
 use rebuilderd_common::errors::Error;
 
@@ -412,10 +412,11 @@ pub async fn get_source_packages(
     origin_filter: web::Query<OriginFilter>,
     identity_filter: web::Query<IdentityFilter>,
     freshness_filter: web::Query<FreshnessFilter>,
+    status_filter: web::Query<StatusFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let records = source_packages_base()
+    let mut query = source_packages_base()
         .filter(
             origin_filter
                 .clone()
@@ -429,11 +430,26 @@ pub async fn get_source_packages(
                 .into_filter(source_packages::name, source_packages::version),
         )
         .filter(freshness_filter.clone().into_inner().into_filter())
+        .into_boxed();
+
+    // Apply status filter if provided
+    if let Some(ref statuses) = status_filter.status {
+        if !statuses.is_empty() {
+            let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
+            query = query.filter(
+                r1.field(rebuilds::status).is_not_null().and(
+                    r1.field(rebuilds::status).assume_not_null().eq_any(status_values)
+                )
+            );
+        }
+    }
+
+    let records = query
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = source_packages_base()
+    let mut count_query = source_packages_base()
         .filter(
             origin_filter
                 .clone()
@@ -447,6 +463,21 @@ pub async fn get_source_packages(
                 .into_filter(source_packages::name, source_packages::version),
         )
         .filter(freshness_filter.into_inner().into_filter())
+        .into_boxed();
+
+    // Apply status filter to count query
+    if let Some(ref statuses) = status_filter.status {
+        if !statuses.is_empty() {
+            let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
+            count_query = count_query.filter(
+                r1.field(rebuilds::status).is_not_null().and(
+                    r1.field(rebuilds::status).assume_not_null().eq_any(status_values)
+                )
+            );
+        }
+    }
+
+    let total = count_query
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -480,10 +511,11 @@ pub async fn get_binary_packages(
     origin_filter: web::Query<OriginFilter>,
     identity_filter: web::Query<IdentityFilter>,
     freshness_filter: web::Query<FreshnessFilter>,
+    status_filter: web::Query<StatusFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let records = binary_packages_base()
+    let mut query = binary_packages_base()
         .filter(
             origin_filter
                 .clone()
@@ -497,11 +529,26 @@ pub async fn get_binary_packages(
                 .into_filter(binary_packages::name, binary_packages::version),
         )
         .filter(freshness_filter.clone().into_inner().into_filter())
+        .into_boxed();
+
+    // Apply status filter if provided
+    if let Some(ref statuses) = status_filter.status {
+        if !statuses.is_empty() {
+            let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
+            query = query.filter(
+                rebuild_artifacts::status.is_not_null().and(
+                    rebuild_artifacts::status.assume_not_null().eq_any(status_values)
+                )
+            );
+        }
+    }
+
+    let records = query
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
 
-    let total = binary_packages_base()
+    let mut count_query = binary_packages_base()
         .filter(
             origin_filter
                 .clone()
@@ -515,6 +562,21 @@ pub async fn get_binary_packages(
                 .into_inner()
                 .into_filter(binary_packages::name, binary_packages::version),
         )
+        .into_boxed();
+
+    // Apply status filter to count query
+    if let Some(ref statuses) = status_filter.status {
+        if !statuses.is_empty() {
+            let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
+            count_query = count_query.filter(
+                rebuild_artifacts::status.is_not_null().and(
+                    rebuild_artifacts::status.assume_not_null().eq_any(status_values)
+                )
+            );
+        }
+    }
+
+    let total = count_query
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;

@@ -111,6 +111,7 @@ pub async fn request_rebuild(
 
     let identity_filter = IdentityFilter {
         name: queue_request.name,
+        name_starts_with: None,
         version: queue_request.version,
     };
 

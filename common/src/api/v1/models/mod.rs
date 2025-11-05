@@ -45,10 +45,30 @@ pub struct OriginFilter {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentityFilter {
     pub name: Option<String>,
+    pub name_starts_with: Option<String>,
     pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreshnessFilter {
     pub seen_only: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatusFilter {
+    #[serde(default, deserialize_with = "deserialize_comma_separated")]
+    pub status: Option<Vec<String>>,
+}
+
+fn deserialize_comma_separated<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    Ok(s.map(|s| {
+        s.split(',')
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect()
+    }))
 }

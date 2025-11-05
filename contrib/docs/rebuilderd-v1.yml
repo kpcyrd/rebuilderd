@@ -272,6 +272,7 @@ paths:
 
         - $ref: '#/components/parameters/name'
         - $ref: '#/components/parameters/version'
+        - $ref: '#/components/parameters/status'
       responses:
         "200":
           description: Success
@@ -331,6 +332,7 @@ paths:
         - $ref: '#/components/parameters/name'
         - $ref: '#/components/parameters/version'
         - $ref: '#/components/parameters/architecture'
+        - $ref: '#/components/parameters/status'
       responses:
         "200":
           description: Success
@@ -1468,7 +1470,19 @@ components:
       schema:
         type: string
       description: |-
-        Filters the results by the name of the package.
+        Filters the results by the exact name of the package.
+        If both 'name' and 'name_starts_with' are specified, 'name' takes precedence.
+    name_starts_with:
+      in: query
+      name: name_starts_with
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by packages whose names start with the given prefix.
+        Uses SQL LIKE with an implicit '%' wildcard at the end.
+        Example: 'lib' matches 'libfoo', 'libbar', etc.
+        If both 'name' and 'name_starts_with' are specified, 'name' takes precedence.
     version:
       in: query
       name: version
@@ -1519,6 +1533,19 @@ components:
         type: bool
       description: |-
         Filters the results by packages only seen in the latest sync.
+    status:
+      in: query
+      name: status
+      required: false
+      schema:
+        type: string
+        pattern: '^(GOOD|BAD|FAIL|UNKWN)(,(GOOD|BAD|FAIL|UNKWN))*$'
+      description: |-
+        Filters the results by rebuild/artifact status. Comma-separated list of status values.
+        For binary packages, filters by artifact status (GOOD, BAD, UNKWN).
+        For source packages, filters by rebuild status (GOOD, BAD, FAIL, UNKWN).
+        Values are case-insensitive.
+        Example: status=BAD,FAIL
   securitySchemes:
     AuthCookie:
       type: apiKey
