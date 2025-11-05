@@ -438,8 +438,10 @@ pub async fn get_source_packages(
             let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
             query = query.filter(
                 r1.field(rebuilds::status).is_not_null().and(
-                    r1.field(rebuilds::status).assume_not_null().eq_any(status_values)
-                )
+                    r1.field(rebuilds::status)
+                        .assume_not_null()
+                        .eq_any(status_values),
+                ),
             );
         }
     }
@@ -471,8 +473,10 @@ pub async fn get_source_packages(
             let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
             count_query = count_query.filter(
                 r1.field(rebuilds::status).is_not_null().and(
-                    r1.field(rebuilds::status).assume_not_null().eq_any(status_values)
-                )
+                    r1.field(rebuilds::status)
+                        .assume_not_null()
+                        .eq_any(status_values),
+                ),
             );
         }
     }
@@ -537,8 +541,10 @@ pub async fn get_binary_packages(
             let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
             query = query.filter(
                 rebuild_artifacts::status.is_not_null().and(
-                    rebuild_artifacts::status.assume_not_null().eq_any(status_values)
-                )
+                    rebuild_artifacts::status
+                        .assume_not_null()
+                        .eq_any(status_values),
+                ),
             );
         }
     }
@@ -570,8 +576,10 @@ pub async fn get_binary_packages(
             let status_values: Vec<String> = statuses.iter().map(|s| s.to_uppercase()).collect();
             count_query = count_query.filter(
                 rebuild_artifacts::status.is_not_null().and(
-                    rebuild_artifacts::status.assume_not_null().eq_any(status_values)
-                )
+                    rebuild_artifacts::status
+                        .assume_not_null()
+                        .eq_any(status_values),
+                ),
             );
         }
     }

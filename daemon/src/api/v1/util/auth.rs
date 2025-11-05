@@ -25,7 +25,6 @@ pub fn worker(
     req: &HttpRequest,
     connection: &mut SqliteConnection,
 ) -> rebuilderd_common::errors::Result<Worker> {
-
     // Check if auth is required BEFORE trying to extract the header
     if cfg.worker.authorized_workers.is_empty() && cfg.worker.signup_secret.is_none() {
         // When no auth is configured, try to get the worker key if provided, otherwise use a default key
