@@ -31,6 +31,20 @@ impl Worker {
 
         Ok(worker)
     }
+
+    pub fn get_or_create(key: &str, name: &str, connection: &mut SqliteConnection) -> Result<Worker> {
+        let now = Utc::now().naive_utc();
+        let new_worker = NewWorker {
+            key: key.to_string(),
+            name: name.to_string(),
+            address: "unauthenticated".to_string(),
+            status: None,
+            last_ping: now,
+            online: true,
+        };
+
+        new_worker.upsert(connection)
+    }
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]

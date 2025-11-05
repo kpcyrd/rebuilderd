@@ -112,6 +112,7 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
 
     let identity_filter = IdentityFilter {
         name: filter.name,
+        name_starts_with: None,
         version: None, // TODO: ls.filter.version
     };
 
@@ -221,6 +222,7 @@ async fn main() -> Result<()> {
 
             let identity_filter = IdentityFilter {
                 name: ls.filter.name,
+                name_starts_with: None,
                 version: None, // TODO: ls.filter.version
             };
 
@@ -415,6 +417,7 @@ async fn main() -> Result<()> {
 
             let identity_filter = IdentityFilter {
                 name: Some(push.name),
+                name_starts_with: None,
                 version: push.version,
             };
 
