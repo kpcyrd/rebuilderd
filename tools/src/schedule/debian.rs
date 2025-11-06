@@ -1660,7 +1660,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
             .unwrap();
 
         // testing
-        let (source, binary) =(
+        let (source, binary) = (
 b"Package: novnc
 Binary: novnc, python3-novnc
 Version: 1:1.6.0-1
