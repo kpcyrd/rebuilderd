@@ -298,19 +298,23 @@ impl SyncState {
     fn get_mut_group(
         &mut self,
         src: &DebianSourcePkg,
-        release: &String,
-        component: &String,
-        architecture: &String,
+        release: &str,
+        component: &str,
+        architecture: &str,
     ) -> &mut SourcePackageReport {
-        let key = (release.clone(), component.clone(), architecture.clone());
+        let key = (
+            release.to_string(),
+            component.to_string(),
+            architecture.to_string(),
+        );
         let report = self
             .reports
             .entry(key.clone())
             .or_insert_with(|| PackageReport {
                 distribution: "debian".to_string(),
-                release: Some(release.clone()),
-                component: Some(component.clone()),
-                architecture: architecture.clone(),
+                release: Some(release.to_string()),
+                component: Some(component.to_string()),
+                architecture: architecture.to_string(),
                 packages: Vec::new(),
             });
 
@@ -339,8 +343,8 @@ impl SyncState {
         src: &DebianSourcePkg,
         bin: DebianBinPkg,
         source: &str,
-        release: &String,
-        component: &String,
+        release: &str,
+        component: &str,
     ) {
         let group = self.get_mut_group(src, release, component, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
@@ -360,8 +364,8 @@ impl SyncState {
         &mut self,
         pkg: DebianBinPkg,
         sources: &SourcePkgBucket,
-        release: &String,
-        component: &String,
+        release: &str,
+        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
         // Debian combines arch:all and arch:any packages.
@@ -392,8 +396,8 @@ impl SyncState {
         &mut self,
         bytes: &[u8],
         sources: &SourcePkgBucket,
-        release: &String,
-        component: &String,
+        release: &str,
+        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
@@ -406,8 +410,8 @@ impl SyncState {
         &mut self,
         bytes: &[u8],
         sources: &SourcePkgBucket,
-        release: &String,
-        component: &String,
+        release: &str,
+        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
@@ -689,13 +693,7 @@ Section: misc
             uploaders: vec![],
         };
         let mut state = SyncState::new();
-        state.push(
-            &src,
-            bin,
-            "https://deb.debian.org/debian",
-            &"sid".to_string(),
-            &"main".to_string(),
-        );
+        state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
 
         let mut reports = HashMap::new();
         reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
@@ -804,8 +802,8 @@ Section: misc
                 &src_pkgs[0],
                 bin,
                 "https://deb.debian.org/debian",
-                &"sid".to_string(),
-                &"main".to_string(),
+                "sid",
+                "main",
             );
         }
 
@@ -1136,13 +1134,7 @@ Section: mail
         let mut state = SyncState::new();
         for bin in bin_pkgs {
             let src = sources.get(&bin).unwrap();
-            state.push(
-                &src,
-                bin,
-                "https://deb.debian.org/debian",
-                &"sid".to_string(),
-                &"main".to_string(),
-            );
+            state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
         }
 
         let mut reports = HashMap::new();
@@ -1495,22 +1487,10 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
 
         // add the package list twice, to simulate importing sid and testing
         state
-            .import_uncompressed_binary_package_file(
-                &bytes[..],
-                &sources,
-                &"sid".to_string(),
-                &"main".to_string(),
-                &sync,
-            )
+            .import_uncompressed_binary_package_file(&bytes[..], &sources, "sid", "main", &sync)
             .unwrap();
         state
-            .import_uncompressed_binary_package_file(
-                &bytes[..],
-                &sources,
-                &"testing".to_string(),
-                &"main".to_string(),
-                &sync,
-            )
+            .import_uncompressed_binary_package_file(&bytes[..], &sources, "testing", "main", &sync)
             .unwrap();
 
         let mut reports = HashMap::new();
@@ -1578,9 +1558,9 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             sync_method: None,
         };
 
-        for (source, binary) in [
-            // sid
-            (&b"Package: novnc
+        // sid
+        let (source, binary) = (
+&b"Package: novnc
 Binary: novnc, python3-novnc
 Version: 1:1.6.0-1
 Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
@@ -1670,15 +1650,18 @@ Size: 12664
 MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
-"[..]), ] {
-            let mut sources = SourcePkgBucket::new();
-            sources.import_uncompressed_source_package_file(&source[..]).unwrap();
-            state.import_uncompressed_binary_package_file(&binary[..], &sources, &"sid".to_string(), &"main".to_string(), &sync).unwrap();
-        }
+"[..]);
+        let mut sources = SourcePkgBucket::new();
+        sources
+            .import_uncompressed_source_package_file(source)
+            .unwrap();
+        state
+            .import_uncompressed_binary_package_file(binary, &sources, "sid", "main", &sync)
+            .unwrap();
 
-        for (source, binary) in [
-            // testing
-            (b"Package: novnc
+        // testing
+        let (source, binary) = (
+b"Package: novnc
 Binary: novnc, python3-novnc
 Version: 1:1.6.0-1
 Maintainer: Debian OpenStack <team+openstack@tracker.debian.org>
@@ -1741,12 +1724,14 @@ Size: 12664
 MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
-")
-        ] {
-            let mut sources = SourcePkgBucket::new();
-            sources.import_uncompressed_source_package_file(&source[..]).unwrap();
-            state.import_uncompressed_binary_package_file(binary, &sources, &"testing".to_string(), &"main".to_string(), &sync).unwrap();
-        }
+");
+        let mut sources = SourcePkgBucket::new();
+        sources
+            .import_uncompressed_source_package_file(&source[..])
+            .unwrap();
+        state
+            .import_uncompressed_binary_package_file(binary, &sources, "testing", "main", &sync)
+            .unwrap();
 
         let mut reports = HashMap::new();
 

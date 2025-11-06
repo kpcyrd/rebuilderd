@@ -67,7 +67,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         print_json(&reports)?;
     } else {
         for report in reports {
-            submit_package_report(&client, &report).await?;
+            submit_package_report(client, &report).await?;
         }
     }
 
@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        SubCommand::Pkgs(Pkgs::SyncStdin(sync)) => {
+        SubCommand::Pkgs(Pkgs::SyncStdin(_sync)) => {
             let mut stdin = tokio::io::stdin();
             let mut buf = Vec::new();
             stdin.read_to_end(&mut buf).await?;
@@ -233,7 +233,7 @@ async fn main() -> Result<()> {
             };
 
             loop {
-                let results = client
+                let mut results = client
                     .get_binary_packages(Some(&page), Some(&origin_filter), Some(&identity_filter))
                     .await?;
 
@@ -241,6 +241,15 @@ async fn main() -> Result<()> {
                     page.after = Some(last.id);
                 } else {
                     break;
+                }
+
+                // Filter the list by status so it's applied to the json output as well
+                if let Some(status) = &ls.filter.status {
+                    results.records.retain(|pkg| {
+                        // If our filter is "UNKWN", match packages with status == null
+                        pkg.status == ls.filter.status
+                            || (*status == ArtifactStatus::Unknown && pkg.status.is_none())
+                    });
                 }
 
                 if ls.json {

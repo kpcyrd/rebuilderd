@@ -202,7 +202,7 @@ async fn main() -> Result<()> {
     }
 
     if let Some(name) = &args.name {
-        setup::run(&name).context("Failed to setup worker")?;
+        setup::run(name).context("Failed to setup worker")?;
     }
     let profile = auth::load()?;
 
@@ -226,13 +226,12 @@ async fn main() -> Result<()> {
                 cookie,
             )?;
 
-            if config.signup_secret.is_some() {
-                client
-                    .register_worker(RegisterWorkerRequest {
-                        name: args.name.unwrap_or("worker".to_string()),
-                    })
-                    .await?;
-            }
+            client
+                .register_worker(RegisterWorkerRequest {
+                    name: args.name.unwrap_or("worker".to_string()),
+                })
+                .await
+                .context("Failed to register worker with rebuilderd daemon")?;
 
             run_worker_loop(&client, &profile.privkey, &config).await?;
         }
@@ -283,7 +282,7 @@ async fn main() -> Result<()> {
                 } else {
                     error!("Package failed to verify");
                     if let Some(diffoscope) = res.diffoscope {
-                        io::stdout().write_all(&*diffoscope).ok();
+                        io::stdout().write_all(&diffoscope).ok();
                     }
                 }
             }

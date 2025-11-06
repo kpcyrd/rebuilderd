@@ -18,7 +18,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             url.path_segments_mut()
                 .map_err(|_| anyhow!("cannot be base"))?
                 .pop_if_empty()
-                .push(&release);
+                .push(release);
 
             info!("Downloading directory list from {}", url);
             let directory_list = http
@@ -40,7 +40,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             info!("Detecting tails versions");
 
             let prefix = format!("tails-{architecture}");
-            let re = Regex::new(&*(prefix + r"-([0-9a-z~\.]+)/")).unwrap();
+            let re = Regex::new(&(prefix + r"-([0-9a-z~\.]+)/")).unwrap();
             let cap = re
                 .captures_iter(&directory_list)
                 .next()
