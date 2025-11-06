@@ -226,13 +226,12 @@ async fn main() -> Result<()> {
                 cookie,
             )?;
 
-            if config.signup_secret.is_some() {
-                client
-                    .register_worker(RegisterWorkerRequest {
-                        name: args.name.unwrap_or("worker".to_string()),
-                    })
-                    .await?;
-            }
+            client
+                .register_worker(RegisterWorkerRequest {
+                    name: args.name.unwrap_or("worker".to_string()),
+                })
+                .await
+                .context("Failed to register worker with rebuilderd daemon")?;
 
             run_worker_loop(&client, &profile.privkey, &config).await?;
         }
