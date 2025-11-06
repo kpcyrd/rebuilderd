@@ -4,6 +4,7 @@ Description=rebuilderd-worker: rebuild packages
 [Service]
 Restart=always
 RestartSec=0
+Environment="REBUILDERD_WORKER_CONFIG=/etc/rebuilderd-worker.conf"
 ExecStart=/usr/bin/rebuilderd-worker -n %i connect
 CPUSchedulingPolicy=idle
 IOSchedulingClass=3
