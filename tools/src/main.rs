@@ -67,7 +67,7 @@ pub async fn sync(client: &Client, sync: PkgsSync) -> Result<()> {
         print_json(&reports)?;
     } else {
         for report in reports {
-            submit_package_report(&client, &report).await?;
+            submit_package_report(client, &report).await?;
         }
     }
 

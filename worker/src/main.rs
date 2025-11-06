@@ -202,7 +202,7 @@ async fn main() -> Result<()> {
     }
 
     if let Some(name) = &args.name {
-        setup::run(&name).context("Failed to setup worker")?;
+        setup::run(name).context("Failed to setup worker")?;
     }
     let profile = auth::load()?;
 
@@ -282,7 +282,7 @@ async fn main() -> Result<()> {
                 } else {
                     error!("Package failed to verify");
                     if let Some(diffoscope) = res.diffoscope {
-                        io::stdout().write_all(&*diffoscope).ok();
+                        io::stdout().write_all(&diffoscope).ok();
                     }
                 }
             }

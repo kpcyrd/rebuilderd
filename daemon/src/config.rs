@@ -91,6 +91,7 @@ pub fn setup_auth_cookie() -> Result<String> {
         .mode(0o640)
         .write(true)
         .create(true)
+        .truncate(true)
         .open(cookie_path)
         .context("Failed to open auth cookie file")?;
     file.write_all(format!("{}\n", cookie).as_bytes())?;
