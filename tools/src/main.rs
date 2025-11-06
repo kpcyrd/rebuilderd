@@ -201,7 +201,7 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        SubCommand::Pkgs(Pkgs::SyncStdin(sync)) => {
+        SubCommand::Pkgs(Pkgs::SyncStdin(_sync)) => {
             let mut stdin = tokio::io::stdin();
             let mut buf = Vec::new();
             stdin.read_to_end(&mut buf).await?;

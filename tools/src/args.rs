@@ -67,10 +67,7 @@ pub struct PkgsSyncProfile {
 }
 
 #[derive(Debug, Parser)]
-pub struct PkgsSyncStdin {
-    pub distro: String,
-    pub suite: String,
-}
+pub struct PkgsSyncStdin {}
 
 #[derive(Debug, Parser)]
 pub struct PkgsSync {
