@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct Queued {
     pub id: i32,
     pub build_input_id: i32,
-    pub priority: i32,
+    pub priority: Priority,
     pub queued_at: NaiveDateTime,
     pub started_at: Option<NaiveDateTime>,
     pub worker: Option<i32>,
