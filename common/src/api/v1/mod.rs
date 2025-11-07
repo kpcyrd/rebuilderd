@@ -46,16 +46,16 @@ use serde::{Deserialize, Serialize};
 pub struct Priority(i32);
 
 impl Priority {
-    // The default priority for enqueued rebuilds. The job queue is sorted based on priority and time,
-    // so the lower this number is, the more prioritized the job is. It's a little backwards, but hey.
+    /// The default priority for enqueued rebuilds. The job queue is sorted based on priority and time,
+    /// so the lower this number is, the more prioritized the job is. It's a little backwards, but hey.
     const DEFAULT_QUEUE_PRIORITY: i32 = 1;
 
-    // The default priority used for automatically requeued jobs. This priority is lower than the one
-    // for untested packages.
+    /// The default priority used for automatically requeued jobs. This priority is lower than the one
+    /// for untested packages.
     const DEFAULT_RETRY_PRIORITY: i32 = Self::DEFAULT_QUEUE_PRIORITY + 1;
 
-    // The default priority used for manually retried jobs. This priority is higher than the one for
-    // untested packages.
+    /// The default priority used for manually retried jobs. This priority is higher than the one for
+    /// untested packages.
     const DEFAULT_MANUAL_PRIORITY: i32 = Self::DEFAULT_QUEUE_PRIORITY - 1;
 
     pub fn retry() -> Self {
