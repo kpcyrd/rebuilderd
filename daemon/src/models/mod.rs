@@ -12,3 +12,4 @@ import_models!(build_input);
 import_models!(source_package);
 import_models!(worker);
 import_models!(queue);
+import_models!(tags);

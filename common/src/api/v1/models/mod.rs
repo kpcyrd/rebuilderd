@@ -3,6 +3,7 @@ mod dashboard;
 mod meta;
 mod package;
 mod queue;
+mod tag;
 mod worker;
 
 pub use build::*;
@@ -11,6 +12,7 @@ pub use meta::*;
 pub use package::*;
 pub use queue::*;
 use serde::{Deserialize, Serialize};
+pub use tag::*;
 pub use worker::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

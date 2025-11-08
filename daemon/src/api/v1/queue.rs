@@ -4,12 +4,19 @@ use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::NewQueued;
-use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packages, workers};
+use crate::schema::{
+    binary_packages, build_inputs, queue, rebuilds, source_packages, tag_rules, worker_tags,
+    workers,
+};
 use crate::web;
 use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
 use chrono::{Duration, NaiveDateTime, Utc};
 use diesel::dsl::update;
-use diesel::{define_sql_function, ExpressionMethods, SqliteExpressionMethods};
+use diesel::sql_types::{Nullable, Text};
+use diesel::{
+    define_sql_function, ExpressionMethods, QueryResult, SqliteConnection, SqliteExpressionMethods,
+    TextExpressionMethods,
+};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{
@@ -17,7 +24,7 @@ use rebuilderd_common::api::v1::{
     QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
 };
 use rebuilderd_common::config::PING_DEADLINE;
-use rebuilderd_common::errors::Error;
+use rebuilderd_common::errors::*;
 use std::collections::HashSet;
 
 #[diesel::dsl::auto_type]
@@ -298,6 +305,107 @@ define_sql_function! {
     fn sqlite_random() -> Integer
 }
 
+define_sql_function! {
+    #[sql_name = "COALESCE"]
+    fn sqlite_coalesce(x: Nullable<Text>, y: Text) -> Text
+}
+
+/// Gets a queued job eligible for rebuilding by the worker. Eligibility is determined by the worker's supported
+/// architectures, backends, and tags (if any).
+fn get_eligible_job(
+    connection: &mut SqliteConnection,
+    worker_id: i32,
+    supported_architectures: &Vec<String>,
+    supported_backends: &Vec<String>,
+) -> QueryResult<Option<QueuedJobWithArtifacts>> {
+    let worker_tag_ids = worker_tags::table
+        .filter(worker_tags::worker_id.eq(worker_id))
+        .select(worker_tags::tag_id)
+        .get_results::<i32>(connection)?;
+
+    let mut base_query = queue_base()
+        .left_join(tag_rules::table.on(
+            source_packages::name.like(tag_rules::name_pattern).and(
+                source_packages::version.like(sqlite_coalesce(tag_rules::version_pattern, "%")),
+            ),
+        ))
+        .into_boxed();
+
+    base_query = if !worker_tag_ids.is_empty() {
+        // worker has tags - only offer tagged work applicable to us
+        base_query.filter(tag_rules::id.eq_any(worker_tag_ids))
+    } else {
+        // worker has no tags - only offer untagged work
+        base_query.filter(tag_rules::id.is_null())
+    };
+
+    // TODO: this can produce duplicates if multiple rules match a package. It's not a breaking issue, but it does make
+    // those packages slightly more likely to be picked. Unfortunately, diesel doesn't let us combine into_boxed and
+    // group_by, which would be the easy solution.
+    let maybe_job = base_query
+        .filter(queue::worker.is_null())
+        .filter(
+            build_inputs::next_retry
+                .is_null()
+                .or(build_inputs::next_retry.le(diesel::dsl::now)),
+        )
+        .filter(build_inputs::architecture.eq_any(supported_architectures))
+        .filter(build_inputs::backend.eq_any(supported_backends))
+        .order_by((
+            queue::priority,
+            diesel::dsl::date(queue::queued_at),
+            sqlite_random(),
+        ))
+        .first::<QueuedJob>(connection)
+        .optional()?;
+
+    if let Some(job) = maybe_job {
+        let artifacts = queue::table
+            .filter(queue::id.is(job.id))
+            .inner_join(
+                binary_packages::table
+                    .on(queue::build_input_id.is(binary_packages::build_input_id)),
+            )
+            .select((
+                binary_packages::name,
+                binary_packages::version,
+                binary_packages::architecture,
+                binary_packages::artifact_url,
+            ))
+            .get_results::<QueuedJobArtifact>(connection)?;
+
+        Ok(Some(QueuedJobWithArtifacts { job, artifacts }))
+    } else {
+        // TODO: offer untagged work to a worker with tags if no tagged work was available? Solve by adding a catch-all
+        // rule to workers which should also accept untagged work?
+        Ok(None)
+    }
+}
+
+/// Reclaims stale jobs, making them available to workers again. A job is considered stale if it hasn't been pinged
+/// within the [PING_DEADLINE]. Reclamation is done by removing the worker assignment of the job and resetting the start
+/// and ping times.
+fn reclaim_stale_jobs(connection: &mut SqliteConnection) -> QueryResult<()> {
+    let now = Utc::now();
+    let then = now - Duration::seconds(PING_DEADLINE);
+
+    update(
+        queue::table.filter(
+            queue::last_ping
+                .is_not_null()
+                .and(queue::last_ping.lt(then.naive_utc())),
+        ),
+    )
+    .set((
+        queue::worker.eq(None::<i32>),
+        queue::started_at.eq(None::<NaiveDateTime>),
+        queue::last_ping.eq(None::<NaiveDateTime>),
+    ))
+    .execute(connection)?;
+
+    Ok(())
+}
+
 #[post("/pop")]
 pub async fn request_work(
     req: HttpRequest,
@@ -315,23 +423,7 @@ pub async fn request_work(
     let worker = check_worker?;
 
     // clear any stale jobs before we consider available jobs in the queue
-    let now = Utc::now();
-    let then = now - Duration::seconds(PING_DEADLINE);
-
-    update(
-        queue::table.filter(
-            queue::last_ping
-                .is_not_null()
-                .and(queue::last_ping.lt(then.naive_utc())),
-        ),
-    )
-    .set((
-        queue::worker.eq(None::<i32>),
-        queue::started_at.eq(None::<NaiveDateTime>),
-        queue::last_ping.eq(None::<NaiveDateTime>),
-    ))
-    .execute(connection.as_mut())
-    .map_err(Error::from)?;
+    reclaim_stale_jobs(connection.as_mut()).map_err(Error::from)?;
 
     // see if we can dig up any available work for this worker
     let pop_request = request.into_inner();
@@ -339,51 +431,23 @@ pub async fn request_work(
 
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
-            if let Some(record) = queue_base()
-                .filter(queue::worker.is_null())
-                .filter(
-                    build_inputs::next_retry
-                        .is_null()
-                        .or(build_inputs::next_retry.le(diesel::dsl::now)),
-                )
-                .filter(build_inputs::architecture.eq_any(supported_architectures))
-                .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
-                .order_by((
-                    queue::priority,
-                    diesel::dsl::date(queue::queued_at),
-                    sqlite_random(),
-                ))
-                .first::<QueuedJob>(conn)
-                .optional()
-                .map_err(Error::from)?
-            {
-                let artifacts = queue::table
-                    .filter(queue::id.is(record.id))
-                    .inner_join(
-                        binary_packages::table
-                            .on(queue::build_input_id.is(binary_packages::build_input_id)),
-                    )
-                    .select((
-                        binary_packages::name,
-                        binary_packages::version,
-                        binary_packages::architecture,
-                        binary_packages::artifact_url,
-                    ))
-                    .get_results::<QueuedJobArtifact>(conn)
-                    .map_err(Error::from)?;
-
+            if let Some(record) = get_eligible_job(
+                conn.as_mut(),
+                worker.id,
+                &supported_architectures,
+                &pop_request.supported_backends,
+            )? {
                 let now = Utc::now().naive_utc();
-                let status = format!("working hard on {} {}", record.name, record.version);
+                let status = format!("working hard on {} {}", record.job.name, record.job.version);
 
                 diesel::update(queue::table)
-                    .filter(queue::id.is(record.id))
+                    .filter(queue::id.is(record.job.id))
                     .set((
                         queue::started_at.eq(now),
                         queue::worker.eq(worker.id),
                         queue::last_ping.eq(now),
                     ))
-                    .execute(conn)
-                    .map_err(Error::from)?;
+                    .execute(conn)?;
 
                 diesel::update(workers::table)
                     .filter(workers::id.is(worker.id))
@@ -392,13 +456,9 @@ pub async fn request_work(
                         workers::last_ping.eq(now),
                         workers::status.eq(status),
                     ))
-                    .execute(conn)
-                    .map_err(Error::from)?;
+                    .execute(conn)?;
 
-                Ok::<Option<QueuedJobWithArtifacts>, Error>(Some(QueuedJobWithArtifacts {
-                    job: record,
-                    artifacts,
-                }))
+                Ok::<Option<QueuedJobWithArtifacts>, Error>(Some(record))
             } else {
                 Ok(None)
             }
