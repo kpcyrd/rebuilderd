@@ -13,8 +13,8 @@ use rebuilderd::db;
 use rebuilderd::schema::{attestation_logs, rebuild_artifacts};
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BinaryPackageReport, BuildRestApi, BuildStatus, JobAssignment,
-    MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, QueueJobRequest, QueueRestApi,
-    RebuildArtifactReport, RebuildReport, RegisterWorkerRequest, SourcePackageReport,
+    MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, Priority, QueueJobRequest,
+    QueueRestApi, RebuildArtifactReport, RebuildReport, RegisterWorkerRequest, SourcePackageReport,
     WorkerRestApi,
 };
 use rebuilderd_common::api::Client;
@@ -298,7 +298,7 @@ async fn main() -> Result<()> {
                 version: None,
                 architecture: None,
                 status: Some(BuildStatus::Bad),
-                priority: Some(2),
+                priority: Some(Priority::manual()),
             })
             .await?;
 

@@ -1,7 +1,6 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::pagination::PaginateDsl;
-use crate::api::DEFAULT_QUEUE_PRIORITY;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::NewQueued;
@@ -14,7 +13,7 @@ use diesel::{define_sql_function, ExpressionMethods, SqliteExpressionMethods};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest,
+    BuildStatus, IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, Priority,
     QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
 };
 use rebuilderd_common::config::PING_DEADLINE;
@@ -142,11 +141,18 @@ pub async fn request_rebuild(
         .get_results::<i32>(connection.as_mut())
         .map_err(Error::from)?;
 
+    let now = Utc::now();
     for build_input_id in build_input_ids {
+        diesel::update(build_inputs::table)
+            .filter(build_inputs::id.eq(build_input_id))
+            .set(build_inputs::next_retry.eq((now - Duration::minutes(1)).naive_utc()))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
+
         let new_queued_job = NewQueued {
             build_input_id,
-            priority: queue_request.priority.unwrap_or(DEFAULT_QUEUE_PRIORITY),
-            queued_at: Utc::now().naive_utc(),
+            priority: queue_request.priority.unwrap_or(Priority::manual()),
+            queued_at: now.naive_utc(),
         };
 
         new_queued_job.upsert(connection.as_mut())?;

@@ -7,8 +7,6 @@ use rebuilderd_common::utils::{is_zstd_compressed, zstd_decompress};
 pub mod v0;
 pub mod v1;
 
-const DEFAULT_QUEUE_PRIORITY: i32 = 1;
-
 pub async fn forward_compressed_data(
     request: HttpRequest,
     content_type: &str,
