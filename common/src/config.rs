@@ -1,5 +1,6 @@
 use crate::auth::AuthConfig;
 use crate::errors::*;
+use chrono::Duration;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
@@ -12,6 +13,8 @@ pub const WORKER_DELAY: u64 = 3;
 pub const API_ERROR_DELAY: u64 = 30;
 
 pub const DEFAULT_RETRY_DELAY_BASE: i64 = 24;
+
+pub const DEFAULT_INITIAL_DELAY: i64 = 0;
 
 pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
     let mut config = ConfigFile::default();
@@ -135,6 +138,7 @@ impl WorkerConfig {
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ScheduleConfig {
     retry_delay_base: Option<i64>,
+    initial_delay: Option<i64>,
 }
 
 impl ScheduleConfig {
@@ -146,5 +150,10 @@ impl ScheduleConfig {
 
     pub fn retry_delay_base(&self) -> i64 {
         self.retry_delay_base.unwrap_or(DEFAULT_RETRY_DELAY_BASE)
+    }
+
+    pub fn initial_delay(&self) -> Duration {
+        let seconds = self.initial_delay.unwrap_or(DEFAULT_INITIAL_DELAY);
+        Duration::seconds(seconds)
     }
 }
