@@ -411,7 +411,7 @@ async fn main() -> Result<()> {
                 .request_rebuild(QueueJobRequest {
                     distribution: Some(push.distro),
                     release: None, // TODO: push.release
-                    component: Some(push.suite),
+                    component: Some(push.component),
                     name: Some(push.name),
                     version: push.version,
                     architecture: push.architecture,

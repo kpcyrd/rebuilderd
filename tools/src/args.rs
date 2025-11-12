@@ -179,7 +179,7 @@ pub struct QueueList {
 #[derive(Debug, Parser)]
 pub struct QueuePush {
     pub distro: String,
-    pub suite: String,
+    pub component: String,
 
     pub name: String,
     pub version: Option<String>,
