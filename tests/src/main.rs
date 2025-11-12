@@ -15,8 +15,8 @@ use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BinaryPackageReport, BuildRestApi, BuildStatus, JobAssignment,
     MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, Priority, QueueJobRequest,
-    QueueRestApi, RebuildArtifactReport, RebuildReport, RegisterWorkerRequest, SourcePackageReport,
-    WorkerRestApi,
+    QueueRestApi, QueuedJob, RebuildArtifactReport, RebuildReport, RegisterWorkerRequest,
+    SourcePackageReport, WorkerRestApi,
 };
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
@@ -215,6 +215,37 @@ async fn main() -> Result<()> {
     })
     .await?;
 
+    let queued_task = test("Testing queue contents", async {
+        let mut queue = client.get_queued_jobs(None, None, None).await?.records.into_iter();
+        let task = queue.next().context("Queue is empty")?;
+
+        assert_eq!(
+            task,
+            QueuedJob {
+                id: task.id,
+                name: "pkgbase".to_string(),
+                version: "1.4.5-1".to_string(),
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some("core".to_string()),
+                architecture: "x86_64".to_string(),
+                backend: "archlinux".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string(),
+                next_retry: None,
+                priority: Priority::default(),
+                queued_at: task.queued_at,
+                started_at: None,
+            }
+        );
+
+        if let Some(task) = queue.next() {
+            bail!("Got unexpected extra queued job: {:?}", task);
+        }
+
+        Ok(task)
+    })
+    .await?;
+
     test("Re-sending initial import", async {
         initial_import(&client).await
     })
@@ -238,6 +269,23 @@ async fn main() -> Result<()> {
         }
 
         Ok(())
+    })
+    .await?;
+
+    test("Testing queue still contains 1 item", async {
+        let mut queue = client
+            .get_queued_jobs(None, None, None)
+            .await?
+            .records
+            .into_iter();
+        let task = queue.next().context("Queue is empty")?;
+        assert_eq!(task, queued_task);
+
+        if let Some(task) = queue.next() {
+            bail!("Got unexpected extra queued job: {:?}", task);
+        }
+
+        Ok(task)
     })
     .await?;
 
@@ -286,6 +334,39 @@ async fn main() -> Result<()> {
     })
     .await?;
 
+    test("Testing updated build queue", async {
+        let mut queue = client.get_queued_jobs(None, None, None).await?.records.into_iter();
+        let task = queue.next().context("Queue is empty")?;
+        assert_eq!(
+            task,
+            QueuedJob {
+                id: task.id,
+                name: "pkgbase".to_string(),
+                version: "1.4.5-1".to_string(),
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some("core".to_string()),
+                architecture: "x86_64".to_string(),
+                backend: "archlinux".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string(),
+                next_retry: task.next_retry,
+                priority: Priority::retry(),
+                queued_at: task.queued_at,
+                started_at: None,
+            }
+        );
+
+        if task.next_retry.unwrap() <= Utc::now().naive_utc() {
+            bail!("Task next_retry is unexpectedly already due");
+        }
+
+        if let Some(task) = queue.next() {
+            bail!("Got unexpected extra queued job: {:?}", task);
+        }
+
+        Ok(())
+    }).await?;
+
     test("Requeueing BAD pkgs", async {
         client
             .request_rebuild(QueueJobRequest {
@@ -296,6 +377,57 @@ async fn main() -> Result<()> {
                 version: None,
                 architecture: None,
                 status: Some(BuildStatus::Bad),
+                priority: Some(Priority::default()),
+            })
+            .await?;
+
+        Ok(())
+    })
+    .await?;
+
+    test("Testing item is now queued", async {
+        let mut queue = client.get_queued_jobs(None, None, None).await?.records.into_iter();
+        let task = queue.next().context("Queue is empty")?;
+        assert_eq!(
+            task,
+            QueuedJob {
+                id: task.id,
+                name: "pkgbase".to_string(),
+                version: "1.4.5-1".to_string(),
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some("core".to_string()),
+                architecture: "x86_64".to_string(),
+                backend: "archlinux".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string(),
+                next_retry: task.next_retry,
+                priority: Priority::default(),
+                queued_at: task.queued_at,
+                started_at: None,
+            }
+        );
+
+        if task.next_retry.unwrap() > Utc::now().naive_utc() {
+            bail!("Task next_retry is unexpectedly not due yet");
+        }
+
+        if let Some(task) = queue.next() {
+            bail!("Got unexpected extra queued job: {:?}", task);
+        }
+
+        Ok(())
+    }).await?;
+
+    test("Bump priority of queue item", async {
+        client
+            .request_rebuild(QueueJobRequest {
+                distribution: None,
+                release: None,
+                component: None,
+                name: Some("pkgbase".to_string()),
+                version: None,
+                architecture: None,
+                status: None,
                 priority: Some(Priority::manual()),
             })
             .await?;
@@ -303,6 +435,39 @@ async fn main() -> Result<()> {
         Ok(())
     })
     .await?;
+
+    test("Testing item is now queued with higher priority", async {
+        let mut queue = client.get_queued_jobs(None, None, None).await?.records.into_iter();
+        let task = queue.next().context("Queue is empty")?;
+        assert_eq!(
+            task,
+            QueuedJob {
+                id: task.id,
+                name: "pkgbase".to_string(),
+                version: "1.4.5-1".to_string(),
+                distribution: "archlinux".to_string(),
+                release: None,
+                component: Some("core".to_string()),
+                architecture: "x86_64".to_string(),
+                backend: "archlinux".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/zstd-1.4.5-1-x86_64.pkg.tar.zst".to_string(),
+                next_retry: task.next_retry,
+                priority: Priority::manual(),
+                queued_at: task.queued_at,
+                started_at: None,
+            }
+        );
+
+        if task.next_retry.unwrap() > Utc::now().naive_utc() {
+            bail!("Task next_retry is unexpectedly not due yet");
+        }
+
+        if let Some(task) = queue.next() {
+            bail!("Got unexpected extra queued job: {:?}", task);
+        }
+
+        Ok(())
+    }).await?;
 
     test("Fetching pkg status", async {
         let mut pkgs = list_pkgs(&client).await?;

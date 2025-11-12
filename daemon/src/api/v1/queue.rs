@@ -35,6 +35,7 @@ fn queue_base() -> _ {
             build_inputs::backend,
             build_inputs::url,
             build_inputs::next_retry,
+            queue::priority,
             queue::queued_at,
             queue::started_at,
         ))
