@@ -101,6 +101,16 @@ fn wait_for_server(addr: &str) -> Result<()> {
     bail!("Failed to wait for daemon to start");
 }
 
+async fn request_work(client: &Client, backend: &str) -> Result<JobAssignment> {
+    client
+        .request_work(PopQueuedJobRequest {
+            supported_backends: vec![backend.to_string()],
+            architecture: "x86_64".to_string(),
+            supported_architectures: vec!["x86_64".to_string()],
+        })
+        .await
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -181,13 +191,7 @@ async fn main() -> Result<()> {
     .await?;
 
     test("Testing there is nothing to do", async {
-        let task = client
-            .request_work(PopQueuedJobRequest {
-                supported_backends: vec!["archlinux".to_string()],
-                architecture: std::env::consts::ARCH.to_string(),
-                supported_architectures: vec![std::env::consts::ARCH.to_string()],
-            })
-            .await?;
+        let task = request_work(&client, "archlinux").await?;
 
         if task != JobAssignment::Nothing {
             bail!("Got a job assigned");
@@ -202,7 +206,7 @@ async fn main() -> Result<()> {
     })
     .await?;
 
-    test("Testing database to contain 1 pkg", async {
+    test("Testing database contains 1 pkg", async {
         let pkgs = list_pkgs(&client).await?;
         if pkgs.len() != 1 {
             bail!("Not 1");
@@ -230,7 +234,7 @@ async fn main() -> Result<()> {
         }
 
         if !pkgs.is_empty() {
-            bail!("Got more than 1 pkg bacK");
+            bail!("Got more than 1 pkg back");
         }
 
         Ok(())
@@ -238,13 +242,7 @@ async fn main() -> Result<()> {
     .await?;
 
     test("Fetching task and reporting BAD rebuild", async {
-        let task = client
-            .request_work(PopQueuedJobRequest {
-                supported_backends: vec!["archlinux".to_string()],
-                architecture: std::env::consts::ARCH.to_string(),
-                supported_architectures: vec![std::env::consts::ARCH.to_string()],
-            })
-            .await?;
+        let task = request_work(&client, "archlinux").await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
@@ -320,13 +318,7 @@ async fn main() -> Result<()> {
     .await?;
 
     test("Fetching task and reporting GOOD rebuild", async {
-        let task = client
-            .request_work(PopQueuedJobRequest {
-                supported_backends: vec!["archlinux".to_string()],
-                architecture: std::env::consts::ARCH.to_string(),
-                supported_architectures: vec![std::env::consts::ARCH.to_string()],
-            })
-            .await?;
+        let task = request_work(&client, "archlinux").await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
@@ -417,13 +409,7 @@ async fn main() -> Result<()> {
     .await?;
 
     test("Fetching task and reporting GOOD with attestation", async {
-        let task = client
-            .request_work(PopQueuedJobRequest {
-                supported_backends: vec!["rebuilderd".to_string()],
-                architecture: std::env::consts::ARCH.to_string(),
-                supported_architectures: vec![std::env::consts::ARCH.to_string()],
-            })
-            .await?;
+        let task = request_work(&client, "rebuilderd").await?;
 
         let queue = match task {
             JobAssignment::Rebuild(item) => *item,
