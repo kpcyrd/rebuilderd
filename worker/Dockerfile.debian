@@ -8,7 +8,11 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/debian/target/release/rebuilderd-worker /
 
 FROM debian:trixie
-RUN apt-get update && apt install -y apt-utils debian-keyring devscripts diffoscope dpkg-dev mmdebstrap sbuild uidmap
+# Installing diffoscope with every optional dependency is too much for the github actions worker disk
+# If you need specific integrations, feel free to pull request them into the Dockerfile :)
+RUN apt-get update \
+    && apt install -y apt-utils debian-keyring devscripts dpkg-dev mmdebstrap sbuild uidmap \
+    && apt install -y --no-install-recommends diffoscope
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-debian.sh \
     /usr/local/libexec/rebuilderd/
