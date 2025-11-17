@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
 use crate::decompress;
-use crate::schedule::{fetch_url_or_path, Pkg};
+use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -273,7 +273,10 @@ mod tests {
 </repomd>
 "#;
         let location = get_primary_location_from_xml(bytes)?;
-        assert_eq!(location, "repodata/f6dee453a7f86804214e402ad2e444b989f044f0b16fa7ba74e5a27a8a49cd07-primary.xml.gz");
+        assert_eq!(
+            location,
+            "repodata/f6dee453a7f86804214e402ad2e444b989f044f0b16fa7ba74e5a27a8a49cd07-primary.xml.gz"
+        );
         Ok(())
     }
 

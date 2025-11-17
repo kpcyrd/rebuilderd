@@ -7,11 +7,11 @@ use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
 use in_toto::crypto::PrivateKey;
+use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BuildRestApi, BuildStatus, JobAssignment, PopQueuedJobRequest, QueueRestApi,
     QueuedJobArtifact, RebuildReport, RegisterWorkerRequest, WorkerRestApi,
 };
-use rebuilderd_common::api::Client;
 use rebuilderd_common::auth::find_auth_cookie;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::Context as _;

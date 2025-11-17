@@ -8,7 +8,7 @@ use diesel::SqliteExpressionMethods;
 use diesel::{RunQueryDsl, SqliteConnection};
 use log::debug;
 use rebuilderd_common::api::{AUTH_COOKIE_HEADER, SIGNUP_SECRET_HEADER, WORKER_KEY_HEADER};
-use rebuilderd_common::errors::{bail, Context};
+use rebuilderd_common::errors::{Context, bail};
 
 pub fn admin(cfg: &Config, req: &HttpRequest) -> rebuilderd_common::errors::Result<()> {
     let auth_cookie = api::header(req, AUTH_COOKIE_HEADER).context("Failed to get auth cookie")?;

@@ -6,12 +6,12 @@ use crate::db::Pool;
 use crate::models::NewWorker;
 use crate::schema::workers;
 use crate::web;
-use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
 use chrono::Utc;
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{Page, RegisterWorkerRequest, ResultPage};
 use rebuilderd_common::api::WORKER_KEY_HEADER;
-use rebuilderd_common::errors::{format_err, Context, Error};
+use rebuilderd_common::api::v1::{Page, RegisterWorkerRequest, ResultPage};
+use rebuilderd_common::errors::{Context, Error, format_err};
 use std::net::IpAddr;
 
 #[diesel::dsl::auto_type]

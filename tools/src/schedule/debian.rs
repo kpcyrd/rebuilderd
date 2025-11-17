@@ -1,11 +1,11 @@
 use crate::args::PkgsSync;
-use crate::schedule::{fetch_url_or_path, Pkg};
+use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use std::collections::HashMap;
-use std::io::prelude::*;
 use std::io::BufReader;
+use std::io::prelude::*;
 use xz2::read::XzDecoder;
 
 pub const BIN_NMU_PREFIX: &str = "+b";
@@ -243,11 +243,11 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
                     let mut value = b.to_string();
                     while value.ends_with(',') {
                         if let Some(line) = lines.peek() {
-                            if let Ok(line) = line {
-                                if !line.starts_with(' ') {
-                                    warn!("Line ended with comma, but next line is not multi-line");
-                                    break;
-                                }
+                            if let Ok(line) = line
+                                && !line.starts_with(' ')
+                            {
+                                warn!("Line ended with comma, but next line is not multi-line");
+                                break;
                             }
                         } else {
                             break;

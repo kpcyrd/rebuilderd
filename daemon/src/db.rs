@@ -6,7 +6,7 @@ use diesel::prelude::*;
 use diesel::query_builder::{Query, QueryFragment, QueryId};
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::sql_query;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use rebuilderd_common::errors::*;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");

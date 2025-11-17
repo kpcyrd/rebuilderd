@@ -48,7 +48,9 @@ pub fn load(args: &Args) -> Result<ConfigFile> {
     } else {
         let path = PathBuf::from("/etc/rebuilderd-worker.conf");
         if path.exists() {
-            warn!("Using the implicit `-c /etc/rebuilderd-worker.conf` is going to be removed in the future");
+            warn!(
+                "Using the implicit `-c /etc/rebuilderd-worker.conf` is going to be removed in the future"
+            );
             Some(path)
         } else {
             None

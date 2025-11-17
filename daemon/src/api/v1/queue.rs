@@ -6,12 +6,12 @@ use crate::db::Pool;
 use crate::models::NewQueued;
 use crate::schema::{binary_packages, build_inputs, queue, rebuilds, source_packages, workers};
 use crate::web;
-use actix_web::{delete, get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
 use chrono::{Duration, NaiveDateTime, Utc};
 use diesel::dsl::update;
-use diesel::{define_sql_function, ExpressionMethods, SqliteExpressionMethods};
 use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
+use diesel::{ExpressionMethods, SqliteExpressionMethods, define_sql_function};
 use rebuilderd_common::api::v1::{
     BuildStatus, IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, Priority,
     QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,

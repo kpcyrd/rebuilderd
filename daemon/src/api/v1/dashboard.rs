@@ -1,13 +1,13 @@
 use crate::db::Pool;
 use crate::schema::{build_inputs, queue, rebuilds, source_packages};
 use crate::web;
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use chrono::Utc;
+use diesel::NullableExpressionMethods;
+use diesel::RunQueryDsl;
 use diesel::dsl::{case_when, sum};
 use diesel::sql_types::Integer;
 use diesel::sqlite::Sqlite;
-use diesel::NullableExpressionMethods;
-use diesel::RunQueryDsl;
 use diesel::{BoolExpressionMethods, JoinOnDsl, QueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{

@@ -102,19 +102,18 @@ impl Capture<'_> {
         stderr_open: &mut bool,
     ) -> Result<Duration> {
         // check if we need to SIGKILL due to SIGTERM timeout
-        if let Some(sigterm_sent) = self.sigterm_sent {
-            if sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY) {
-                if let Some(pid) = child.id() {
-                    warn!(
-                        "child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL",
-                        pid, SIGKILL_DELAY
-                    );
-                    // child.id is going to return None after this
-                    Self::kill(pid, Signal::SIGKILL)?;
-                    *stdout_open = false;
-                    *stderr_open = false;
-                }
-            }
+        if let Some(sigterm_sent) = self.sigterm_sent
+            && sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY)
+            && let Some(pid) = child.id()
+        {
+            warn!(
+                "child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL",
+                pid, SIGKILL_DELAY
+            );
+            // child.id is going to return None after this
+            Self::kill(pid, Signal::SIGKILL)?;
+            *stdout_open = false;
+            *stderr_open = false;
         }
 
         // check if the process timed out and we need to SIGTERM
@@ -273,8 +272,10 @@ mod tests {
         .await
         .unwrap();
         assert!(success);
-        assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
+        assert_eq!(
+            output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n"
+        );
     }
 
     #[tokio::test]
@@ -297,8 +298,10 @@ mod tests {
         .await
         .unwrap();
         assert!(!success);
-        assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n");
+        assert_eq!(
+            output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n"
+        );
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(5));
     }
@@ -323,8 +326,10 @@ mod tests {
         .await
         .unwrap();
         assert!(!success);
-        assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");
+        assert_eq!(
+            output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n"
+        );
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(3));
     }
@@ -349,8 +354,10 @@ mod tests {
         .await
         .unwrap();
         assert!(!success);
-        assert_eq!(output,
-            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n");
+        assert_eq!(
+            output,
+            "AAAAAAAAAAAAAAAAAAAAAAAA\nAAAAAAAAAAAAAAAAAAAAAAAA\n\n\nTRUNCATED DUE TO SIZE LIMIT: 50 bytes\n\n\n\nTRUNCATED DUE TO TIMEOUT: 1 seconds\n\n"
+        );
         assert!(duration > Duration::from_secs(1));
         assert!(duration < Duration::from_secs(2));
     }

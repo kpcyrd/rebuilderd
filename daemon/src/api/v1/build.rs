@@ -14,11 +14,11 @@ use crate::schema::{
     rebuilds, source_packages,
 };
 use crate::{attestation, web};
-use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use chrono::{Duration, Utc};
-use diesel::dsl::update;
 use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
+use diesel::dsl::update;
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
@@ -28,8 +28,8 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 #[diesel::dsl::auto_type]

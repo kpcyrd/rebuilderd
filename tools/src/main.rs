@@ -7,11 +7,11 @@ use colored::*;
 use env_logger::Env;
 use glob::Pattern;
 use nom::AsBytes;
+use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
     PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
 };
-use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::utils;
@@ -173,13 +173,19 @@ async fn main() -> Result<()> {
 
             // TODO: remove this after we've deprecated suite=
             if let Some(suite) = profile.suite {
-                warn!("Deprecated option in config: replace `suite = \"{}\"` with `components = [\"{}\"]`", suite, suite);
+                warn!(
+                    "Deprecated option in config: replace `suite = \"{}\"` with `components = [\"{}\"]`",
+                    suite, suite
+                );
                 profile.components.push(suite)
             }
 
             // TODO: remove this after we've deprecated architecture=
             if let Some(arch) = profile.architecture {
-                warn!("Deprecated option in config: replace `architecture = \"{}\"` with `architectures = [\"{}\"]`", arch, arch);
+                warn!(
+                    "Deprecated option in config: replace `architecture = \"{}\"` with `architectures = [\"{}\"]`",
+                    arch, arch
+                );
                 profile.architectures.push(arch)
             }
 

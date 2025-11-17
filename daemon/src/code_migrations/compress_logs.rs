@@ -2,7 +2,7 @@ use crate::code_migrations::code_migration::CodeMigration;
 use diesel::migration::Migration;
 use diesel::sql_types::Binary;
 use diesel::sqlite::Sqlite;
-use diesel::{define_sql_function, sql_query, RunQueryDsl, SqliteConnection};
+use diesel::{RunQueryDsl, SqliteConnection, define_sql_function, sql_query};
 use log::info;
 
 pub struct CompressLogsMigration;
