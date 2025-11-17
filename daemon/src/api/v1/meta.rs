@@ -2,7 +2,7 @@ use crate::api::v1::util::filters::IntoFilter;
 use crate::db::Pool;
 use crate::schema::{build_inputs, source_packages};
 use crate::{attestation, web};
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get};
 use diesel::{QueryDsl, RunQueryDsl, SqliteExpressionMethods};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::v1::FreshnessFilter;

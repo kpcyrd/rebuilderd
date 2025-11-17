@@ -14,9 +14,9 @@ use crate::models;
 use crate::models::{BinaryPackage, BuildInput, Queued, SourcePackage};
 use crate::schema::*;
 use crate::web;
-use actix_web::{get, http, post, HttpRequest, HttpResponse, Responder};
-use chrono::prelude::*;
+use actix_web::{HttpRequest, HttpResponse, Responder, get, http, post};
 use chrono::Duration;
+use chrono::prelude::*;
 pub(crate) use dashboard::DashboardState;
 use diesel::dsl::auto_type;
 use diesel::{QueryDsl, RunQueryDsl};
@@ -188,10 +188,10 @@ pub async fn list_pkgs(
         .map_err(Error::from)?
     {
         let latest_built_at = DateTime::from_naive_utc_and_offset(latest_built_at, Utc);
-        if let Some(duration) = modified_since_duration(&req, latest_built_at) {
-            if duration.num_seconds() >= 0 {
-                return Ok(not_modified());
-            }
+        if let Some(duration) = modified_since_duration(&req, latest_built_at)
+            && duration.num_seconds() >= 0
+        {
+            return Ok(not_modified());
         }
 
         let latest_built_at = SystemTime::from(latest_built_at);

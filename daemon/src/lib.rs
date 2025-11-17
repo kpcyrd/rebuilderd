@@ -1,7 +1,7 @@
 use crate::config::Config;
 use actix_web::middleware::{Logger, TrailingSlash};
-use actix_web::web::{scope, Data, JsonConfig};
-use actix_web::{middleware, App, HttpServer};
+use actix_web::web::{Data, JsonConfig, scope};
+use actix_web::{App, HttpServer, middleware};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};

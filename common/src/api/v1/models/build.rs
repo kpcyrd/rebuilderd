@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::{
-    deserialize::FromSql, serialize::Output, serialize::ToSql, sql_types::Text, sqlite::Sqlite,
-    sqlite::SqliteValue, AsExpression, FromSqlRow, Queryable,
+    AsExpression, FromSqlRow, Queryable, deserialize::FromSql, serialize::Output, serialize::ToSql,
+    sql_types::Text, sqlite::Sqlite, sqlite::SqliteValue,
 };
 use serde::{Deserialize, Serialize};
 use std::error::Error;

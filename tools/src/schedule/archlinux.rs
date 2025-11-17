@@ -1,6 +1,6 @@
 use crate::args::PkgsSync;
 use crate::decompress;
-use crate::schedule::{fetch_url_or_path, Pkg};
+use crate::schedule::{Pkg, fetch_url_or_path};
 use nom::bytes::complete::take_till;
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
@@ -150,7 +150,9 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
     let source = if sync.source.ends_with(".db") {
-        warn!("Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch");
+        warn!(
+            "Detected legacy configuration for source, use the new format instead: https://mirrors.kernel.org/archlinux/$repo/os/$arch"
+        );
         "https://mirrors.kernel.org/archlinux/$repo/os/$arch"
     } else {
         &sync.source

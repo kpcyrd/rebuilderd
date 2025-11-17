@@ -11,13 +11,13 @@ use rebuilderd::attestation::{self, Attestation};
 use rebuilderd::config::Config;
 use rebuilderd::db;
 use rebuilderd::schema::{attestation_logs, rebuild_artifacts};
+use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryPackage, BinaryPackageReport, BuildRestApi, BuildStatus, JobAssignment,
     MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, Priority, QueueJobRequest,
     QueueRestApi, RebuildArtifactReport, RebuildReport, RegisterWorkerRequest, SourcePackageReport,
     WorkerRestApi,
 };
-use rebuilderd_common::api::Client;
 use rebuilderd_common::config::*;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::{zstd_compress, zstd_decompress};

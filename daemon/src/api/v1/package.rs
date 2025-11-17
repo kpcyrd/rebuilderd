@@ -9,7 +9,7 @@ use crate::schema::{
     binary_packages, build_inputs, queue, rebuild_artifacts, rebuilds, source_packages,
 };
 use crate::web;
-use actix_web::{get, post, HttpRequest, HttpResponse, Responder};
+use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use chrono::Utc;
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};

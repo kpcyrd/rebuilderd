@@ -2,7 +2,7 @@ use crate::auth;
 use crate::config::ConfigFile;
 use crate::errors::Error;
 use crate::utils::zstd_compress;
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use async_trait::async_trait;
 use log::debug;
 use reqwest::header::CONTENT_ENCODING;

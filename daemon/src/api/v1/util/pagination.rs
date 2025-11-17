@@ -59,8 +59,10 @@ where
                 )));
             }
 
-            let mut conditions: Vec<Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>> =
-                Vec::new();
+            #[allow(clippy::type_complexity)]
+            let mut conditions: Vec<
+                Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>,
+            > = Vec::new();
 
             if let Some(after) = &self.page.after {
                 conditions.push(Box::new(|ast| {
@@ -118,8 +120,10 @@ where
 
             out.push_sql(&formatted);
         } else {
-            let mut conditions: Vec<Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>> =
-                Vec::new();
+            #[allow(clippy::type_complexity)]
+            let mut conditions: Vec<
+                Box<dyn Fn(&mut AstPass<'_, 'b, Sqlite>) -> QueryResult<()>>,
+            > = Vec::new();
 
             if let Some(after) = &self.page.after {
                 conditions.push(Box::new(|ast| {

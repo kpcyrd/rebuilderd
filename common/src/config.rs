@@ -20,10 +20,10 @@ pub fn load<P: AsRef<Path>>(path: Option<P>) -> Result<ConfigFile> {
         config.update(c);
     }
 
-    if let Ok(path) = config_path() {
-        if let Some(c) = load_from(path)? {
-            config.update(c);
-        }
+    if let Ok(path) = config_path()
+        && let Some(c) = load_from(path)?
+    {
+        config.update(c);
     }
 
     if let Some(path) = path {
