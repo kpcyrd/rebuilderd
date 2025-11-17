@@ -295,6 +295,26 @@ impl SyncState {
         SyncState::default()
     }
 
+    fn create_release_group(
+        &mut self,
+        release: &str,
+        component: &str,
+        architecture: &str,
+    ) -> &mut PackageReport {
+        let key = (
+            release.to_string(),
+            component.to_string(),
+            architecture.to_string(),
+        );
+        self.reports.entry(key).or_insert_with(|| PackageReport {
+            distribution: "debian".to_string(),
+            release: Some(release.to_string()),
+            component: Some(component.to_string()),
+            architecture: architecture.to_string(),
+            packages: Vec::new(),
+        })
+    }
+
     fn get_mut_group(
         &mut self,
         src: &DebianSourcePkg,
@@ -302,21 +322,7 @@ impl SyncState {
         component: &str,
         architecture: &str,
     ) -> &mut SourcePackageReport {
-        let key = (
-            release.to_string(),
-            component.to_string(),
-            architecture.to_string(),
-        );
-        let report = self
-            .reports
-            .entry(key.clone())
-            .or_insert_with(|| PackageReport {
-                distribution: "debian".to_string(),
-                release: Some(release.to_string()),
-                component: Some(component.to_string()),
-                architecture: architecture.to_string(),
-                packages: Vec::new(),
-            });
+        let report = self.create_release_group(release, component, architecture);
 
         match report
             .packages
@@ -400,6 +406,9 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
+        for arch in &sync.architectures {
+            self.create_release_group(release, component, arch);
+        }
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
             self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
@@ -414,6 +423,9 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
+        for arch in &sync.architectures {
+            self.create_release_group(release, component, arch);
+        }
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
             self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
@@ -467,6 +479,41 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn test_sync_empty_release() {
+        let mut state = SyncState::new();
+        state
+            .import_uncompressed_binary_package_file(
+                b"",
+                &SourcePkgBucket::new(),
+                "trixie-proposed-updates",
+                "main",
+                &PkgsSync {
+                    distro: "debian".to_string(),
+                    components: vec!["main".to_string()],
+                    source: "http://deb.debian.org/debian".to_string(),
+                    architectures: vec!["amd64".to_string()],
+                    print_json: true,
+                    maintainers: vec![],
+                    releases: vec![],
+                    pkgs: vec![],
+                    excludes: vec![],
+                    sync_method: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            state.to_vec(),
+            vec![PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("trixie-proposed-updates".to_string()),
+                component: Some("main".to_string()),
+                architecture: "amd64".to_string(),
+                packages: vec![],
+            }]
+        );
+    }
 
     #[test]
     fn test_parse_bin_pkg_simple() {
@@ -1799,6 +1846,32 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                    },
                ],
            },
+        );
+
+        reports.insert(
+            ("sid".to_string(), "main".to_string(), "amd64".to_string()),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("sid".to_string()),
+                component: Some("main".to_string()),
+                architecture: "amd64".to_string(),
+                packages: vec![],
+            },
+        );
+
+        reports.insert(
+            (
+                "testing".to_string(),
+                "main".to_string(),
+                "amd64".to_string(),
+            ),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("testing".to_string()),
+                component: Some("main".to_string()),
+                architecture: "amd64".to_string(),
+                packages: vec![],
+            },
         );
 
         assert_eq!(state, SyncState { reports });
