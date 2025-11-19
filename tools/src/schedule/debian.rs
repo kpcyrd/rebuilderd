@@ -398,6 +398,15 @@ impl SyncState {
         Ok(())
     }
 
+    /// Ensure all release groups are created, even if we never assign any packages to it.
+    /// If a release group doesn't have any packages, we still want to notify rebuilderd that
+    /// it's empty.
+    fn create_all_release_groups(&mut self, release: &str, component: &str, sync: &PkgsSync) {
+        for arch in &sync.architectures {
+            self.create_release_group(release, component, arch);
+        }
+    }
+
     pub fn import_compressed_binary_package_file(
         &mut self,
         bytes: &[u8],
@@ -406,9 +415,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        for arch in &sync.architectures {
-            self.create_release_group(release, component, arch);
-        }
+        self.create_all_release_groups(release, component, sync);
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
             self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
@@ -423,9 +430,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        for arch in &sync.architectures {
-            self.create_release_group(release, component, arch);
-        }
+        self.create_all_release_groups(release, component, sync);
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
             self.import_binary_pkg(pkg, sources, release, component, sync)?;
         }
