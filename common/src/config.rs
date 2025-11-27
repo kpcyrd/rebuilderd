@@ -135,7 +135,7 @@ impl WorkerConfig {
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ScheduleConfig {
     retry_delay_base: Option<i64>,
-    max_retries: Option<u64>,
+    max_retries: Option<i32>,
 }
 
 impl ScheduleConfig {
@@ -153,7 +153,7 @@ impl ScheduleConfig {
         self.retry_delay_base.unwrap_or(DEFAULT_RETRY_DELAY_BASE)
     }
 
-    pub fn max_retries(&self) -> Option<u64> {
+    pub fn max_retries(&self) -> Option<i32> {
         self.max_retries
     }
 }
