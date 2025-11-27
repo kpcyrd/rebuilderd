@@ -1,7 +1,9 @@
 use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
-use crate::api::v1::util::friends::get_build_input_friends;
+use crate::api::v1::util::friends::{
+    get_build_input_friends, mark_build_input_friends_as_non_retriable,
+};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
@@ -16,10 +18,10 @@ use crate::schema::{
 use crate::{attestation, web};
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use chrono::{Duration, NaiveDateTime, Utc};
-use diesel::NullableExpressionMethods;
 use diesel::QueryDsl;
 use diesel::dsl::update;
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
+use diesel::{NullableExpressionMethods, delete};
 use diesel::{OptionalExtension, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
@@ -118,7 +120,8 @@ pub async fn submit_rebuild_report(
 
     // figure out any other build inputs that should share this result (same input, backend, and arch). Will include the
     // enqueued build ID as well, so no need to add it later.
-    let friends = get_build_input_friends(connection.as_mut(), queued.build_input_id).await?;
+    let friends =
+        get_build_input_friends(connection.as_mut(), queued.build_input_id).map_err(Error::from)?;
 
     let encoded_log = if is_zstd_compressed(&report.build_log) {
         report.build_log
@@ -223,13 +226,9 @@ pub async fn submit_rebuild_report(
 
         // bail if we have a max retry count set and requeueing this package would exceed it
         if let Some(max_retries) = cfg.schedule.max_retries()
-            && retry_count + 1 > max_retries as i32
+            && retry_count + 1 > max_retries
         {
-            // null out the next retry to mark the package as non-retried
-            update(build_inputs::table)
-                .filter(build_inputs::id.eq_any(&friends))
-                .set(build_inputs::next_retry.eq(None::<NaiveDateTime>))
-                .execute(connection.as_mut())
+            mark_build_input_friends_as_non_retriable(connection.as_mut(), queued.build_input_id)
                 .map_err(Error::from)?;
 
             return Ok(HttpResponse::NoContent());

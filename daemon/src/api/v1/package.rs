@@ -1,6 +1,9 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::IntoOriginFilter;
 use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter};
+use crate::api::v1::util::friends::{
+    build_input_friends, get_build_input_friends, mark_build_input_friends_as_non_retriable,
+};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::{Pool, SqliteConnectionWrap};
@@ -10,6 +13,7 @@ use crate::schema::{
 };
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
+use aliases::*;
 use chrono::{NaiveDateTime, Utc};
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
@@ -23,9 +27,6 @@ use rebuilderd_common::api::v1::{
     ResultPage, SourcePackageReport,
 };
 use rebuilderd_common::errors::Error;
-
-use crate::api::v1::util::friends::build_input_friends;
-use aliases::*;
 
 mod aliases {
     diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);
@@ -249,19 +250,9 @@ pub async fn submit_package_report(
 
                 // bail if we have a max retry count set and requeueing this package would exceed it
                 if let Some(max_retries) = cfg.schedule.max_retries()
-                    && retry_count + 1 > max_retries as i32
+                    && retry_count + 1 > max_retries
                 {
-                    // null out the next retry to mark the package as non-retried
-                    update(build_inputs::table)
-                        .filter(build_inputs::id.eq(build_input.id))
-                        .set(build_inputs::next_retry.eq(None::<NaiveDateTime>))
-                        .execute(conn)?;
-
-                    // drop any enqueued jobs for the build input
-                    delete(queue::table)
-                        .filter(queue::build_input_id.eq(build_input.id))
-                        .execute(conn)?;
-
+                    mark_build_input_friends_as_non_retriable(conn.as_mut(), build_input.id)?;
                     continue;
                 }
 
@@ -329,15 +320,7 @@ fn has_queued_friend(
 ) -> Result<bool, Error> {
     let has_queued_friend = select(exists(
         queue::table
-            .filter(
-                queue::build_input_id.eq_any(
-                    build_inputs::table
-                        .filter(build_inputs::url.is(&build_input.url))
-                        .filter(build_inputs::backend.is(&build_input.backend))
-                        .filter(build_inputs::architecture.is(&build_input.architecture))
-                        .select(build_inputs::id),
-                ),
-            )
+            .filter(queue::build_input_id.eq_any(build_input_friends(build_input.id)))
             .select(queue::id),
     ))
     .get_result::<bool>(conn.as_mut())
