@@ -8,10 +8,10 @@ pub trait Fancy {
 impl Fancy for BuildStatus {
     fn fancy(&self) -> String {
         match self {
-            BuildStatus::Good => self.to_string().green().to_string(),
-            BuildStatus::Bad => self.to_string().red().to_string(),
-            BuildStatus::Fail => self.to_string().red().to_string(),
-            BuildStatus::Unknown => self.to_string().yellow().to_string(),
+            BuildStatus::Good => format!("{:5}", self.as_str().green()),
+            BuildStatus::Bad => format!("{:5}", self.as_str().red()),
+            BuildStatus::Fail => format!("{:5}", self.as_str().red()),
+            BuildStatus::Unknown => format!("{:5}", self.as_str().yellow()),
         }
     }
 }
@@ -19,9 +19,9 @@ impl Fancy for BuildStatus {
 impl Fancy for ArtifactStatus {
     fn fancy(&self) -> String {
         match self {
-            ArtifactStatus::Good => self.to_string().green().to_string(),
-            ArtifactStatus::Bad => self.to_string().red().to_string(),
-            ArtifactStatus::Unknown => self.to_string().yellow().to_string(),
+            ArtifactStatus::Good => format!("{:5}", self.as_str().green()),
+            ArtifactStatus::Bad => format!("{:5}", self.as_str().red()),
+            ArtifactStatus::Unknown => format!("{:5}", self.as_str().yellow()),
         }
     }
 }

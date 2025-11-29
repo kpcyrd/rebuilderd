@@ -104,8 +104,7 @@ impl Client {
         url
     }
 
-    fn get(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.get(self.url_join(&path));
+    fn authenticated(&self, mut req: RequestBuilder) -> RequestBuilder {
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
         }
@@ -119,40 +118,27 @@ impl Client {
         }
 
         req
+    }
+
+    fn get(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
+        let url = self.url_join(&path);
+        debug!("Sending GET request to {}", url.as_str());
+        let req = self.client.get(url);
+        self.authenticated(req)
     }
 
     fn post(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.post(self.url_join(&path));
-        if let Some(auth_cookie) = &self.auth_cookie {
-            req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
-        }
-
-        if let Some(worker_key) = &self.worker_key {
-            req = req.header(WORKER_KEY_HEADER, worker_key);
-        }
-
-        if let Some(signup_secret) = &self.signup_secret {
-            req = req.header(SIGNUP_SECRET_HEADER, signup_secret);
-        }
-
-        req
+        let url = self.url_join(&path);
+        debug!("Sending POST request to {}", url.as_str());
+        let req = self.client.post(url);
+        self.authenticated(req)
     }
 
     fn delete(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.delete(self.url_join(&path));
-        if let Some(auth_cookie) = &self.auth_cookie {
-            req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
-        }
-
-        if let Some(worker_key) = &self.worker_key {
-            req = req.header(WORKER_KEY_HEADER, worker_key);
-        }
-
-        if let Some(signup_secret) = &self.signup_secret {
-            req = req.header(SIGNUP_SECRET_HEADER, signup_secret);
-        }
-
-        req
+        let url = self.url_join(&path);
+        debug!("Sending DELETE request to {}", url.as_str());
+        let req = self.client.delete(url);
+        self.authenticated(req)
     }
 }
 

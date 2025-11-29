@@ -244,7 +244,7 @@ impl BuildRestApi for Client {
 
     async fn get_build_log(&self, id: i32) -> Result<String> {
         let data = self
-            .get(Cow::Owned(format!("api/v1/packages/source/{id}")))
+            .get(Cow::Owned(format!("api/v1/builds/{id}/log")))
             .send()
             .await?
             .error_for_status()?

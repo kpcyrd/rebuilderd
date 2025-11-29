@@ -16,7 +16,6 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::utils;
 use serde::Serialize;
-use std::borrow::Cow;
 use std::io;
 use std::io::prelude::*;
 use tokio::io::AsyncReadExt;
@@ -340,57 +339,59 @@ async fn main() -> Result<()> {
         }
         SubCommand::Queue(Queue::Ls(ls)) => {
             let mut page = Page {
-                limit: if ls.head { Some(25) } else { Some(1000) },
+                limit: Some(1000),
                 before: None,
                 after: None,
-                sort: Some("name".to_string()),
+                sort: None,
                 direction: None,
             };
 
-            loop {
-                let results = client.get_queued_jobs(Some(&page), None, None).await?;
+            let mut output_lines_limit = if ls.head { 25 } else { usize::MAX };
+            while output_lines_limit > 0 {
+                let mut results = client.get_queued_jobs(Some(&page), None, None).await?;
                 if let Some(last) = results.records.last() {
-                    page.limit = Some(1000);
                     page.after = Some(last.id);
-
-                    if ls.head {
-                        break;
-                    }
                 } else {
                     break;
                 }
 
+                // Skip jobs that are not yet due, unless --planned is given
+                let now = Utc::now();
+                results.records.retain(|job| ls.planned || job.is_due(now));
+
+                // Apply output limit
+                results.records.truncate(output_lines_limit);
+                output_lines_limit = output_lines_limit.saturating_sub(results.records.len());
+
+                // Print results
                 if ls.json {
                     print_json(&results.records)?;
                 } else {
                     let mut stdout = io::stdout();
                     for job in results.records {
-                        let started_at = if let Some(started_at) = job.started_at {
-                            started_at.format("%Y-%m-%d %H:%M:%S").to_string()
-                        } else {
-                            String::new()
-                        };
-                        let pkg_str = format!("{} {}", job.name.bold(), job.version,);
+                        // Format/prepare some fields
+                        let started_at = job
+                            .started_at
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_default();
 
-                        let running = format!(
-                            "{:>11}",
-                            if let Some(started_at) = job.started_at {
-                                let duration = (Utc::now().naive_utc() - started_at).num_seconds();
-                                Cow::Owned(utils::secs_to_human(duration))
-                            } else {
-                                Cow::Borrowed("")
-                            }
-                        );
+                        let pkg_str = format!("{} {}", job.name.bold(), job.version);
 
+                        let running = job.running_since(Utc::now()).map(|duration| {
+                            let secs = duration.num_seconds();
+                            utils::secs_to_human(secs)
+                        });
+
+                        // Print the queue item
                         if writeln!(
                             stdout,
-                            "{} {:-60} {} {:19} {:?} {:?} {:?} {:?}",
+                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?} {:?}",
                             job.queued_at
                                 .format("%Y-%m-%d %H:%M:%S")
                                 .to_string()
                                 .bright_black(),
                             pkg_str,
-                            running.green(),
+                            running.unwrap_or_default().green(),
                             started_at,
                             job.distribution,
                             job.release,
@@ -411,7 +412,7 @@ async fn main() -> Result<()> {
                 .request_rebuild(QueueJobRequest {
                     distribution: Some(push.distro),
                     release: None, // TODO: push.release
-                    component: Some(push.suite),
+                    component: Some(push.component),
                     name: Some(push.name),
                     version: push.version,
                     architecture: push.architecture,

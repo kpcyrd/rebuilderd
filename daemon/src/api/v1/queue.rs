@@ -17,7 +17,7 @@ use rebuilderd_common::api::v1::{
     QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
 };
 use rebuilderd_common::config::PING_DEADLINE;
-use rebuilderd_common::errors::Error;
+use rebuilderd_common::errors::*;
 use std::collections::HashSet;
 
 #[diesel::dsl::auto_type]
@@ -35,6 +35,7 @@ fn queue_base() -> _ {
             build_inputs::backend,
             build_inputs::url,
             build_inputs::next_retry,
+            queue::priority,
             queue::queued_at,
             queue::started_at,
         ))
@@ -62,6 +63,11 @@ pub async fn get_queued_jobs(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
+        .order_by((
+            queue::priority,
+            diesel::dsl::date(queue::queued_at),
+            sqlite_random(),
+        ))
         .paginate(page.into_inner())
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;
@@ -308,16 +314,15 @@ pub async fn request_work(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let check_worker = auth::worker(&cfg, &req, connection.as_mut());
-    if check_worker.is_err() {
+    let Ok(worker) = check_worker else {
         return Ok(HttpResponse::Forbidden().finish());
-    }
-
-    let worker = check_worker?;
+    };
 
     // clear any stale jobs before we consider available jobs in the queue
     let now = Utc::now();
     let then = now - Duration::seconds(PING_DEADLINE);
 
+    debug!("Clearing stale jobs last pinged before {then:?}...");
     update(
         queue::table.filter(
             queue::last_ping
@@ -336,6 +341,11 @@ pub async fn request_work(
     // see if we can dig up any available work for this worker
     let pop_request = request.into_inner();
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
+
+    debug!(
+        "Trying to find work for worker {:?}... ({supported_architectures:?})",
+        worker.name
+    );
 
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
@@ -375,6 +385,10 @@ pub async fn request_work(
                 let now = Utc::now().naive_utc();
                 let status = format!("working hard on {} {}", record.name, record.version);
 
+                debug!(
+                    "Marking job as taken for worker {:?}: {:?}",
+                    worker.name, record
+                );
                 diesel::update(queue::table)
                     .filter(queue::id.is(record.id))
                     .set((
@@ -400,6 +414,10 @@ pub async fn request_work(
                     artifacts,
                 }))
             } else {
+                debug!(
+                    "Could not find any item in work queue for worker {:?}",
+                    worker.name
+                );
                 Ok(None)
             }
         })?

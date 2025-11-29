@@ -142,7 +142,7 @@ pub async fn submit_rebuild_report(
             started_at: queued.started_at,
             built_at: Some(report.built_at),
             build_log_id: new_log_id,
-            status: Some(report.status.to_string()),
+            status: Some(report.status.as_str().to_string()),
         };
 
         let new_rebuild_id = new_rebuild.insert(connection.as_mut())?;
@@ -204,7 +204,7 @@ pub async fn submit_rebuild_report(
                 name: artifact_report.name.clone(),
                 diffoscope_log_id: logs.0,
                 attestation_log_id: logs.1,
-                status: Some(artifact_report.status.to_string()),
+                status: Some(artifact_report.status.as_str().to_string()),
             };
 
             new_rebuild_artifact.insert(connection.as_mut())?;
