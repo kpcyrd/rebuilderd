@@ -1,5 +1,5 @@
 use crate::api::v1::{BuildStatus, Priority};
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,16 @@ pub struct QueuedJob {
     pub priority: Priority,
     pub queued_at: NaiveDateTime,
     pub started_at: Option<NaiveDateTime>,
+}
+
+impl QueuedJob {
+    pub fn is_due(&self, now: DateTime<Utc>) -> bool {
+        if let Some(next_retry) = self.next_retry {
+            next_retry <= now.naive_utc()
+        } else {
+            true
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

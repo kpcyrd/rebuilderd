@@ -365,6 +365,12 @@ async fn main() -> Result<()> {
                 } else {
                     let mut stdout = io::stdout();
                     for job in results.records {
+                        // Skip jobs that are not yet due unless --planned is given
+                        if !ls.planned && !job.is_due(Utc::now()) {
+                            continue;
+                        }
+
+                        // Format started_at
                         let started_at = if let Some(started_at) = job.started_at {
                             started_at.format("%Y-%m-%d %H:%M:%S").to_string()
                         } else {

@@ -174,6 +174,8 @@ pub struct QueueList {
     pub head: bool,
     #[arg(long)]
     pub json: bool,
+    #[arg(short, long)]
+    pub planned: bool,
 }
 
 #[derive(Debug, Parser)]
