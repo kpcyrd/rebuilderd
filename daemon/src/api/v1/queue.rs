@@ -337,7 +337,10 @@ pub async fn request_work(
     let pop_request = request.into_inner();
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
 
-    debug!("Trying to find work for worker {:?}... ({supported_architectures:?})", worker.name);
+    debug!(
+        "Trying to find work for worker {:?}... ({supported_architectures:?})",
+        worker.name
+    );
 
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
@@ -377,7 +380,10 @@ pub async fn request_work(
                 let now = Utc::now().naive_utc();
                 let status = format!("working hard on {} {}", record.name, record.version);
 
-                debug!("Marking job as taken for worker {:?}: {:?}", worker.name, record);
+                debug!(
+                    "Marking job as taken for worker {:?}: {:?}",
+                    worker.name, record
+                );
                 diesel::update(queue::table)
                     .filter(queue::id.is(record.id))
                     .set((
@@ -403,7 +409,10 @@ pub async fn request_work(
                     artifacts,
                 }))
             } else {
-                debug!("Could not find any item in work queue for worker {:?}", worker.name);
+                debug!(
+                    "Could not find any item in work queue for worker {:?}",
+                    worker.name
+                );
                 Ok(None)
             }
         })?
