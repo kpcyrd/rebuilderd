@@ -105,7 +105,10 @@ impl Client {
     }
 
     fn get(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.get(self.url_join(&path));
+        let url = self.url_join(&path);
+        debug!("Sending GET request to {}", url.as_str());
+        let mut req = self.client.get(url);
+
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
         }
@@ -122,7 +125,10 @@ impl Client {
     }
 
     fn post(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.post(self.url_join(&path));
+        let url = self.url_join(&path);
+        debug!("Sending POST request to {}", url.as_str());
+        let mut req = self.client.post(url);
+
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
         }
@@ -139,7 +145,10 @@ impl Client {
     }
 
     fn delete(&self, path: Cow<'static, str>) -> crate::http::RequestBuilder {
-        let mut req = self.client.delete(self.url_join(&path));
+        let url = self.url_join(&path);
+        debug!("Sending DELETE request to {}", url.as_str());
+        let mut req = self.client.delete(url);
+
         if let Some(auth_cookie) = &self.auth_cookie {
             req = req.header(AUTH_COOKIE_HEADER, auth_cookie);
         }
