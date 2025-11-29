@@ -16,7 +16,6 @@ use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use rebuilderd_common::utils;
 use serde::Serialize;
-use std::borrow::Cow;
 use std::io;
 use std::io::prelude::*;
 use tokio::io::AsyncReadExt;
@@ -370,33 +369,29 @@ async fn main() -> Result<()> {
                             continue;
                         }
 
-                        // Format started_at
-                        let started_at = if let Some(started_at) = job.started_at {
-                            started_at.format("%Y-%m-%d %H:%M:%S").to_string()
-                        } else {
-                            String::new()
-                        };
-                        let pkg_str = format!("{} {}", job.name.bold(), job.version,);
+                        // Format/prepare some fields
+                        let started_at = job
+                            .started_at
+                            .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            .unwrap_or_default();
 
-                        let running = format!(
-                            "{:>11}",
-                            if let Some(started_at) = job.started_at {
-                                let duration = (Utc::now().naive_utc() - started_at).num_seconds();
-                                Cow::Owned(utils::secs_to_human(duration))
-                            } else {
-                                Cow::Borrowed("")
-                            }
-                        );
+                        let pkg_str = format!("{} {}", job.name.bold(), job.version);
 
+                        let running = job.running_since(Utc::now()).map(|duration| {
+                            let secs = duration.num_seconds();
+                            utils::secs_to_human(secs)
+                        });
+
+                        // Print the queue item
                         if writeln!(
                             stdout,
-                            "{} {:-60} {} {:19} {:?} {:?} {:?} {:?}",
+                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?} {:?}",
                             job.queued_at
                                 .format("%Y-%m-%d %H:%M:%S")
                                 .to_string()
                                 .bright_black(),
                             pkg_str,
-                            running.green(),
+                            running.unwrap_or_default().green(),
                             started_at,
                             job.distribution,
                             job.release,

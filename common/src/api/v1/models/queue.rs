@@ -50,6 +50,12 @@ impl QueuedJob {
             true
         }
     }
+
+    pub fn running_since(&self, now: DateTime<Utc>) -> Option<chrono::TimeDelta> {
+        let started_at = self.started_at?;
+        let duration = now.naive_utc() - started_at;
+        Some(duration)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
