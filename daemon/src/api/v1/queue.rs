@@ -63,6 +63,11 @@ pub async fn get_queued_jobs(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
+        .order_by((
+            queue::priority,
+            diesel::dsl::date(queue::queued_at),
+            sqlite_random(),
+        ))
         .paginate(page.into_inner())
         .load::<QueuedJob>(connection.as_mut())
         .map_err(Error::from)?;

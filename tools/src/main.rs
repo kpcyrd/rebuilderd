@@ -343,7 +343,7 @@ async fn main() -> Result<()> {
                 limit: if ls.head { Some(25) } else { Some(1000) },
                 before: None,
                 after: None,
-                sort: Some("name".to_string()),
+                sort: None,
                 direction: None,
             };
 
