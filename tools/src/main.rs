@@ -339,36 +339,36 @@ async fn main() -> Result<()> {
         }
         SubCommand::Queue(Queue::Ls(ls)) => {
             let mut page = Page {
-                limit: if ls.head { Some(25) } else { Some(1000) },
+                limit: Some(1000),
                 before: None,
                 after: None,
                 sort: None,
                 direction: None,
             };
 
-            loop {
-                let results = client.get_queued_jobs(Some(&page), None, None).await?;
+            let mut output_lines_limit = if ls.head { 25 } else { usize::MAX };
+            while output_lines_limit > 0 {
+                let mut results = client.get_queued_jobs(Some(&page), None, None).await?;
                 if let Some(last) = results.records.last() {
-                    page.limit = Some(1000);
                     page.after = Some(last.id);
-
-                    if ls.head {
-                        break;
-                    }
                 } else {
                     break;
                 }
 
+                // Skip jobs that are not yet due, unless --planned is given
+                let now = Utc::now();
+                results.records.retain(|job| ls.planned || job.is_due(now));
+
+                // Apply output limit
+                results.records.truncate(output_lines_limit);
+                output_lines_limit = output_lines_limit.saturating_sub(results.records.len());
+
+                // Print results
                 if ls.json {
                     print_json(&results.records)?;
                 } else {
                     let mut stdout = io::stdout();
                     for job in results.records {
-                        // Skip jobs that are not yet due unless --planned is given
-                        if !ls.planned && !job.is_due(Utc::now()) {
-                            continue;
-                        }
-
                         // Format/prepare some fields
                         let started_at = job
                             .started_at
