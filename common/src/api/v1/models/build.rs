@@ -40,13 +40,13 @@ pub enum BuildStatus {
     Unknown,
 }
 
-impl fmt::Display for BuildStatus {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl BuildStatus {
+    pub fn as_str(&self) -> &str {
         match self {
-            BuildStatus::Good => write!(f, "GOOD"),
-            BuildStatus::Bad => write!(f, "BAD"),
-            BuildStatus::Fail => write!(f, "FAIL"),
-            BuildStatus::Unknown => write!(f, "UNKWN"),
+            BuildStatus::Good => "GOOD",
+            BuildStatus::Bad => "BAD",
+            BuildStatus::Fail => "FAIL",
+            BuildStatus::Unknown => "UNKWN",
         }
     }
 }
@@ -92,7 +92,7 @@ impl FromSql<Text, Sqlite> for BuildStatus {
 #[cfg(feature = "diesel")]
 impl ToSql<Text, Sqlite> for BuildStatus {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> diesel::serialize::Result {
-        out.set_value(self.to_string());
+        out.set_value(self.as_str());
         Ok(diesel::serialize::IsNull::No)
     }
 }
@@ -123,12 +123,12 @@ pub enum ArtifactStatus {
     Unknown,
 }
 
-impl fmt::Display for ArtifactStatus {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl ArtifactStatus {
+    pub fn as_str(&self) -> &str {
         match self {
-            ArtifactStatus::Good => write!(f, "GOOD"),
-            ArtifactStatus::Bad => write!(f, "BAD"),
-            ArtifactStatus::Unknown => write!(f, "UNKWN"),
+            ArtifactStatus::Good => "GOOD",
+            ArtifactStatus::Bad => "BAD",
+            ArtifactStatus::Unknown => "UNKWN",
         }
     }
 }
@@ -173,7 +173,7 @@ impl FromSql<Text, Sqlite> for ArtifactStatus {
 #[cfg(feature = "diesel")]
 impl ToSql<Text, Sqlite> for ArtifactStatus {
     fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Sqlite>) -> diesel::serialize::Result {
-        out.set_value(self.to_string());
+        out.set_value(self.as_str());
         Ok(diesel::serialize::IsNull::No)
     }
 }
