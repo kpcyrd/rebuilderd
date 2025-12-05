@@ -113,7 +113,7 @@ pub async fn rebuild_with_heartbeat(
 
 pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<RebuildArtifactReport>> {
     // setup
-    let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+    let tmp = tempfile::Builder::new().prefix("rebuilderd.").tempdir()?;
 
     let inputs_dir = tmp.path().join("inputs");
     fs::create_dir(&inputs_dir).context("Failed to create inputs/ temp dir")?;
