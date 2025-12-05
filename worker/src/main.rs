@@ -17,10 +17,10 @@ use rebuilderd_common::config::*;
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::zstd_compress;
-use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
 use std::time::Duration;
+use std::{env, fs};
 use tokio::time;
 
 pub mod args;
@@ -58,7 +58,16 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
 
     // default to our native architecture if the user hasn't specified any explicit architectures
     let supported_architectures = if config.supported_architectures.is_empty() {
-        vec![std::env::consts::ARCH.to_string()]
+        // On x86_64, if no architectures were explicitly configured,
+        // also advertise support for "all" (since that's what Debian uses to build them)
+        [
+            Some(env::consts::ARCH),
+            (env::consts::ARCH == "x86_64").then_some("all"),
+        ]
+        .into_iter()
+        .flatten()
+        .map(String::from)
+        .collect()
     } else {
         config.supported_architectures.clone()
     };
@@ -66,7 +75,7 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
     match client
         .request_work(PopQueuedJobRequest {
             supported_backends,
-            architecture: std::env::consts::ARCH.to_string(),
+            architecture: env::consts::ARCH.to_string(),
             supported_architectures,
         })
         .await?
