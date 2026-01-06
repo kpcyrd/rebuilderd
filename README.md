@@ -65,7 +65,7 @@ dedicated non-virtualized hardware.
 
 # Accessing a rebuilderd instance in your browser
 
-Many instance run a web frontend to display their results. [rebuilderd-website]
+Many instances run a web frontend to display their results. [rebuilderd-website]
 is a very good choice and the software powering the Arch Linux rebuilderd
 instance:
 
@@ -135,7 +135,7 @@ There is a docker-compose setup in the repo, to start a basic stack simply
 clone the repository and run:
 
 ```sh
-DOCKER_BUILDKIT=1 docker-compose up
+docker compose up
 ```
 
 The initial build is going to take some time.
@@ -143,7 +143,7 @@ The initial build is going to take some time.
 To recompile your changes (you can optionally specify a specific image to build):
 
 ```sh
-DOCKER_BUILDKIT=1 docker-compose build
+docker compose build
 ```
 
 The auth cookie has strict permissions, for development simply change them with:
@@ -196,7 +196,7 @@ This takes a moment but the api should now be available at
 This daemon needs to run in the background, so we're starting a new terminal to
 continue with the next steps.
 
-Next we're going to build the `rebuilctl binary` and confirm it's able to
+Next we're going to build the `rebuildctl binary` and confirm it's able to
 connect to the api. If we don't get an error message this means it's working.
 
 ```sh
@@ -210,7 +210,7 @@ you, so you need to install additional software here (called a rebuilder
 backend):
 
 - **Arch Linux**: `pacman -S archlinux-repro` or `git clone
-  https://github.com/archlinux/archlinux-repro && archlinux-repro/ && make &&
+  https://github.com/archlinux/archlinux-repro && cd archlinux-repro/ && make &&
   sudo make install`. Note that on debian buster you need to install systemd
   from buster-backports.
 
