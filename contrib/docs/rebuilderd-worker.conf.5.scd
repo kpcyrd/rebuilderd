@@ -22,6 +22,9 @@ _endpoint=_
 _signup_secret=_
 	The server would either allowlist our key or require a signup secret.
 
+_idle_delay=_
+	Number of seconds to sleep when no work is available (defaults to 180 seconds).
+
 ## [build]
 
 _timeout=_

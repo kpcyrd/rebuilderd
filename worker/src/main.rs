@@ -72,8 +72,9 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
         .await?
     {
         JobAssignment::Nothing => {
-            info!("No pending tasks, sleeping for {}s...", IDLE_DELAY);
-            time::sleep(Duration::from_secs(IDLE_DELAY)).await;
+            let idle_delay = config.idle_delay.unwrap_or(IDLE_DELAY);
+            info!("No pending tasks, sleeping for {}s...", idle_delay);
+            time::sleep(Duration::from_secs(idle_delay)).await;
         }
         JobAssignment::Rebuild(rb) => {
             info!("Starting rebuild of {:?} {:?}", rb.job.name, rb.job.version);
