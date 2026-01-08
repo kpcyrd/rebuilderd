@@ -208,10 +208,13 @@ pub async fn submit_package_report(
 
             let source_package = new_source_package.upsert(conn.as_mut())?;
 
-            let initial_delay = if cfg.schedule.initial_delay() == Duration::seconds(0) {
-                None
+            // None means we don't have a specific limitation on when the next retry (or first try, as the case may be)
+            // is. Any worker can pick it up, as long as it's eligible for build.
+            let next_retry = if cfg.schedule.initial_delay() != Duration::seconds(0) {
+                let delay_until = now + cfg.schedule.initial_delay();
+                Some(delay_until.naive_utc())
             } else {
-                Some(now + cfg.schedule.initial_delay())
+                None
             };
 
             let new_build_input = NewBuildInput {
@@ -220,7 +223,7 @@ pub async fn submit_package_report(
                 backend: report.distribution.clone(),
                 architecture: report.architecture.clone(),
                 retries: 0,
-                next_retry: initial_delay.map(|v| v.naive_utc()),
+                next_retry,
             };
 
             let build_input = new_build_input.upsert(conn.as_mut())?;
