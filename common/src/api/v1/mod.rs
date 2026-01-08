@@ -196,6 +196,20 @@ pub trait WorkerRestApi {
     async fn register_worker(&self, request: RegisterWorkerRequest) -> Result<()>;
     async fn get_worker(&self, id: i32) -> Result<Worker>;
     async fn unregister_worker(&self, id: i32) -> Result<()>;
+    async fn get_worker_tags(&self, id: i32) -> Result<Vec<String>>;
+    async fn set_worker_tags(&self, id: i32, tags: Vec<String>) -> Result<()>;
+    async fn create_worker_tag(&self, id: i32, tag: String) -> Result<()>;
+    async fn delete_worker_tag(&self, id: i32, tag: String) -> Result<()>;
+}
+
+#[async_trait]
+pub trait TagRestApi {
+    async fn get_tags(&self) -> Result<Vec<String>>;
+    async fn create_tag(&self, request: CreateTagRequest) -> Result<String>;
+    async fn delete_tag(&self, tag: String) -> Result<()>;
+    async fn get_tag_rules(&self, tag: String) -> Result<Vec<TagRule>>;
+    async fn create_tag_rule(&self, tag: String, request: CreateTagRuleRequest) -> Result<TagRule>;
+    async fn delete_tag_rule(&self, tag: String, tag_rule_id: i32) -> Result<()>;
 }
 
 #[async_trait]
@@ -658,6 +672,117 @@ impl WorkerRestApi for Client {
 
     async fn unregister_worker(&self, id: i32) -> Result<()> {
         self.delete(Cow::Owned(format!("api/v1/workers/{id}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn get_worker_tags(&self, id: i32) -> Result<Vec<String>> {
+        let tags = self
+            .get(Cow::Owned(format!("api/v1/workers/{id}/tags")))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(tags)
+    }
+
+    async fn set_worker_tags(&self, id: i32, tags: Vec<String>) -> Result<()> {
+        self.put(Cow::Owned(format!("api/v1/workers/{id}/tags")))
+            .json(&tags)
+            .send_encoded()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn create_worker_tag(&self, id: i32, tag: String) -> Result<()> {
+        self.put(Cow::Owned(format!("api/v1/workers/{id}/tags/{tag}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn delete_worker_tag(&self, id: i32, tag: String) -> Result<()> {
+        self.delete(Cow::Owned(format!("api/v1/workers/{id}/tags/{tag}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TagRestApi for Client {
+    async fn get_tags(&self) -> Result<Vec<String>> {
+        let records = self
+            .get(Cow::Borrowed("api/v1/tags"))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(records)
+    }
+
+    async fn create_tag(&self, request: CreateTagRequest) -> Result<String> {
+        let record = self
+            .post(Cow::Borrowed("api/v1/tags"))
+            .json(&request)
+            .send_encoded()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(record)
+    }
+
+    async fn delete_tag(&self, tag: String) -> Result<()> {
+        self.delete(Cow::Owned(format!("api/v1/tags/{tag}")))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    async fn get_tag_rules(&self, tag: String) -> Result<Vec<TagRule>> {
+        let records = self
+            .get(Cow::Owned(format!("api/v1/tags/{tag}")))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(records)
+    }
+
+    async fn create_tag_rule(&self, tag: String, request: CreateTagRuleRequest) -> Result<TagRule> {
+        let record = self
+            .post(Cow::Owned(format!("api/v1/tags/{tag}")))
+            .json(&request)
+            .send_encoded()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(record)
+    }
+
+    async fn delete_tag_rule(&self, tag: String, tag_rule_id: i32) -> Result<()> {
+        self.delete(Cow::Owned(format!("api/v1/tags/{tag}/{tag_rule_id}")))
             .send()
             .await?
             .error_for_status()?;

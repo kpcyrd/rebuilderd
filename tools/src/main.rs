@@ -9,8 +9,9 @@ use glob::Pattern;
 use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
+    ArtifactStatus, BinaryPackage, BuildRestApi, CreateTagRequest, CreateTagRuleRequest,
+    IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page, Priority, QueueJobRequest,
+    QueueRestApi, TagRestApi, Worker, WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -126,6 +127,33 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
     Ok(results.records.pop().unwrap())
 }
 
+async fn find_worker(authenticated_client: &Client, name: String) -> Result<Option<Worker>> {
+    let mut page = Page {
+        limit: None,
+        before: None,
+        after: None,
+        sort: Some("id".to_string()),
+        direction: None,
+    };
+
+    loop {
+        let results = authenticated_client.get_workers(Some(&page)).await?;
+
+        if let Some(last) = results.records.last() {
+            page.after = Some(last.id);
+
+            let worker = results.records.into_iter().find(|w| w.name.eq(&name));
+
+            if let Some(worker) = worker {
+                return Ok(Some(worker));
+            }
+        } else {
+            // out of results
+            return Ok(None);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -151,7 +179,18 @@ async fn main() -> Result<()> {
         SubCommand::Status => {
             let mut stdout = io::stdout();
             for worker in client.with_auth_cookie()?.get_workers(None).await?.records {
-                let label = format!("{} ({})", worker.name.green(), worker.address.yellow());
+                let tags = client.get_worker_tags(worker.id).await?;
+                let label = if tags.is_empty() {
+                    format!("{} ({})", worker.name.green(), worker.address.yellow())
+                } else {
+                    format!(
+                        "{} [{}] ({})",
+                        worker.name.green(),
+                        tags.join(", ").cyan(),
+                        worker.address.yellow(),
+                    )
+                };
+
                 let status = if let Some(status) = worker.status {
                     format!("{:?}", status).bold()
                 } else {
@@ -438,6 +477,164 @@ async fn main() -> Result<()> {
                 .with_auth_cookie()?
                 .drop_queued_jobs(Some(&origin_filter), Some(&identity_filter))
                 .await?;
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::List(worker_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) =
+                find_worker(authenticated_client, worker_target.name.clone()).await?
+            {
+                let tags = authenticated_client.get_worker_tags(worker.id).await?;
+
+                if tags.is_empty() {
+                    writeln!(io::stdout(), "{} has no tags", worker_target.name.green())?;
+                } else {
+                    writeln!(io::stdout(), "{}", tags.join("\n").cyan())?;
+                }
+            } else {
+                writeln!(
+                    io::stderr(),
+                    "Worker {} not found",
+                    worker_target.name.green()
+                )?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Set(worker_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) =
+                find_worker(authenticated_client, worker_target.name.clone()).await?
+            {
+                authenticated_client
+                    .set_worker_tags(worker.id, worker_target.tags.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{}'s tags have been set to {}",
+                    worker_target.name.green(),
+                    worker_target.tags.join(", ").cyan()
+                )?;
+            } else {
+                writeln!(
+                    io::stderr(),
+                    "Worker {} not found",
+                    worker_target.name.green()
+                )?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Add(tag_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) = find_worker(authenticated_client, tag_target.name.clone()).await?
+            {
+                authenticated_client
+                    .create_worker_tag(worker.id, tag_target.tag.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{} added to {}",
+                    tag_target.tag.cyan(),
+                    tag_target.name.green()
+                )?;
+            } else {
+                writeln!(io::stderr(), "Worker {} not found", tag_target.name.green())?;
+            }
+        }
+        SubCommand::Worker(WorkerCommand::Tag(WorkerTagCommand::Remove(tag_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            if let Some(worker) = find_worker(authenticated_client, tag_target.name.clone()).await?
+            {
+                authenticated_client
+                    .delete_worker_tag(worker.id, tag_target.tag.clone())
+                    .await?;
+
+                writeln!(
+                    io::stdout(),
+                    "{} removed from {}",
+                    tag_target.tag.cyan(),
+                    tag_target.name.green()
+                )?;
+            } else {
+                writeln!(io::stderr(), "Worker {} not found", tag_target.name.green())?;
+            }
+        }
+        SubCommand::Tag(TagCommand::List) => {
+            let tags = client.get_tags().await?;
+            writeln!(io::stdout(), "{}", tags.join("\n").cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Create(tag_target)) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .create_tag(CreateTagRequest {
+                    tag: tag_target.tag.clone(),
+                })
+                .await?;
+
+            writeln!(io::stdout(), "Tag {} created", tag_target.tag.cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Delete(tag_target)) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .delete_tag(tag_target.tag.clone())
+                .await?;
+
+            writeln!(io::stdout(), "Tag {} deleted", tag_target.tag.cyan())?;
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::List(tag_target))) => {
+            writeln!(io::stdout(), "ID\tTag\tName pattern\tVersion pattern",)?;
+
+            let tags = if let Some(tag) = tag_target.tag {
+                vec![tag]
+            } else {
+                client.get_tags().await?
+            };
+
+            for tag in tags {
+                let tag_rules = client.get_tag_rules(tag.clone()).await?;
+                for tag_rule in tag_rules {
+                    writeln!(
+                        io::stdout(),
+                        "{}\t{}\t{}\t{}",
+                        tag_rule.id.to_string().yellow(),
+                        tag.cyan(),
+                        tag_rule.name_pattern.green(),
+                        tag_rule.version_pattern.unwrap_or("".to_string()).magenta()
+                    )?;
+                }
+            }
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::Create(create_tag))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            let tag_rule = authenticated_client
+                .create_tag_rule(
+                    create_tag.tag,
+                    CreateTagRuleRequest {
+                        name_pattern: create_tag.name_pattern,
+                        version_pattern: create_tag.version_pattern,
+                    },
+                )
+                .await?;
+
+            writeln!(
+                io::stdout(),
+                "Rule created (ID {})",
+                tag_rule.id.to_string().yellow()
+            )?;
+        }
+        SubCommand::Tag(TagCommand::Rule(TagRuleCommand::Delete(tag_rule_target))) => {
+            let authenticated_client = client.with_auth_cookie()?;
+
+            authenticated_client
+                .delete_tag_rule(tag_rule_target.tag, tag_rule_target.rule_id)
+                .await?;
+
+            writeln!(io::stdout(), "Rule deleted")?;
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }

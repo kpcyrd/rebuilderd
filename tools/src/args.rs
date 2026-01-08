@@ -35,6 +35,12 @@ pub enum SubCommand {
     /// Queue related subcommands
     #[command(subcommand)]
     Queue(Queue),
+    /// Worker related subcommands
+    #[command(subcommand)]
+    Worker(WorkerCommand),
+    /// Tag related subcommands
+    #[command(subcommand)]
+    Tag(TagCommand),
     /// Generate shell completions
     Completions(Completions),
 }
@@ -201,6 +207,116 @@ pub struct QueueDrop {
 
     pub name: String,
     pub version: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub enum WorkerCommand {
+    /// Operate on worker tags
+    #[command(subcommand)]
+    Tag(WorkerTagCommand),
+}
+
+#[derive(Debug, Parser)]
+pub enum WorkerTagCommand {
+    /// List tags attached to a worker
+    List(WorkerTarget),
+
+    /// Set the tags attached to a worker
+    Set(WorkerSetTags),
+
+    /// Add a single tag to a worker
+    Add(WorkerTagTarget),
+
+    /// Remove a single tag from a worker
+    Remove(WorkerTagTarget),
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerTarget {
+    /// The name of the worker
+    pub name: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerTagTarget {
+    /// The name of the worker
+    pub name: String,
+
+    /// The name of the tag
+    pub tag: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct WorkerSetTags {
+    /// The name of the worker
+    pub name: String,
+
+    /// The tags
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Parser)]
+pub enum TagCommand {
+    /// List registered tags
+    List,
+
+    /// Create a new tag
+    Create(TagTarget),
+
+    /// Delete a tag
+    Delete(TagTarget),
+
+    /// Operate on tag rules
+    #[command(subcommand)]
+    Rule(TagRuleCommand),
+}
+
+#[derive(Debug, Parser)]
+pub enum TagRuleCommand {
+    /// List rules for a tag
+    List(OptionalTagTarget),
+
+    /// Create a new tag rule
+    Create(CreateTagRuleCommand),
+
+    /// Delete a tag rule
+    Delete(TagRuleTarget),
+}
+
+#[derive(Debug, Parser)]
+pub struct TagTarget {
+    /// The name of the tag
+    pub tag: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct OptionalTagTarget {
+    /// The name of the tag
+    pub tag: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub struct CreateTagRuleCommand {
+    /// The name of the tag
+    pub tag: String,
+
+    /// The pattern to match source package names against. Must be compatible with SQLite's LIKE syntax.
+    #[arg(long)]
+    pub name_pattern: String,
+
+    /// The pattern to match source package versions against. Must be compatible with SQLite's LIKE syntax. Any version
+    /// will match if this pattern is omitted.
+    #[arg(long, default_missing_value(None))]
+    pub version_pattern: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub struct TagRuleTarget {
+    /// The name of the tag
+    pub tag: String,
+
+    /// The ID of the rule
+    pub rule_id: i32,
 }
 
 #[derive(Debug, Parser)]
