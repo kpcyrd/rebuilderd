@@ -42,6 +42,8 @@ pub fn get_build_input_friends(
     build_input_friends(id).load::<i32>(connection)
 }
 
+/// Set `next_retry` of the build_input to NULL, and remove any related item
+/// from the build queue
 pub fn mark_build_input_friends_as_non_retriable(
     connection: &mut SqliteConnection,
     id: i32,
