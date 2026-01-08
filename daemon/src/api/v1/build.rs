@@ -17,12 +17,11 @@ use crate::schema::{
 };
 use crate::{attestation, web};
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
-use chrono::{Duration, NaiveDateTime, Utc};
-use diesel::QueryDsl;
-use diesel::dsl::update;
-use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use diesel::{NullableExpressionMethods, delete};
-use diesel::{OptionalExtension, RunQueryDsl};
+use chrono::{Duration, Utc};
+use diesel::{
+    ExpressionMethods, NullableExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    SqliteExpressionMethods, dsl::update,
+};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{

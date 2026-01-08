@@ -1,8 +1,7 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::IntoOriginFilter;
-use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter};
+use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::{
-    build_input_friends, get_build_input_friends, mark_build_input_friends_as_non_retriable,
+    build_input_friends, mark_build_input_friends_as_non_retriable,
 };
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
@@ -14,7 +13,7 @@ use crate::schema::{
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use aliases::*;
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
