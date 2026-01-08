@@ -13,7 +13,7 @@ use crate::schema::{
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use aliases::*;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::sql_types::Integer;
@@ -208,12 +208,22 @@ pub async fn submit_package_report(
 
             let source_package = new_source_package.upsert(conn.as_mut())?;
 
+            // None means we don't have a specific limitation on when the next retry (or first try, as the case may be)
+            // is. Any worker can pick it up, as long as it's eligible for build.
+            let next_retry = if cfg.schedule.initial_delay() != Duration::seconds(0) {
+                let delay_until = now + cfg.schedule.initial_delay();
+                Some(delay_until.naive_utc())
+            } else {
+                None
+            };
+
             let new_build_input = NewBuildInput {
                 source_package_id: source_package.id,
                 url: package_report.url.clone(),
                 backend: report.distribution.clone(),
                 architecture: report.architecture.clone(),
                 retries: 0,
+                next_retry,
             };
 
             let build_input = new_build_input.upsert(conn.as_mut())?;
