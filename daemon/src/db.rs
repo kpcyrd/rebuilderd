@@ -1,5 +1,7 @@
 use crate::code_migrations::code_migration;
-use diesel::connection::{Instrumentation, LoadConnection, SimpleConnection, TransactionManager};
+use diesel::connection::{
+    CacheSize, Instrumentation, LoadConnection, SimpleConnection, TransactionManager,
+};
 use diesel::expression::QueryMetadata;
 use diesel::migration::Migration;
 use diesel::prelude::*;
@@ -157,5 +159,9 @@ impl Connection for SqliteConnectionWrap {
 
     fn set_instrumentation(&mut self, instrumentation: impl Instrumentation) {
         self.0.set_instrumentation(instrumentation)
+    }
+
+    fn set_prepared_statement_cache_size(&mut self, size: CacheSize) {
+        self.0.set_prepared_statement_cache_size(size);
     }
 }
