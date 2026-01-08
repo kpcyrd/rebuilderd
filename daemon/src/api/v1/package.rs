@@ -1,6 +1,8 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::IntoOriginFilter;
-use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter};
+use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter, IntoOriginFilter};
+use crate::api::v1::util::friends::{
+    build_input_friends, mark_build_input_friends_as_non_retriable,
+};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::{Pool, SqliteConnectionWrap};
@@ -10,6 +12,7 @@ use crate::schema::{
 };
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
+use aliases::*;
 use chrono::Utc;
 use diesel::dsl::{delete, exists, not, select, update};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
@@ -23,9 +26,6 @@ use rebuilderd_common::api::v1::{
     ResultPage, SourcePackageReport,
 };
 use rebuilderd_common::errors::Error;
-
-use crate::api::v1::util::friends::build_input_friends;
-use aliases::*;
 
 mod aliases {
     diesel::alias!(crate::schema::rebuilds as r1: RebuildsAlias1, crate::schema::rebuilds as r2: RebuildsAlias2);
@@ -242,6 +242,19 @@ pub async fn submit_package_report(
             let has_queued_friend = has_queued_friend(conn, &build_input)?;
 
             if current_status != BuildStatus::Good && !has_queued_friend {
+                let retry_count = build_inputs::table
+                    .filter(build_inputs::id.is(build_input.id))
+                    .select(build_inputs::retries)
+                    .get_result::<i32>(conn)?;
+
+                // bail if we have a max retry count set and requeueing this package would exceed it
+                if let Some(max_retries) = cfg.schedule.max_retries()
+                    && retry_count + 1 > max_retries
+                {
+                    mark_build_input_friends_as_non_retriable(conn.as_mut(), build_input.id)?;
+                    continue;
+                }
+
                 let priority = match current_status {
                     BuildStatus::Bad => Priority::retry(),
                     _ => Priority::default(),
@@ -306,15 +319,7 @@ fn has_queued_friend(
 ) -> Result<bool, Error> {
     let has_queued_friend = select(exists(
         queue::table
-            .filter(
-                queue::build_input_id.eq_any(
-                    build_inputs::table
-                        .filter(build_inputs::url.is(&build_input.url))
-                        .filter(build_inputs::backend.is(&build_input.backend))
-                        .filter(build_inputs::architecture.is(&build_input.architecture))
-                        .select(build_inputs::id),
-                ),
-            )
+            .filter(queue::build_input_id.eq_any(build_input_friends(build_input.id)))
             .select(queue::id),
     ))
     .get_result::<bool>(conn.as_mut())

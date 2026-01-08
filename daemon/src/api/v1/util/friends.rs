@@ -1,6 +1,9 @@
-use crate::schema::build_inputs;
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods};
-use rebuilderd_common::errors::Error;
+use crate::schema::{build_inputs, queue};
+use chrono::NaiveDateTime;
+use diesel::{
+    ExpressionMethods, QueryDsl, QueryResult, RunQueryDsl, SqliteConnection,
+    SqliteExpressionMethods, delete, update,
+};
 
 use aliases::*;
 
@@ -32,11 +35,31 @@ pub fn build_input_friends(id: i32) -> _ {
         )
 }
 
-pub async fn get_build_input_friends(
+pub fn get_build_input_friends(
     connection: &mut SqliteConnection,
     id: i32,
-) -> Result<Vec<i32>, Error> {
-    let results = build_input_friends(id).load::<i32>(connection)?;
+) -> QueryResult<Vec<i32>> {
+    build_input_friends(id).load::<i32>(connection)
+}
 
-    Ok(results)
+/// Set `next_retry` of the build_input to NULL, and remove any related item
+/// from the build queue
+pub fn mark_build_input_friends_as_non_retriable(
+    connection: &mut SqliteConnection,
+    id: i32,
+) -> QueryResult<()> {
+    let friends = get_build_input_friends(connection, id)?;
+
+    // null out the next retry to mark the package and its friends as non-retried
+    update(build_inputs::table)
+        .filter(build_inputs::id.eq_any(&friends))
+        .set(build_inputs::next_retry.eq(None::<NaiveDateTime>))
+        .execute(connection)?;
+
+    // drop any enqueued jobs for the build input and its friends
+    delete(queue::table)
+        .filter(queue::build_input_id.eq_any(&friends))
+        .execute(connection)?;
+
+    Ok(())
 }
