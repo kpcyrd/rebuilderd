@@ -234,7 +234,8 @@ pub async fn submit_rebuild_report(
         }
 
         let now = Utc::now();
-        let then = now + Duration::hours(((retry_count + 1) * 24) as i64);
+        let then =
+            now + Duration::hours((retry_count + 1) as i64 * cfg.schedule.retry_delay_base());
 
         update(build_inputs::table)
             .filter(build_inputs::id.eq_any(friends))
