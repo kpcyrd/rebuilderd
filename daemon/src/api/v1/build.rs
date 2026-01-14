@@ -2,7 +2,8 @@ use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::{
-    get_build_input_friends, mark_build_input_friends_as_non_retriable,
+    get_build_input_friends, get_largest_retry_count_among_friends,
+    mark_build_input_friends_as_non_retriable,
 };
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
@@ -223,11 +224,9 @@ pub async fn submit_rebuild_report(
             .execute(connection.as_mut())
             .map_err(Error::from)?;
 
-        let retry_count = build_inputs::table
-            .filter(build_inputs::id.is(queued.build_input_id))
-            .select(build_inputs::retries)
-            .get_result::<i32>(connection.as_mut())
-            .map_err(Error::from)?;
+        let retry_count =
+            get_largest_retry_count_among_friends(connection.as_mut(), queued.build_input_id)
+                .map_err(Error::from)?;
 
         // bail if we have a max retry count set and requeueing this package would exceed it
         if let Some(max_retries) = cfg.schedule.max_retries()
