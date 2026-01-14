@@ -259,7 +259,8 @@ pub async fn submit_package_report(
 
                 // bail if we have a max retry count set and requeueing this package would exceed it
                 if let Some(max_retries) = cfg.schedule.max_retries()
-                    && retry_count + 1 > max_retries
+                    && retry_count != 0
+                    && retry_count >= max_retries
                 {
                     mark_build_input_friends_as_non_retriable(conn.as_mut(), build_input.id)?;
                     continue;
