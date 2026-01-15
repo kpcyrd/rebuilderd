@@ -1,13 +1,14 @@
-mod server;
+pub mod server;
 
 use crate::args::Args;
-use crate::client;
 use crate::fixtures::server::{IsolatedServer, ServerHolder};
 use clap::Parser;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rand::distr::{Alphanumeric, SampleString};
 use rebuilderd::db;
+use rebuilderd_common::api::Client;
 use rebuilderd_common::config::{ConfigFile, EndpointConfig};
+use rebuilderd_common::errors::info;
 use rstest::fixture;
 use tempfile::TempDir;
 
@@ -52,6 +53,20 @@ pub fn private_key() -> PrivateKey {
         .expect("Failed to use generated private key")
 }
 
+fn make_client(config_file: ConfigFile, endpoint: String) -> Client {
+    info!("Setting up client for {:?}", endpoint);
+    let mut client = Client::new(config_file.clone(), Some(endpoint)).unwrap();
+
+    // we assume these are in the config since we generate random ones unless they're provided
+    client.auth_cookie(config_file.auth.cookie.unwrap());
+    client.signup_secret(config_file.worker.signup_secret.unwrap());
+
+    let worker_key = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    client.worker_key(worker_key);
+
+    client
+}
+
 #[fixture]
 pub fn isolated_server(
     program_arguments: Args,
@@ -68,13 +83,9 @@ pub fn isolated_server(
     let (server, pool, endpoint) = if !program_arguments.no_daemon {
         let pool = {
             let tmp_dir = TempDir::new().unwrap();
-            let current_dir = std::env::current_dir().unwrap();
-            std::env::set_current_dir(tmp_dir.path()).unwrap();
+            let database_path = tmp_dir.path().join("rebuilderd.db");
 
-            let pool = db::setup_pool("rebuilderd.db").unwrap();
-            std::env::set_current_dir(current_dir).unwrap();
-
-            pool
+            db::setup_pool(database_path.to_str().unwrap()).unwrap()
         };
 
         let mut server = ServerHolder::new(pool.clone(), config, private_key).unwrap();
@@ -91,7 +102,7 @@ pub fn isolated_server(
         (None, None, endpoint)
     };
 
-    let client = client(config_file, endpoint);
+    let client = make_client(config_file, endpoint);
 
     IsolatedServer::new(server, pool, public_key, client)
 }

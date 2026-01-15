@@ -1,6 +1,7 @@
 use clap::{ArgAction, Parser};
 
 #[derive(Debug, Parser)]
+#[command(ignore_errors = true)]
 pub struct Args {
     pub endpoint: Option<String>,
     #[arg(short = 'b', default_value = "127.0.0.200:0")]
