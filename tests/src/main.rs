@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::fixtures::isolated_server;
 use chrono::Utc;
 use clap::Parser;
 use colored::Colorize;
@@ -6,7 +7,8 @@ use diesel::dsl::update;
 use diesel::query_dsl::QueryDsl;
 use diesel::{ExpressionMethods, NullableExpressionMethods, RunQueryDsl, SqliteExpressionMethods};
 use env_logger::Env;
-use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
+use in_toto::crypto::PrivateKey;
+use rand::distr::{Alphanumeric, SampleString};
 use rebuilderd::attestation::{self, Attestation};
 use rebuilderd::config::Config;
 use rebuilderd::db;
@@ -24,12 +26,9 @@ use rebuilderd_common::utils::{zstd_compress, zstd_decompress};
 use serde_json::json;
 use std::io;
 use std::io::prelude::*;
-use std::net::TcpStream;
-use std::thread;
-use std::time::Duration;
-use tempfile::TempDir;
 
 mod args;
+mod fixtures;
 
 async fn list_pkgs(client: &Client) -> Result<Vec<BinaryPackage>> {
     client
@@ -69,7 +68,7 @@ async fn initial_import(client: &Client) -> Result<()> {
     Ok(())
 }
 
-async fn test<T: Sized>(label: &str, f: impl futures::Future<Output = Result<T>>) -> Result<T> {
+async fn test<T: Sized>(label: &str, f: impl Future<Output = Result<T>>) -> Result<T> {
     let mut stdout = io::stdout();
     write!(stdout, "{:70}", label)?;
     stdout.flush()?;
@@ -91,16 +90,6 @@ async fn spawn_server(pool: db::Pool, config: Config, privkey: PrivateKey) {
     }
 }
 
-fn wait_for_server(addr: &str) -> Result<()> {
-    for _ in 0..100 {
-        if TcpStream::connect(addr).is_ok() {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    bail!("Failed to wait for daemon to start");
-}
-
 async fn request_work(client: &Client, backend: &str) -> Result<JobAssignment> {
     client
         .request_work(PopQueuedJobRequest {
@@ -109,6 +98,20 @@ async fn request_work(client: &Client, backend: &str) -> Result<JobAssignment> {
             supported_architectures: vec!["x86_64".to_string()],
         })
         .await
+}
+
+pub fn client(config_file: ConfigFile, endpoint: String) -> Client {
+    info!("Setting up client for {:?}", endpoint);
+    let mut client = Client::new(config_file.clone(), Some(endpoint)).unwrap();
+
+    // we assume these are in the config since we generate random ones unless they're provided
+    client.auth_cookie(config_file.auth.cookie.unwrap());
+    client.signup_secret(config_file.worker.signup_secret.unwrap());
+
+    let worker_key = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    client.worker_key(worker_key);
+
+    client
 }
 
 #[tokio::main]
@@ -125,50 +128,11 @@ async fn main() -> Result<()> {
 
     env_logger::init_from_env(Env::default().default_filter_or(logging));
 
-    let addr = args.bind_addr;
-    let endpoint = args.endpoint.unwrap_or_else(|| format!("http://{}", addr));
+    let isolated_server = isolated_server::default();
 
-    let mut config = ConfigFile::default();
-
-    config.auth.cookie = Some(args.cookie.clone());
-    config.http.bind_addr = Some(addr.clone());
-    config.worker.signup_secret = Some("fake-signup-key".to_string());
-    config.endpoints.insert(
-        endpoint.clone(),
-        EndpointConfig {
-            cookie: args.cookie.clone(),
-        },
-    );
-
-    let privkey = PrivateKey::new(KeyType::Ed25519).expect("Failed to generate private key");
-    let privkey = PrivateKey::from_pkcs8(&privkey, SignatureScheme::Ed25519)
-        .expect("Failed to use generated private key");
-    let pubkey = privkey.public().to_owned();
-
-    let mut db = None;
-
-    if !args.no_daemon {
-        let config = rebuilderd::config::from_struct(config.clone(), args.cookie.clone())?;
-
-        let tmp_dir = TempDir::new()?;
-        info!("Changing cwd to {:?}", tmp_dir);
-        std::env::set_current_dir(tmp_dir.path())?;
-
-        let pool = db::setup_pool("rebuilderd.db")?;
-        db = Some(pool.clone());
-
-        info!("Spawning server");
-        thread::spawn(|| {
-            spawn_server(pool, config, privkey);
-        });
-        wait_for_server(&addr)?;
-    }
-
-    info!("Setting up client for {:?}", endpoint);
-    let mut client = Client::new(config.clone(), Some(endpoint))?;
-    client.auth_cookie(args.cookie.clone());
-    client.signup_secret("fake-signup-key");
-    client.worker_key("worker1"); // TODO: this is not a proper key
+    let client = isolated_server.client;
+    let db = isolated_server.database;
+    let pubkey = isolated_server.public_key;
 
     test("Testing database to be empty", async {
         let pkgs = list_pkgs(&client).await?;
