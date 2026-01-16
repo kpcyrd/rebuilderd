@@ -35,6 +35,11 @@ pub async fn setup_single_imported_package_with_multiple_artifacts(client: &Clie
         .unwrap();
 }
 
+pub async fn setup_multiple_imported_packages(client: &Client) {
+    setup_single_imported_package(client).await;
+    setup_single_imported_package_with_multiple_artifacts(client).await;
+}
+
 pub async fn setup_single_bad_rebuild(client: &Client) {
     setup_build_ready_database(client).await;
 

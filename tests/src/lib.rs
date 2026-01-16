@@ -3,86 +3,26 @@
 use crate::args::Args;
 use crate::assertions::assert_job_matches_package;
 use crate::data::{
-    DUMMY_ARCHITECTURE, DUMMY_BACKEND, single_package_report,
+    DUMMY_ARCHITECTURE, DUMMY_BACKEND, DUMMY_SOURCE_PACKAGE, single_package_report,
     single_package_with_multiple_artifacts_report,
 };
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
 use chrono::Utc;
-use clap::Parser;
-use colored::Colorize;
-use diesel::dsl::update;
-use diesel::query_dsl::QueryDsl;
-use diesel::{ExpressionMethods, NullableExpressionMethods, RunQueryDsl, SqliteExpressionMethods};
-use env_logger::Env;
 use rebuilderd::attestation::{self, Attestation};
-use rebuilderd::schema::binary_packages::artifact_url;
-use rebuilderd::schema::{attestation_logs, rebuild_artifacts};
-use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BinaryPackage, BinaryPackageReport, BuildRestApi, BuildStatus, JobAssignment,
-    MetaRestApi, PackageReport, PackageRestApi, PopQueuedJobRequest, Priority, QueueJobRequest,
-    QueueRestApi, RebuildArtifactReport, RebuildReport, SourcePackageReport, WorkerRestApi,
+    ArtifactStatus, BuildRestApi, JobAssignment, MetaRestApi, PackageRestApi, PopQueuedJobRequest,
+    Priority, QueueJobRequest, QueueRestApi,
 };
-use rebuilderd_common::errors::*;
-use rebuilderd_common::http::client;
-use rebuilderd_common::utils::{zstd_compress, zstd_decompress};
 use rstest::rstest;
-use serde_json::json;
-use std::io;
-use std::io::prelude::*;
 
+mod api;
 mod args;
 mod assertions;
 mod data;
 pub(crate) mod fixtures;
 pub mod setup;
-
-async fn list_pkgs(client: &Client) -> Result<Vec<BinaryPackage>> {
-    client
-        .get_binary_packages(None, None, None)
-        .await
-        .map(|p| p.records)
-}
-
-async fn test<T: Sized>(label: &str, f: impl Future<Output = Result<T>>) -> Result<T> {
-    let mut stdout = io::stdout();
-    write!(stdout, "{:70}", label)?;
-    stdout.flush()?;
-
-    let r = f.await;
-    if r.is_ok() {
-        println!("{}", "OK".green());
-    } else {
-        println!("{}", "ERR".red());
-    }
-
-    r
-}
-
-async fn request_work(client: &Client, backend: &str) -> Result<JobAssignment> {
-    client
-        .request_work(PopQueuedJobRequest {
-            supported_backends: vec![backend.to_string()],
-            architecture: DUMMY_ARCHITECTURE.to_string(),
-            supported_architectures: vec![DUMMY_ARCHITECTURE.to_string()],
-        })
-        .await
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn new_database_is_empty(isolated_server: IsolatedServer) {
-    let results = isolated_server
-        .client
-        .get_binary_packages(None, None, None)
-        .await
-        .map(|p| p.records)
-        .unwrap();
-
-    assert!(results.is_empty())
-}
 
 #[rstest]
 #[tokio::test]
@@ -129,14 +69,6 @@ pub async fn unregistered_worker_cannot_request_work(isolated_server: IsolatedSe
 
 #[rstest]
 #[tokio::test]
-pub async fn can_import_single_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package(&client).await;
-}
-
-#[rstest]
-#[tokio::test]
 pub async fn can_import_multiple_times(isolated_server: IsolatedServer) {
     let client = isolated_server.client;
 
@@ -146,24 +78,6 @@ pub async fn can_import_multiple_times(isolated_server: IsolatedServer) {
         .submit_package_report(&single_package_report())
         .await
         .unwrap();
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn database_has_single_package_after_single_package_import(
-    isolated_server: IsolatedServer,
-) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package(&client).await;
-
-    let packages = client
-        .get_binary_packages(None, None, None)
-        .await
-        .map(|p| p.records)
-        .unwrap();
-
-    assert_eq!(packages.len(), 1)
 }
 
 #[rstest]
@@ -410,7 +324,7 @@ pub async fn can_update_job_priority(isolated_server: IsolatedServer) {
             distribution: None,
             release: None,
             component: None,
-            name: Some("baz".to_string()),
+            name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
             version: None,
             architecture: None,
             status: None,
@@ -658,16 +572,11 @@ pub async fn server_transparently_signs_attestations(isolated_server: IsolatedSe
     let build_id = package.build_id.unwrap();
     let artifact_id = package.artifact_id.unwrap();
 
-    let artifact = client
-        .get_build_artifact(build_id, artifact_id)
-        .await
-        .unwrap();
-    assert!(artifact.has_attestation);
-
     let attestation = client
         .get_build_artifact_attestation(build_id, artifact_id)
         .await
         .unwrap();
+
     let attestation = Attestation::parse(&attestation).unwrap();
 
     let response = client.get_public_keys().await.unwrap();

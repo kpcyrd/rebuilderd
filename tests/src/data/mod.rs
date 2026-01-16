@@ -7,9 +7,13 @@ use std::os::unix;
 use tempfile::TempDir;
 
 pub const DUMMY_DISTRIBUTION: &str = "distribution";
+pub const DUMMY_OTHER_DISTRIBUTION: &str = "other-distribution";
 pub const DUMMY_RELEASE: &str = "release";
+pub const DUMMY_OTHER_RELEASE: &str = "other-release";
 pub const DUMMY_COMPONENT: &str = "component";
+pub const DUMMY_OTHER_COMPONENT: &str = "other-component";
 pub const DUMMY_ARCHITECTURE: &str = "architecture";
+pub const DUMMY_OTHER_ARCHITECTURE: &str = "other-architecture";
 
 // TODO: rebuilderd assumes the distribution is the backend
 pub const DUMMY_BACKEND: &str = DUMMY_DISTRIBUTION;
