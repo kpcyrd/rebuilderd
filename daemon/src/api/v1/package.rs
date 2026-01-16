@@ -273,7 +273,7 @@ pub async fn submit_package_report(
                 let new_queued_job = NewQueued {
                     build_input_id: build_input.id,
                     priority,
-                    queued_at: Utc::now().naive_utc(),
+                    queued_at: now.naive_utc(),
                 };
 
                 new_queued_job.upsert(conn.as_mut())?;

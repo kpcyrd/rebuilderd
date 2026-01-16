@@ -1,9 +1,10 @@
 #![cfg(test)]
 
+use crate::actions::register_worker;
 use crate::args::Args;
 use crate::assertions::assert_job_matches_package;
 use crate::data::{
-    DUMMY_ARCHITECTURE, DUMMY_BACKEND, DUMMY_SOURCE_PACKAGE, single_package_report,
+    DUMMY_ARCHITECTURE, DUMMY_BACKEND, DUMMY_SOURCE_PACKAGE, DUMMY_WORKER, single_package_report,
     single_package_with_multiple_artifacts_report,
 };
 use crate::fixtures::server::IsolatedServer;
@@ -13,10 +14,11 @@ use chrono::Utc;
 use rebuilderd::attestation::{self, Attestation};
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BuildRestApi, JobAssignment, MetaRestApi, PackageRestApi, PopQueuedJobRequest,
-    Priority, QueueJobRequest, QueueRestApi,
+    Priority, QueueJobRequest, QueueRestApi, RegisterWorkerRequest, WorkerRestApi,
 };
 use rstest::rstest;
 
+mod actions;
 mod api;
 mod args;
 mod assertions;
@@ -29,7 +31,12 @@ pub mod setup;
 pub async fn worker_can_sign_up(isolated_server: IsolatedServer) {
     let client = isolated_server.client;
 
-    setup_registered_worker(&client).await;
+    client
+        .register_worker(RegisterWorkerRequest {
+            name: DUMMY_WORKER.to_string(),
+        })
+        .await
+        .unwrap();
 }
 
 #[rstest]
@@ -65,42 +72,6 @@ pub async fn unregistered_worker_cannot_request_work(isolated_server: IsolatedSe
         .await;
 
     assert!(result.is_err())
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn can_import_multiple_times(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package(&client).await;
-
-    client
-        .submit_package_report(&single_package_report())
-        .await
-        .unwrap();
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn database_has_single_package_after_multiple_imports_of_same_package(
-    isolated_server: IsolatedServer,
-) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package(&client).await;
-
-    client
-        .submit_package_report(&single_package_report())
-        .await
-        .unwrap();
-
-    let packages = client
-        .get_binary_packages(None, None, None)
-        .await
-        .map(|p| p.records)
-        .unwrap();
-
-    assert_eq!(packages.len(), 1)
 }
 
 #[rstest]
@@ -384,32 +355,6 @@ pub async fn package_is_not_requeued_after_good_report(isolated_server: Isolated
         .records;
 
     assert!(jobs.is_empty())
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn can_import_single_package_with_multiple_artifacts(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package_with_multiple_artifacts(&client).await;
-}
-
-#[rstest]
-#[tokio::test]
-pub async fn database_has_two_binary_packages_after_single_package_with_multiple_artifacts_import(
-    isolated_server: IsolatedServer,
-) {
-    let client = isolated_server.client;
-
-    setup_single_imported_package_with_multiple_artifacts(&client).await;
-
-    let packages = client
-        .get_binary_packages(None, None, None)
-        .await
-        .map(|p| p.records)
-        .unwrap();
-
-    assert_eq!(packages.len(), 2)
 }
 
 #[rstest]

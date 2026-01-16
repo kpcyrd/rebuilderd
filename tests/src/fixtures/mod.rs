@@ -18,12 +18,18 @@ pub fn program_arguments() -> Args {
 }
 
 #[fixture]
-pub fn config_file(program_arguments: Args) -> ConfigFile {
+pub fn config_file(
+    #[default(None)] retry_delay_base: Option<i64>,
+    #[default(None)] max_retries: Option<i32>,
+    #[default(None)] initial_delay: Option<i64>,
+    program_arguments: Args,
+) -> ConfigFile {
     let mut config = ConfigFile::default();
 
     let cookie = program_arguments
         .cookie
         .unwrap_or(Alphanumeric.sample_string(&mut rand::rng(), 32));
+
     config.auth.cookie = Some(cookie.clone());
 
     let signup_secret = Alphanumeric.sample_string(&mut rand::rng(), 32);
@@ -41,6 +47,10 @@ pub fn config_file(program_arguments: Args) -> ConfigFile {
             cookie: cookie.clone(),
         },
     );
+
+    config.schedule.retry_delay_base = retry_delay_base;
+    config.schedule.max_retries = max_retries;
+    config.schedule.initial_delay = initial_delay;
 
     config
 }
@@ -69,8 +79,8 @@ fn make_client(config_file: ConfigFile, endpoint: String) -> Client {
 
 #[fixture]
 pub fn isolated_server(
-    program_arguments: Args,
     config_file: ConfigFile,
+    program_arguments: Args,
     private_key: PrivateKey,
 ) -> IsolatedServer {
     let public_key = private_key.public().clone();
