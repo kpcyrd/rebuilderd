@@ -1,8 +1,7 @@
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
-use rebuilderd_common::api::v1::{PackageRestApi, RegisterWorkerRequest, WorkerRestApi};
+use rebuilderd_common::api::v1::{RegisterWorkerRequest, WorkerRestApi};
 use rstest::rstest;
 
 #[rstest]

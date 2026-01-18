@@ -14,6 +14,15 @@ pub async fn register_worker(client: &Client) {
         .unwrap();
 }
 
+pub async fn register_other_worker(client: &Client) {
+    client
+        .register_worker(RegisterWorkerRequest {
+            name: DUMMY_OTHER_WORKER.to_string(),
+        })
+        .await
+        .unwrap();
+}
+
 pub async fn import_single_package(client: &Client) {
     client
         .submit_package_report(&single_package_report())
@@ -101,7 +110,7 @@ pub async fn request_rebuild_of_all_bad_packages(client: &Client) {
             version: None,
             architecture: None,
             status: Some(BuildStatus::Bad),
-            priority: Some(Priority::default()),
+            priority: None,
         })
         .await
         .unwrap();
