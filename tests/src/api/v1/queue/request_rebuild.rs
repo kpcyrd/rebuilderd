@@ -1,7 +1,7 @@
 use crate::actions::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::setup_single_rebuild_request;
+use crate::setup::*;
 use chrono::Utc;
 use rebuilderd_common::api::v1::{BuildStatus, Priority, QueueJobRequest, QueueRestApi};
 use rstest::rstest;
@@ -96,4 +96,27 @@ pub async fn can_update_job_priority(isolated_server: IsolatedServer) {
         .unwrap();
 
     assert_eq!(Priority::manual(), job.priority)
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    // zero out key
+    client.auth_cookie("");
+    let result = client
+        .request_rebuild(QueueJobRequest {
+            distribution: None,
+            release: None,
+            component: None,
+            name: None,
+            version: None,
+            architecture: None,
+            status: None,
+            priority: Some(Priority::manual()),
+        })
+        .await;
+
+    assert!(result.is_err());
 }

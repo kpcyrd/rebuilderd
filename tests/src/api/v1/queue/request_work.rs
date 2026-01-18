@@ -42,6 +42,21 @@ pub async fn registered_worker_can_request_work(isolated_server: IsolatedServer)
 
 #[rstest]
 #[tokio::test]
+pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+    import_single_package(&client).await;
+
+    // zero out key
+    client.worker_key("");
+    let result = client.request_work(job_request()).await;
+
+    assert!(result.is_err());
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn worker_with_incompatible_backend_gets_no_work(isolated_server: IsolatedServer) {
     let client = isolated_server.client;
 

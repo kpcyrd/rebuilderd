@@ -55,3 +55,22 @@ pub async fn returns_correct_results_for_release_with_multiple_architectures(
     assert!(results.contains(&DUMMY_ARCHITECTURE.to_string()));
     assert!(results.contains(&DUMMY_OTHER_ARCHITECTURE.to_string()));
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client
+        .get_distribution_release_architectures(DUMMY_DISTRIBUTION, DUMMY_RELEASE)
+        .await;
+
+    assert!(result.is_ok());
+}

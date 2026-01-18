@@ -43,3 +43,18 @@ pub async fn can_not_ping_nonexistent_job(isolated_server: IsolatedServer) {
 
     assert!(result.is_err());
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+    import_single_package(&client).await;
+
+    // zero out key
+    client.worker_key("");
+    let result = client.ping_job(1).await;
+
+    assert!(result.is_err());
+}

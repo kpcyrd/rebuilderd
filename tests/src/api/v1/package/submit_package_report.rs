@@ -14,6 +14,18 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
+pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    // zero out key
+    client.auth_cookie("");
+    let result = client.submit_package_report(&single_package_report()).await;
+
+    assert!(result.is_err());
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn can_submit_package_report_with_single_package(isolated_server: IsolatedServer) {
     let client = isolated_server.client;
 

@@ -33,3 +33,17 @@ pub async fn fails_if_job_does_not_exist(isolated_server: IsolatedServer) {
 
     assert!(result.is_err());
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    import_multiple_packages(&client).await;
+
+    // zero out key
+    client.auth_cookie("");
+    let result = client.drop_queued_job(1).await;
+
+    assert!(result.is_err());
+}

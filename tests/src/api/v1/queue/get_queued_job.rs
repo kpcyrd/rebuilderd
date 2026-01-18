@@ -1,3 +1,4 @@
+use crate::actions::import_multiple_packages;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
@@ -30,4 +31,21 @@ pub async fn returns_no_result_for_nonexistent_id(isolated_server: IsolatedServe
     let results = isolated_server.client.get_queued_job(99999).await;
 
     assert!(results.is_err())
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    import_multiple_packages(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_queued_job(1).await;
+
+    assert!(result.is_ok());
 }

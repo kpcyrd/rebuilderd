@@ -36,6 +36,20 @@ pub async fn drops_all_jobs_if_no_filters_are_specified(isolated_server: Isolate
 }
 
 #[rstest]
+#[tokio::test]
+pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    import_multiple_packages(&client).await;
+
+    // zero out key
+    client.auth_cookie("");
+    let result = client.drop_queued_jobs(None, None).await;
+
+    assert!(result.is_err());
+}
+
+#[rstest]
 #[case(OriginFilter{
         distribution: Some(DUMMY_OTHER_DISTRIBUTION.to_string()),
         release: None,
