@@ -1,12 +1,13 @@
-use crate::actions::report_bad_rebuild_for_single_package;
-use crate::assertions::{assert_binary_package_is_in_report, assert_source_package_is_in_report};
+use crate::actions::*;
+use crate::assertions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
+use chrono::Utc;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BuildRestApi, BuildStatus, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, QueueRestApi,
+    BuildRestApi, BuildStatus, IdentityFilter, OriginFilter, PackageReport, PackageRestApi,
+    Priority, QueueRestApi,
 };
 use rebuilderd_common::config::ConfigFile;
 use rstest::rstest;
@@ -145,6 +146,134 @@ pub async fn has_correct_packages_after_import_of_multiple_packages(
     for package in binary_packages {
         assert_binary_package_is_in_report(&package, &report);
     }
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn job_is_queued_after_import_of_new_package(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(jobs.len(), 1)
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn queued_job_from_new_package_has_correct_data(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    let package_report = single_package_report();
+    client.submit_package_report(&package_report).await.unwrap();
+
+    let job = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records
+        .pop()
+        .unwrap();
+
+    let package = &package_report.packages[0];
+
+    assert_job_matches_package(&package_report, package, &job);
+    assert_eq!(None, job.next_retry);
+    assert_eq!(Priority::default(), job.priority);
+    assert_eq!(None, job.started_at);
+    assert!(job.queued_at <= Utc::now().naive_utc());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn job_is_queued_after_import_of_new_package_with_multiple_artifacts(
+    isolated_server: IsolatedServer,
+) {
+    let client = isolated_server.client;
+
+    setup_single_imported_package_with_multiple_artifacts(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(jobs.len(), 1)
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn queued_job_from_new_package_with_multiple_artifacts_has_correct_data(
+    isolated_server: IsolatedServer,
+) {
+    let client = isolated_server.client;
+
+    let package_report = single_package_with_multiple_artifacts_report();
+    client.submit_package_report(&package_report).await.unwrap();
+
+    let job = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records
+        .pop()
+        .unwrap();
+
+    let package = &package_report.packages[0];
+
+    assert_job_matches_package(&package_report, package, &job);
+    assert_eq!(None, job.next_retry);
+    assert_eq!(Priority::default(), job.priority);
+    assert_eq!(None, job.started_at);
+    assert!(job.queued_at <= Utc::now().naive_utc());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn additional_job_is_not_queued_after_reimport(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+    import_single_package(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(jobs.len(), 1)
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn queued_job_from_reimported_package_has_correct_data(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    let package_report = single_package_report();
+    client.submit_package_report(&package_report).await.unwrap();
+
+    let job = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records
+        .pop()
+        .unwrap();
+
+    let package = &package_report.packages[0];
+
+    assert_job_matches_package(&package_report, package, &job);
+    assert_eq!(None, job.next_retry);
+    assert_eq!(Priority::default(), job.priority);
+    assert_eq!(None, job.started_at);
+    assert!(job.queued_at <= Utc::now().naive_utc());
 }
 
 #[rstest]
@@ -583,7 +712,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
     setup_build_ready_database(&client).await;
 
     // first attempt, get and report
-    report_bad_rebuild_for_single_package(&client).await;
+    report_bad_rebuild(&client).await;
 
     // ensure package is not enqueued after failed attempt
     let jobs = client
@@ -605,4 +734,46 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
         .records;
 
     assert!(jobs.is_empty());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn drops_available_jobs_not_in_current_sync(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    import_single_package(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(1, jobs.len());
+
+    import_single_package_with_multiple_artifacts(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(1, jobs.len());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn enqueues_jobs_for_all_packages_in_sync(isolated_server: IsolatedServer) {
+    let client = isolated_server.client;
+
+    import_multiple_packages(&client).await;
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(2, jobs.len());
 }
