@@ -45,6 +45,25 @@ pub async fn returns_no_result_for_good_build_without_attestation(isolated_serve
 
 #[rstest]
 #[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+    import_single_package(&client).await;
+    report_good_rebuild_with_signed_attestation(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_build_artifact_attestation(1, 1).await;
+
+    assert!(result.is_ok());
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn artifact_has_attestation_for_good_build_with_signed_attestation(
     isolated_server: IsolatedServer,
 ) {

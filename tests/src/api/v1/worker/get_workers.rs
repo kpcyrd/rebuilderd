@@ -47,3 +47,20 @@ pub async fn returns_multiple_results_for_database_with_multiple_workers(
 
     assert_eq!(2, results.len());
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_workers(None).await;
+
+    assert!(result.is_ok());
+}

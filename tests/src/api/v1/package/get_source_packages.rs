@@ -73,6 +73,23 @@ pub async fn returns_multiple_results_for_database_with_multiple_packages(
 
 #[rstest]
 #[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_source_packages(None, None, None).await;
+
+    assert!(result.is_ok());
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn can_paginate(isolated_server: IsolatedServer) {
     setup_multiple_imported_packages(&isolated_server.client).await;
 

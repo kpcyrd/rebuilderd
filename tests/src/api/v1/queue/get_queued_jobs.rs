@@ -1,8 +1,8 @@
-use crate::actions::{import_multiple_packages, import_single_package};
+use crate::actions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::{setup_multiple_imported_packages, setup_single_imported_package};
+use crate::setup::*;
 use rebuilderd_common::api::v1::{
     IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page, QueueRestApi,
 };
@@ -54,6 +54,23 @@ pub async fn returns_multiple_results_for_database_with_multiple_jobs(
         .records;
 
     assert_eq!(2, results.len());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    import_multiple_packages(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_queued_jobs(None, None, None).await;
+
+    assert!(result.is_ok());
 }
 
 #[rstest]

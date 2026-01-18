@@ -58,3 +58,20 @@ pub async fn returns_correct_results_for_distribution_with_multiple_releases(
     assert!(results.contains(&DUMMY_RELEASE.to_string()));
     assert!(results.contains(&DUMMY_OTHER_RELEASE.to_string()));
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_distribution_releases(DUMMY_DISTRIBUTION).await;
+
+    assert!(result.is_ok());
+}

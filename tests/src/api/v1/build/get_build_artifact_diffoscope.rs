@@ -38,3 +38,20 @@ pub async fn returns_result_for_bad_build(isolated_server: IsolatedServer) {
 
     assert_eq!(DUMMY_DIFFOSCOPE, result);
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_bad_rebuild(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_build_artifact_diffoscope(1, 1).await;
+
+    assert!(result.is_ok());
+}

@@ -31,3 +31,20 @@ pub async fn returns_no_result_for_nonexistent_id(isolated_server: IsolatedServe
 
     assert!(results.is_err())
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_imported_package(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_binary_package(1).await;
+
+    assert!(result.is_ok());
+}

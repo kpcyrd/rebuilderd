@@ -51,3 +51,17 @@ pub async fn fails_if_worker_does_not_exist(isolated_server: IsolatedServer) {
 
     assert!(result.is_err());
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+
+    // zero out key
+    client.worker_key("");
+    let result = client.unregister_worker(1).await;
+
+    assert!(result.is_err());
+}

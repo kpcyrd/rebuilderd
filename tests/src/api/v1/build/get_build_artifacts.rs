@@ -65,3 +65,20 @@ pub async fn returns_correct_results_for_good_build_with_multiple_artifacts(
     assert_eq!(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1, artifact_1.name);
     assert_eq!(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2, artifact_2.name);
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    setup_single_good_rebuild(&client).await;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_build_artifacts(1).await;
+
+    assert!(result.is_ok());
+}

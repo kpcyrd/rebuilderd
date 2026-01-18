@@ -18,3 +18,18 @@ pub async fn returns_valid_key(isolated_server: IsolatedServer) {
 
     assert_eq!(key_as_pem, result);
 }
+
+#[rstest]
+#[tokio::test]
+pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    // zero out keys
+    client.auth_cookie("");
+    client.worker_key("");
+    client.signup_secret("");
+
+    let result = client.get_public_keys().await;
+
+    assert!(result.is_ok());
+}

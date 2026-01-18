@@ -13,6 +13,24 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
+pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
+    let mut client = isolated_server.client;
+
+    register_worker(&client).await;
+    import_single_package(&client).await;
+
+    let job = pick_up_job(&client).await;
+    let report = failed_rebuild_report(&job);
+
+    // zero out key
+    client.worker_key("");
+    let result = client.submit_build_report(report).await;
+
+    assert!(result.is_err());
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn can_report_failed_rebuild(isolated_server: IsolatedServer) {
     let client = isolated_server.client;
 

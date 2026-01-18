@@ -2,7 +2,7 @@ use crate::actions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::setup_single_rebuild_request;
+use crate::setup::*;
 use chrono::Utc;
 use rebuilderd_common::api::v1::{
     BuildStatus, IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Priority,
