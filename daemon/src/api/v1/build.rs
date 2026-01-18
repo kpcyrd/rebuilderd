@@ -216,7 +216,13 @@ pub async fn submit_rebuild_report(
     queued.delete(connection.as_mut())?;
 
     if report.status != BuildStatus::Good {
-        // increment retries and requeue
+        // increment retries
+        update(build_inputs::table)
+            .filter(build_inputs::id.eq_any(&friends))
+            .set(build_inputs::retries.eq(build_inputs::retries + 1))
+            .execute(connection.as_mut())
+            .map_err(Error::from)?;
+
         let retry_count = build_inputs::table
             .filter(build_inputs::id.is(queued.build_input_id))
             .select(build_inputs::retries)
@@ -225,7 +231,7 @@ pub async fn submit_rebuild_report(
 
         // bail if we have a max retry count set and requeueing this package would exceed it
         if let Some(max_retries) = cfg.schedule.max_retries()
-            && retry_count + 1 > max_retries
+            && retry_count >= max_retries
         {
             mark_build_input_friends_as_non_retriable(connection.as_mut(), queued.build_input_id)
                 .map_err(Error::from)?;
@@ -239,10 +245,7 @@ pub async fn submit_rebuild_report(
 
         update(build_inputs::table)
             .filter(build_inputs::id.eq_any(friends))
-            .set((
-                build_inputs::retries.eq(build_inputs::retries + 1),
-                build_inputs::next_retry.eq(then.naive_utc()),
-            ))
+            .set(build_inputs::next_retry.eq(then.naive_utc()))
             .execute(connection.as_mut())
             .map_err(Error::from)?;
 
