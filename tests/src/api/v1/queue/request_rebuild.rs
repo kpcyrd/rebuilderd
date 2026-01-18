@@ -1,5 +1,4 @@
 use crate::actions::*;
-use crate::data::DUMMY_SOURCE_PACKAGE;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::setup_single_rebuild_request;

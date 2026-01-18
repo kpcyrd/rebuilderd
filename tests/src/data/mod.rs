@@ -1,9 +1,11 @@
 mod build_reports;
+mod job_requests;
 mod package_reports;
 
 pub use build_reports::*;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use in_toto::runlib::in_toto_run;
+pub use job_requests::*;
 pub use package_reports::*;
 use std::os::unix;
 use tempfile::TempDir;
@@ -19,7 +21,9 @@ pub const DUMMY_OTHER_ARCHITECTURE: &str = "other-architecture";
 
 // TODO: rebuilderd assumes the distribution is the backend
 pub const DUMMY_BACKEND: &str = DUMMY_DISTRIBUTION;
+pub const DUMMY_OTHER_BACKEND: &str = DUMMY_OTHER_DISTRIBUTION;
 pub const DUMMY_WORKER: &str = "worker";
+pub const DUMMY_OTHER_WORKER: &str = "other-worker";
 
 pub fn create_dummy_signed_attestation(input_name: &str, output_name: &str) -> String {
     let private_key = PrivateKey::from_pkcs8(

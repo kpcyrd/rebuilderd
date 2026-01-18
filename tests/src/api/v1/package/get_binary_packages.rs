@@ -57,7 +57,9 @@ pub async fn returns_multiple_results_for_database_with_multiple_artifacts(
 #[rstest]
 #[tokio::test]
 pub async fn can_paginate(isolated_server: IsolatedServer) {
-    setup_single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
+    let client = isolated_server.client;
+
+    setup_single_imported_package_with_multiple_artifacts(&client).await;
 
     let mut page = Page {
         limit: Some(1),
@@ -67,8 +69,7 @@ pub async fn can_paginate(isolated_server: IsolatedServer) {
         direction: None,
     };
 
-    let mut first_page = isolated_server
-        .client
+    let mut first_page = client
         .get_binary_packages(Some(&page), None, None)
         .await
         .map(|p| p.records)
@@ -79,8 +80,7 @@ pub async fn can_paginate(isolated_server: IsolatedServer) {
     let result = first_page.pop().unwrap();
     page.after = Some(result.id);
 
-    let mut next_page = isolated_server
-        .client
+    let mut next_page = client
         .get_binary_packages(Some(&page), None, None)
         .await
         .map(|p| p.records)
@@ -91,8 +91,7 @@ pub async fn can_paginate(isolated_server: IsolatedServer) {
     let result = next_page.pop().unwrap();
     page.after = Some(result.id);
 
-    let next_page = isolated_server
-        .client
+    let next_page = client
         .get_binary_packages(Some(&page), None, None)
         .await
         .map(|p| p.records)
