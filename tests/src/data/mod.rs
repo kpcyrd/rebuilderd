@@ -1,5 +1,7 @@
+mod build_reports;
 mod package_reports;
 
+pub use build_reports::*;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use in_toto::runlib::in_toto_run;
 pub use package_reports::*;
