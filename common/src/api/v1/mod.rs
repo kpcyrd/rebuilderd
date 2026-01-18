@@ -115,7 +115,7 @@ pub trait BuildRestApi {
 
 #[async_trait]
 pub trait DashboardRestApi {
-    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter>;
+    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<DashboardState>;
 }
 
 #[async_trait]
@@ -311,7 +311,7 @@ impl BuildRestApi for Client {
 
 #[async_trait]
 impl DashboardRestApi for Client {
-    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<OriginFilter> {
+    async fn get_dashboard(&self, origin_filter: Option<&OriginFilter>) -> Result<DashboardState> {
         let dashboard = self
             .get(Cow::Borrowed("api/v1/dashboard"))
             .query(&origin_filter)
