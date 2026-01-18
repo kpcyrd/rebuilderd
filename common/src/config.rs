@@ -137,15 +137,19 @@ impl WorkerConfig {
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ScheduleConfig {
-    retry_delay_base: Option<i64>,
-    max_retries: Option<i32>,
-    initial_delay: Option<i64>,
+    pub retry_delay_base: Option<i64>,
+    pub max_retries: Option<i32>,
+    pub initial_delay: Option<i64>,
 }
 
 impl ScheduleConfig {
     pub fn update(&mut self, c: ScheduleConfig) {
         if c.retry_delay_base.is_some() {
             self.retry_delay_base = c.retry_delay_base;
+        }
+
+        if c.initial_delay.is_some() {
+            self.initial_delay = c.initial_delay;
         }
 
         if c.max_retries.is_some() {

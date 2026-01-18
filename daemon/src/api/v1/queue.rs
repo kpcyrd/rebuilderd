@@ -238,11 +238,15 @@ pub async fn drop_queued_job(
 
     let mut connection = pool.get().map_err(Error::from)?;
 
-    diesel::delete(queue::table.filter(queue::id.is(id.into_inner())))
+    let dropped_jobs = diesel::delete(queue::table.filter(queue::id.is(id.into_inner())))
         .execute(connection.as_mut())
         .map_err(Error::from)?;
 
-    Ok(HttpResponse::NoContent())
+    if dropped_jobs < 1 {
+        Ok(HttpResponse::NotFound())
+    } else {
+        Ok(HttpResponse::NoContent())
+    }
 }
 
 #[post("/{id}/ping")]
@@ -262,7 +266,8 @@ pub async fn ping_job(
     let worker = check_worker?;
 
     let now = Utc::now();
-    diesel::update(queue::table)
+
+    let affected_jobs = diesel::update(queue::table)
         .set(queue::last_ping.eq(now.naive_utc()))
         .filter(
             queue::id
@@ -272,7 +277,12 @@ pub async fn ping_job(
         .execute(connection.as_mut())
         .map_err(Error::from)?;
 
-    Ok(HttpResponse::NoContent().finish())
+    // schema does not allow for more than one record to match
+    if affected_jobs < 1 {
+        Ok(HttpResponse::NotFound().finish())
+    } else {
+        Ok(HttpResponse::NoContent().finish())
+    }
 }
 
 /// Standardizes architectures in the given list, expanding known aliases to other commonly-used architecture names.

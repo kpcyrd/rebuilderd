@@ -1,7 +1,8 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::{
-    build_input_friends, mark_build_input_friends_as_non_retriable,
+    build_input_friends, get_largest_retry_count_among_friends,
+    mark_build_input_friends_as_non_retriable,
 };
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
@@ -252,14 +253,12 @@ pub async fn submit_package_report(
             let has_queued_friend = has_queued_friend(conn, &build_input)?;
 
             if current_status != BuildStatus::Good && !has_queued_friend {
-                let retry_count = build_inputs::table
-                    .filter(build_inputs::id.is(build_input.id))
-                    .select(build_inputs::retries)
-                    .get_result::<i32>(conn)?;
+                let retry_count =
+                    get_largest_retry_count_among_friends(conn.as_mut(), build_input.id)?;
 
                 // bail if we have a max retry count set and requeueing this package would exceed it
                 if let Some(max_retries) = cfg.schedule.max_retries()
-                    && retry_count + 1 > max_retries
+                    && retry_count >= max_retries
                 {
                     mark_build_input_friends_as_non_retriable(conn.as_mut(), build_input.id)?;
                     continue;
@@ -273,7 +272,7 @@ pub async fn submit_package_report(
                 let new_queued_job = NewQueued {
                     build_input_id: build_input.id,
                     priority,
-                    queued_at: Utc::now().naive_utc(),
+                    queued_at: now.naive_utc(),
                 };
 
                 new_queued_job.upsert(conn.as_mut())?;

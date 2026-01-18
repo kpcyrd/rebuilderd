@@ -1,9 +1,11 @@
 use crate::config::Config;
+use actix_web::dev::Server;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::{Data, JsonConfig, scope};
 use actix_web::{App, HttpServer, middleware};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::errors::*;
+use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 
 pub mod api;
@@ -15,12 +17,16 @@ pub mod models;
 pub mod schema;
 pub mod web;
 
-pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
+pub fn build_server(
+    pool: db::Pool,
+    config: Config,
+    privkey: PrivateKey,
+) -> Result<(Server, SocketAddr)> {
     let bind_addr = config.bind_addr.clone();
 
     let privkey = Arc::new(privkey);
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         let json_config = JsonConfig::default().limit(config.post_body_size_limit);
 
         let v0_dashboard_cache = Arc::new(RwLock::new(api::v0::DashboardState::new()));
@@ -109,8 +115,15 @@ pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> 
                     ),
             )
     })
-    .bind(&bind_addr)?
-    .run()
-    .await?;
+    .bind(&bind_addr)?;
+
+    let address = server.addrs()[0];
+    Ok((server.run(), address))
+}
+
+pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
+    let (server, _) = build_server(pool, config, privkey)?;
+
+    server.await?;
     Ok(())
 }

@@ -1,12 +1,13 @@
 use clap::{ArgAction, Parser};
 
 #[derive(Debug, Parser)]
+#[command(ignore_errors = true)]
 pub struct Args {
     pub endpoint: Option<String>,
-    #[arg(short = 'b', default_value = "127.0.0.1:8484")]
+    #[arg(short = 'b', default_value = "127.0.0.200:0")]
     pub bind_addr: String,
     #[arg(long)]
-    pub cookie: String,
+    pub cookie: Option<String>,
     /// Verbose logging
     #[arg(short, long, action(ArgAction::Count))]
     pub verbose: u8,
