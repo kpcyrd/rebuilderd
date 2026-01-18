@@ -30,6 +30,18 @@ pub async fn setup_single_good_rebuild(client: &Client) {
     report_good_rebuild_for_single_package(client).await;
 }
 
+pub async fn setup_single_failed_rebuild(client: &Client) {
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_failed_rebuild_for_single_package(client).await;
+}
+
+pub async fn setup_single_rebuild_in_progress(client: &Client) {
+    register_worker(client).await;
+    import_single_package(client).await;
+    pick_up_job(client).await;
+}
+
 pub async fn setup_single_good_rebuild_with_signed_attestation(client: &Client) {
     register_worker(client).await;
     import_single_package(client).await;

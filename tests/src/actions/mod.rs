@@ -7,8 +7,8 @@ use chrono::Utc;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BuildRestApi, BuildStatus, JobAssignment, PackageRestApi, PopQueuedJobRequest,
-    Priority, QueueJobRequest, QueueRestApi, RebuildArtifactReport, RebuildReport,
-    RegisterWorkerRequest, WorkerRestApi,
+    Priority, QueueJobRequest, QueueRestApi, QueuedJobWithArtifacts, RebuildArtifactReport,
+    RebuildReport, RegisterWorkerRequest, WorkerRestApi,
 };
 use rebuilderd_common::utils::zstd_compress;
 
@@ -35,8 +35,8 @@ pub async fn import_single_package_with_multiple_artifacts(client: &Client) {
         .unwrap();
 }
 
-pub async fn report_bad_rebuild_for_single_package(client: &Client) {
-    let job = match client
+pub async fn pick_up_job(client: &Client) -> QueuedJobWithArtifacts {
+    match client
         .request_work(PopQueuedJobRequest {
             supported_backends: vec![DUMMY_BACKEND.to_string()],
             architecture: DUMMY_ARCHITECTURE.to_string(),
@@ -47,7 +47,11 @@ pub async fn report_bad_rebuild_for_single_package(client: &Client) {
     {
         JobAssignment::Rebuild(item) => *item,
         _ => panic!("Expected a job assignment"),
-    };
+    }
+}
+
+pub async fn report_bad_rebuild_for_single_package(client: &Client) {
+    let job = pick_up_job(client).await;
 
     let mut artifacts = Vec::new();
     for artifact in job.artifacts.clone() {
@@ -70,19 +74,22 @@ pub async fn report_bad_rebuild_for_single_package(client: &Client) {
     client.submit_build_report(report).await.unwrap();
 }
 
-pub async fn report_good_rebuild_for_single_package(client: &Client) {
-    let job = match client
-        .request_work(PopQueuedJobRequest {
-            supported_backends: vec![DUMMY_BACKEND.to_string()],
-            architecture: DUMMY_ARCHITECTURE.to_string(),
-            supported_architectures: vec![DUMMY_ARCHITECTURE.to_string()],
-        })
-        .await
-        .unwrap()
-    {
-        JobAssignment::Rebuild(item) => *item,
-        _ => panic!("Expected a job assignment"),
+pub async fn report_failed_rebuild_for_single_package(client: &Client) {
+    let job = pick_up_job(client).await;
+
+    let report = RebuildReport {
+        queue_id: job.job.id,
+        built_at: Utc::now().naive_utc(),
+        build_log: String::new().into_bytes(),
+        status: BuildStatus::Fail,
+        artifacts: vec![],
     };
+
+    client.submit_build_report(report).await.unwrap();
+}
+
+pub async fn report_good_rebuild_for_single_package(client: &Client) {
+    let job = pick_up_job(client).await;
 
     let mut artifacts = Vec::new();
     for artifact in job.artifacts.clone() {
@@ -106,18 +113,7 @@ pub async fn report_good_rebuild_for_single_package(client: &Client) {
 }
 
 pub async fn report_good_rebuild_with_signed_attestation_for_single_package(client: &Client) {
-    let job = match client
-        .request_work(PopQueuedJobRequest {
-            supported_backends: vec![DUMMY_BACKEND.to_string()],
-            architecture: DUMMY_ARCHITECTURE.to_string(),
-            supported_architectures: vec![DUMMY_ARCHITECTURE.to_string()],
-        })
-        .await
-        .unwrap()
-    {
-        JobAssignment::Rebuild(item) => *item,
-        _ => panic!("Expected a job assignment"),
-    };
+    let job = pick_up_job(client).await;
 
     let input = job.job.url.rsplit_once("/").unwrap().1;
 
@@ -145,18 +141,7 @@ pub async fn report_good_rebuild_with_signed_attestation_for_single_package(clie
 }
 
 pub async fn report_good_rebuild_with_unsigned_attestation_for_single_package(client: &Client) {
-    let job = match client
-        .request_work(PopQueuedJobRequest {
-            supported_backends: vec![DUMMY_BACKEND.to_string()],
-            architecture: DUMMY_ARCHITECTURE.to_string(),
-            supported_architectures: vec![DUMMY_ARCHITECTURE.to_string()],
-        })
-        .await
-        .unwrap()
-    {
-        JobAssignment::Rebuild(item) => *item,
-        _ => panic!("Expected a job assignment"),
-    };
+    let job = pick_up_job(client).await;
 
     let input = job.job.url.rsplit_once("/").unwrap().1;
 
