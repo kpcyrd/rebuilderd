@@ -1,7 +1,7 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoFilter, IntoIdentityFilter, IntoOriginFilter};
 use crate::api::v1::util::friends::{
-    build_input_friends, get_largest_retry_count_among_friends,
+    build_input_friends, get_largest_retry_count_among_friends, has_queued_friend,
     mark_build_input_friends_as_non_retriable,
 };
 use crate::api::v1::util::pagination::PaginateDsl;
@@ -250,7 +250,7 @@ pub async fn submit_package_report(
             }
 
             let current_status = get_current_rebuild_status(conn, &build_input)?;
-            let has_queued_friend = has_queued_friend(conn, &build_input)?;
+            let has_queued_friend = has_queued_friend(conn.as_mut(), build_input.id)?;
 
             if current_status != BuildStatus::Good && !has_queued_friend {
                 let retry_count =
@@ -320,21 +320,6 @@ fn get_current_rebuild_status(
         .unwrap_or(BuildStatus::Unknown);
 
     Ok(current_status)
-}
-
-fn has_queued_friend(
-    conn: &mut PooledConnection<ConnectionManager<SqliteConnectionWrap>>,
-    build_input: &BuildInput,
-) -> Result<bool, Error> {
-    let has_queued_friend = select(exists(
-        queue::table
-            .filter(queue::build_input_id.eq_any(build_input_friends(build_input.id)))
-            .select(queue::id),
-    ))
-    .get_result::<bool>(conn.as_mut())
-    .map_err(Error::from)?;
-
-    Ok(has_queued_friend)
 }
 
 fn copy_existing_rebuilds(

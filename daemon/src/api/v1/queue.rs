@@ -1,5 +1,6 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
+use crate::api::v1::util::friends::{build_input_friends, has_queued_friend};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
@@ -149,19 +150,46 @@ pub async fn request_rebuild(
 
     let now = Utc::now();
     for build_input_id in build_input_ids {
-        diesel::update(build_inputs::table)
-            .filter(build_inputs::id.eq(build_input_id))
-            .set(build_inputs::next_retry.eq((now - Duration::minutes(1)).naive_utc()))
+        let next_retry = (now - Duration::minutes(1)).naive_utc();
+        let priority = queue_request.priority.unwrap_or(Priority::manual());
+        if has_queued_friend(connection.as_mut(), build_input_id)? {
+            // set the priority of the queued item
+            diesel::update(
+                queue::table
+                    .filter(queue::build_input_id.eq_any(build_input_friends(build_input_id))),
+            )
+            .set(queue::priority.eq(priority))
             .execute(connection.as_mut())
             .map_err(Error::from)?;
 
-        let new_queued_job = NewQueued {
-            build_input_id,
-            priority: queue_request.priority.unwrap_or(Priority::manual()),
-            queued_at: now.naive_utc(),
-        };
+            // reset the next_retry where applicable
+            let friends_in_queue = queue::table
+                .filter(queue::build_input_id.eq_any(build_input_friends(build_input_id)))
+                .select(queue::build_input_id)
+                .load::<i32>(connection.as_mut())
+                .map_err(Error::from)?;
 
-        new_queued_job.upsert(connection.as_mut())?;
+            diesel::update(build_inputs::table.filter(build_inputs::id.eq_any(friends_in_queue)))
+                .set(build_inputs::next_retry.eq(next_retry))
+                .execute(connection.as_mut())
+                .map_err(Error::from)?;
+            continue;
+        } else {
+            // no applicable queued item, set directly and upsert a new queued job
+            diesel::update(build_inputs::table)
+                .filter(build_inputs::id.eq(build_input_id))
+                .set(build_inputs::next_retry.eq(next_retry))
+                .execute(connection.as_mut())
+                .map_err(Error::from)?;
+
+            let new_queued_job = NewQueued {
+                build_input_id,
+                priority,
+                queued_at: now.naive_utc(),
+            };
+
+            new_queued_job.upsert(connection.as_mut())?;
+        }
     }
 
     Ok(HttpResponse::NoContent())

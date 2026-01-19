@@ -1,11 +1,12 @@
 use crate::schema::{build_inputs, queue};
+use aliases::*;
 use chrono::NaiveDateTime;
+use diesel::dsl::exists;
 use diesel::{
     ExpressionMethods, NullableExpressionMethods, QueryDsl, QueryResult, RunQueryDsl,
-    SqliteConnection, SqliteExpressionMethods, delete, update,
+    SqliteConnection, SqliteExpressionMethods, delete, select, update,
 };
-
-use aliases::*;
+use rebuilderd_common::errors::Error;
 
 mod aliases {
     diesel::alias!(crate::schema::build_inputs as b1: BuildInputsAlias);
@@ -62,6 +63,18 @@ pub fn mark_build_input_friends_as_non_retriable(
         .execute(connection)?;
 
     Ok(())
+}
+
+pub fn has_queued_friend(conn: &mut SqliteConnection, build_input_id: i32) -> Result<bool, Error> {
+    let has_queued_friend = select(exists(
+        queue::table
+            .filter(queue::build_input_id.eq_any(build_input_friends(build_input_id)))
+            .select(queue::id),
+    ))
+    .get_result::<bool>(conn)
+    .map_err(Error::from)?;
+
+    Ok(has_queued_friend)
 }
 
 pub fn get_largest_retry_count_among_friends(
