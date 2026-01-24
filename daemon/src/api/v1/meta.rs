@@ -85,7 +85,7 @@ pub async fn get_distribution_components(
     Ok(HttpResponse::Ok().json(distribution_components))
 }
 
-#[get("/distributions/{distribution}/{release}/architectures")]
+#[get("/distributions/{distribution}/releases/{release}/architectures")]
 pub async fn get_distribution_release_architectures(
     pool: web::Data<Pool>,
     path: web::Path<(String, String)>,
@@ -106,7 +106,7 @@ pub async fn get_distribution_release_architectures(
     Ok(HttpResponse::Ok().json(distribution_release_architectures))
 }
 
-#[get("/distributions/{distribution}/{release}/components")]
+#[get("/distributions/{distribution}/releases/{release}/components")]
 pub async fn get_distribution_release_components(
     pool: web::Data<Pool>,
     path: web::Path<(String, String)>,
@@ -126,7 +126,7 @@ pub async fn get_distribution_release_components(
     Ok(HttpResponse::Ok().json(distribution_release_components))
 }
 
-#[get("/distributions/{distribution}/{release}/components/{component}/architectures")]
+#[get("/distributions/{distribution}/releases/{release}/components/{component}/architectures")]
 pub async fn get_distribution_release_component_architectures(
     pool: web::Data<Pool>,
     path: web::Path<(String, String, String)>,

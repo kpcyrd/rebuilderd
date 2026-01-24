@@ -11,13 +11,11 @@ publish = false
 actix-web = "4.1.0"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4.19", features = ["serde"] }
-colored = "3"
-env_logger = "0.11"
-futures = "0.3.21"
 in-toto = "0.4.0"
 rebuilderd = { version = "=0.25.0", path = "../daemon" }
 rebuilderd-common = { version = "=0.25.0", path = "../common" }
 serde_json = "1"
 tempfile = "3.3.0"
 tokio = { version = "1.19.2", features = ["macros", "rt-multi-thread"] }
-diesel = "2.2.10"
+rand = "0.9"
+rstest = { version = "0.17.0" }

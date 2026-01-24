@@ -10,36 +10,34 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-    - name: Install dependencies
-      run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
-    - name: Build
-      run: cargo build --verbose --locked
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Run integration tests
-      run: cd tests; cargo run -- --cookie test
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
+      - name: Build
+        run: cargo build --verbose --locked
+      - name: Run tests
+        run: cargo test --verbose
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-    - name: Install dependencies
-      run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
-    - name: Run clippy
-      #run: cargo clippy --all --lib --tests -- --deny warnings
-      run: cargo clippy --all --lib --tests
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: sudo apt-get install libsodium-dev libsqlite3-dev libzstd-dev
+      - name: Run clippy
+        #run: cargo clippy --all --lib --tests -- --deny warnings
+        run: cargo clippy --all --lib --tests
 
   fmt:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
-      with:
-        persist-credentials: false
-    - name: Run cargo fmt
-      run: cargo fmt --all -- --check
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
