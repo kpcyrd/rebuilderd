@@ -42,10 +42,26 @@ pub struct OriginFilter {
     pub architecture: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IdentityFilter {
     pub name: Option<String>,
+    #[serde(default)]
+    pub search_type: SearchType,
     pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchType {
+    Exact,
+    Contains,
+    StartsWith,
+}
+
+impl Default for SearchType {
+    fn default() -> Self {
+        Self::Exact
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
