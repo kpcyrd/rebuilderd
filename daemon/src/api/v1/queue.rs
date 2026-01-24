@@ -385,7 +385,6 @@ pub async fn request_work(
         worker.name
     );
 
-    let max_retries = cfg.schedule.max_retries().unwrap_or(i32::MAX);
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
             if let Some(record) = queue_base()
@@ -395,7 +394,6 @@ pub async fn request_work(
                         .is_null()
                         .or(build_inputs::next_retry.le(diesel::dsl::now)),
                 )
-                .filter(build_inputs::retries.lt(max_retries))
                 .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
                 .order_by((

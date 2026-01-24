@@ -8,6 +8,7 @@ use rebuilderd_common::api::v1::{
     BuildStatus, IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Priority,
     QueueJobRequest, QueueRestApi,
 };
+use rebuilderd_common::config::ConfigFile;
 use rstest::rstest;
 
 #[rstest]
@@ -160,6 +161,52 @@ pub async fn does_not_requeue_friends(
     client.submit_package_report(&extra_packages).await.unwrap();
 
     // should only queue one of the packages, since they're friends
+    client
+        .request_rebuild(QueueJobRequest {
+            distribution: None,
+            release: None,
+            component: None,
+            name: None,
+            version: None,
+            architecture: None,
+            status: None,
+            priority: Some(Priority::manual()),
+        })
+        .await
+        .unwrap();
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert_eq!(1, jobs.len());
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn can_requeue_package_beyond_max_retries(
+    #[with(None, Some(1), None)] config_file: ConfigFile,
+    #[with(config_file.clone())] isolated_server: IsolatedServer,
+) {
+    let client = isolated_server.client;
+
+    setup_build_ready_database(&client).await;
+
+    // first attempt, get and report
+    report_bad_rebuild(&client).await;
+
+    // ensure package is not enqueued after failed attempt
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+
+    assert!(jobs.is_empty());
+
+    // request a requeue
     client
         .request_rebuild(QueueJobRequest {
             distribution: None,
