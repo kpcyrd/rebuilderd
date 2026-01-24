@@ -64,7 +64,6 @@ impl Default for SearchType {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreshnessFilter {
     pub seen_only: Option<bool>,
