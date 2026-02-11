@@ -162,11 +162,13 @@ where
             }
         }
 
-        out.push_sql("LIMIT ");
         if let Some(limit) = &self.page.limit {
-            out.push_bind_param::<Integer, _>(limit)?;
+            if *limit > 0 {
+                out.push_sql("LIMIT ");
+                out.push_bind_param::<Integer, _>(limit)?;
+            }
         } else {
-            out.push_sql("1000");
+            out.push_sql("LIMIT 1000");
         }
 
         Ok(())
