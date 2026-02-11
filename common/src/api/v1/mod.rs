@@ -101,7 +101,7 @@ pub trait BuildRestApi {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<Rebuild>>;
 
     async fn submit_build_report(&self, request: RebuildReport) -> Result<()>;
@@ -154,7 +154,7 @@ pub trait PackageRestApi {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<SourcePackage>>;
 
     async fn get_source_package(&self, id: i32) -> Result<SourcePackage>;
@@ -163,7 +163,7 @@ pub trait PackageRestApi {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        package_filter: Option<&PackageFilter>,
+        binary_identity_filter: Option<&BinaryIdentityFilter>,
     ) -> Result<ResultPage<BinaryPackage>>;
 
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
@@ -175,7 +175,7 @@ pub trait QueueRestApi {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<QueuedJob>>;
 
     async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()>;
@@ -184,7 +184,7 @@ pub trait QueueRestApi {
     async fn drop_queued_jobs(
         &self,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<()>;
     async fn request_work(&self, request: PopQueuedJobRequest) -> Result<JobAssignment>;
     async fn ping_job(&self, id: i32) -> Result<()>;
@@ -204,13 +204,13 @@ impl BuildRestApi for Client {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<Rebuild>> {
         let records = self
             .get(Cow::Borrowed("api/v1/builds"))
             .query(&page)
             .query(&origin_filter)
-            .query(&identity_filter)
+            .query(&source_identity_filter)
             .send()
             .await?
             .error_for_status()?
@@ -465,13 +465,13 @@ impl PackageRestApi for Client {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<SourcePackage>> {
         let records = self
             .get(Cow::Borrowed("api/v1/packages/source"))
             .query(&page)
             .query(&origin_filter)
-            .query(&identity_filter)
+            .query(&source_identity_filter)
             .send()
             .await?
             .error_for_status()?
@@ -497,13 +497,13 @@ impl PackageRestApi for Client {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        package_filter: Option<&PackageFilter>,
+        binary_identity_filter: Option<&BinaryIdentityFilter>,
     ) -> Result<ResultPage<BinaryPackage>> {
         let records = self
             .get(Cow::Borrowed("api/v1/packages/binary"))
             .query(&page)
             .query(&origin_filter)
-            .query(&package_filter)
+            .query(&binary_identity_filter)
             .send()
             .await?
             .error_for_status()?
@@ -532,13 +532,13 @@ impl QueueRestApi for Client {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<QueuedJob>> {
         let records = self
             .get(Cow::Borrowed("api/v1/queue"))
             .query(&page)
             .query(&origin_filter)
-            .query(&identity_filter)
+            .query(&source_identity_filter)
             .send()
             .await?
             .error_for_status()?
@@ -582,11 +582,11 @@ impl QueueRestApi for Client {
     async fn drop_queued_jobs(
         &self,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<()> {
         self.delete(Cow::Borrowed("api/v1/queue"))
             .query(&origin_filter)
-            .query(&identity_filter)
+            .query(&source_identity_filter)
             .send()
             .await?
             .error_for_status()?;

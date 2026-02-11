@@ -7,9 +7,11 @@ use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::Sqlite;
 use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter, PackageFilter};
+use rebuilderd_common::api::v1::{
+    BinaryIdentityFilter, FreshnessFilter, OriginFilter, SourceIdentityFilter,
+};
 
-pub trait IntoIdentityFilter<QS, DB>
+pub trait IntoSourceIdentityFilter<QS, DB>
 where
     DB: Backend,
 {
@@ -39,7 +41,7 @@ where
             + 'static;
 }
 
-impl<T: 'static> IntoIdentityFilter<T, Sqlite> for IdentityFilter {
+impl<T: 'static> IntoSourceIdentityFilter<T, Sqlite> for SourceIdentityFilter {
     type SqlType = Bool;
     type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
 
@@ -78,7 +80,7 @@ impl<T: 'static> IntoIdentityFilter<T, Sqlite> for IdentityFilter {
     }
 }
 
-pub trait IntoPackageFilter<QS, DB>
+pub trait IntoBinaryIdentityFilter<QS, DB>
 where
     DB: Backend,
 {
@@ -116,7 +118,7 @@ where
             + 'static;
 }
 
-impl<T: 'static> IntoPackageFilter<T, Sqlite> for PackageFilter {
+impl<T: 'static> IntoBinaryIdentityFilter<T, Sqlite> for BinaryIdentityFilter {
     type SqlType = Bool;
     type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
 

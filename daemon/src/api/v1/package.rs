@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{
-    IntoFilter, IntoIdentityFilter, IntoOriginFilter, IntoPackageFilter,
+    IntoBinaryIdentityFilter, IntoFilter, IntoOriginFilter, IntoSourceIdentityFilter,
 };
 use crate::api::v1::util::friends::{
     build_input_friends, get_largest_retry_count_among_friends, has_queued_friend,
@@ -25,8 +25,8 @@ use diesel::{
     OptionalExtension, QueryDsl, RunQueryDsl, SqliteConnection, SqliteExpressionMethods,
 };
 use rebuilderd_common::api::v1::{
-    BuildStatus, FreshnessFilter, IdentityFilter, OriginFilter, PackageFilter, PackageReport, Page,
-    Priority, ResultPage, SourcePackageReport,
+    BinaryIdentityFilter, BuildStatus, FreshnessFilter, OriginFilter, PackageReport, Page,
+    Priority, ResultPage, SourceIdentityFilter, SourcePackageReport,
 };
 use rebuilderd_common::errors::Error;
 
@@ -410,7 +410,7 @@ pub async fn get_source_packages(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
-    identity_filter: web::Query<IdentityFilter>,
+    source_identity_filter: web::Query<SourceIdentityFilter>,
     freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
@@ -423,7 +423,7 @@ pub async fn get_source_packages(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
@@ -441,7 +441,7 @@ pub async fn get_source_packages(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
@@ -478,7 +478,7 @@ pub async fn get_binary_packages(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
-    package_filter: web::Query<PackageFilter>,
+    binary_identity_filter: web::Query<BinaryIdentityFilter>,
     freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
@@ -490,7 +490,7 @@ pub async fn get_binary_packages(
                 .into_inner()
                 .into_filter(binary_packages::architecture),
         )
-        .filter(package_filter.clone().into_inner().into_filter(
+        .filter(binary_identity_filter.clone().into_inner().into_filter(
             binary_packages::name,
             binary_packages::version,
             source_packages::name,
@@ -508,7 +508,7 @@ pub async fn get_binary_packages(
                 .into_filter(binary_packages::architecture),
         )
         .filter(freshness_filter.into_inner().into_filter())
-        .filter(package_filter.clone().into_inner().into_filter(
+        .filter(binary_identity_filter.clone().into_inner().into_filter(
             binary_packages::name,
             binary_packages::version,
             source_packages::name,
