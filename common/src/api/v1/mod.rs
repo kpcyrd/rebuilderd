@@ -163,7 +163,7 @@ pub trait PackageRestApi {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        package_filter: Option<&PackageFilter>,
     ) -> Result<ResultPage<BinaryPackage>>;
 
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
@@ -497,13 +497,13 @@ impl PackageRestApi for Client {
         &self,
         page: Option<&Page>,
         origin_filter: Option<&OriginFilter>,
-        identity_filter: Option<&IdentityFilter>,
+        package_filter: Option<&PackageFilter>,
     ) -> Result<ResultPage<BinaryPackage>> {
         let records = self
             .get(Cow::Borrowed("api/v1/packages/binary"))
             .query(&page)
             .query(&origin_filter)
-            .query(&identity_filter)
+            .query(&package_filter)
             .send()
             .await?
             .error_for_status()?

@@ -7,7 +7,7 @@ use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::Sqlite;
 use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter};
+use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter, PackageFilter};
 
 pub trait IntoIdentityFilter<QS, DB>
 where
@@ -75,6 +75,96 @@ impl<T: 'static> IntoIdentityFilter<T, Sqlite> for IdentityFilter {
         };
 
         Box::new(name_is.and(version_is))
+    }
+}
+
+pub trait IntoPackageFilter<QS, DB>
+where
+    DB: Backend,
+{
+    type SqlType;
+
+    type Output;
+
+    fn into_filter<NameColumn, VersionColumn, SourceNameColumn>(
+        self,
+        name_column: NameColumn,
+        version_column: VersionColumn,
+        source_name_column: SourceNameColumn,
+    ) -> Self::Output
+    where
+        NameColumn: SelectableExpression<QS>
+            + Expression<SqlType = Text>
+            + QueryFragment<DB>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static,
+        VersionColumn: SelectableExpression<QS>
+            + Expression<SqlType = Text>
+            + QueryFragment<DB>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static,
+        SourceNameColumn: SelectableExpression<QS>
+            + Expression<SqlType = Text>
+            + QueryFragment<DB>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static;
+}
+
+impl<T: 'static> IntoPackageFilter<T, Sqlite> for PackageFilter {
+    type SqlType = Bool;
+    type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
+
+    fn into_filter<NameColumn, VersionColumn, SourceNameColumn>(
+        self,
+        name_column: NameColumn,
+        version_column: VersionColumn,
+        source_name_column: SourceNameColumn,
+    ) -> Self::Output
+    where
+        NameColumn: SelectableExpression<T>
+            + Expression<SqlType = Text>
+            + QueryFragment<Sqlite>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static,
+        VersionColumn: SelectableExpression<T>
+            + Expression<SqlType = Text>
+            + QueryFragment<Sqlite>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static,
+        SourceNameColumn: SelectableExpression<T>
+            + Expression<SqlType = Text>
+            + QueryFragment<Sqlite>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static,
+    {
+        let name_is: Self::Output = match self.name {
+            Some(name) => Box::new(name_column.is(name)),
+            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        };
+
+        let version_is: Self::Output = match self.version {
+            Some(version) => Box::new(version_column.is(version)),
+            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        };
+
+        let source_name_is: Self::Output = match self.source_name {
+            Some(source_name) => Box::new(source_name_column.is(source_name)),
+            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        };
+
+        Box::new(name_is.and(version_is).and(source_name_is))
     }
 }
 

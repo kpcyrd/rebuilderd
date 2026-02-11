@@ -9,8 +9,8 @@ use glob::Pattern;
 use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
+    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageFilter,
+    PackageReport, PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -109,13 +109,14 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
         architecture: filter.architecture,
     };
 
-    let identity_filter = IdentityFilter {
+    let package_filter = PackageFilter {
         name: filter.name,
         version: None, // TODO: ls.filter.version
+        source_name: None,
     };
 
     let mut results = client
-        .get_binary_packages(None, Some(&origin_filter), Some(&identity_filter))
+        .get_binary_packages(None, Some(&origin_filter), Some(&package_filter))
         .await
         .context("Failed to fetch package")?;
 
@@ -224,9 +225,10 @@ async fn main() -> Result<()> {
                 architecture: ls.filter.architecture,
             };
 
-            let identity_filter = IdentityFilter {
+            let package_filter = PackageFilter {
                 name: ls.filter.name,
                 version: None, // TODO: ls.filter.version
+                source_name: None,
             };
 
             let mut page = Page {
@@ -239,7 +241,7 @@ async fn main() -> Result<()> {
 
             loop {
                 let mut results = client
-                    .get_binary_packages(Some(&page), Some(&origin_filter), Some(&identity_filter))
+                    .get_binary_packages(Some(&page), Some(&origin_filter), Some(&package_filter))
                     .await?;
 
                 if let Some(last) = results.records.last() {
