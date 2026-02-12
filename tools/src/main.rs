@@ -104,7 +104,7 @@ pub async fn submit_package_report(client: &Client, sync: &PackageReport) -> Res
 async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPackage> {
     let origin_filter = OriginFilter {
         distribution: filter.distro,
-        release: None, // TODO: ls.filter.release,
+        release: vec![], // TODO: ls.filter.release,
         component: filter.suite,
         architecture: filter.architecture,
     };
@@ -219,7 +219,7 @@ async fn main() -> Result<()> {
         SubCommand::Pkgs(Pkgs::Ls(ls)) => {
             let origin_filter = OriginFilter {
                 distribution: ls.filter.distro,
-                release: None, // TODO: ls.filter.release,
+                release: vec![], // TODO: ls.filter.release,
                 component: ls.filter.suite,
                 architecture: ls.filter.architecture,
             };
@@ -424,7 +424,7 @@ async fn main() -> Result<()> {
         SubCommand::Queue(Queue::Delete(push)) => {
             let origin_filter = OriginFilter {
                 distribution: Some(push.distro),
-                release: None, // TODO: ls.filter.release,
+                release: vec![], // TODO: ls.filter.release,
                 component: Some(push.suite),
                 architecture: push.architecture,
             };
