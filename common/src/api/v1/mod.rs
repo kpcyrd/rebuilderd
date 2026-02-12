@@ -167,6 +167,12 @@ pub trait PackageRestApi {
     ) -> Result<ResultPage<BinaryPackage>>;
 
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
+
+    async fn get_transition_packages(
+        &self,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
+    ) -> Result<TransitionBinaryPackage>;
 }
 
 #[async_trait]
@@ -523,6 +529,24 @@ impl PackageRestApi for Client {
             .await?;
 
         Ok(record)
+    }
+
+    async fn get_transition_packages(
+        &self,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
+    ) -> Result<TransitionBinaryPackage> {
+        let records = self
+            .get(Cow::Borrowed("api/v1/packages/transition_packages"))
+            .query(&origin_filter)
+            .query(&identity_filter)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(records)
     }
 }
 

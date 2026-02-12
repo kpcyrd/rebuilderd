@@ -93,6 +93,7 @@ pub fn build_server(
                                     .service(api::v1::get_source_packages)
                                     .service(api::v1::get_source_package)
                                     .service(api::v1::get_binary_packages)
+                                    .service(api::v1::get_transition_packages)
                                     .service(api::v1::get_binary_package),
                             )
                             .service(
