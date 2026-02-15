@@ -7,9 +7,7 @@ use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::Sqlite;
 use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{
-    BinaryIdentityFilter, FreshnessFilter, OriginFilter, SourceIdentityFilter,
-};
+use rebuilderd_common::api::v1::{BinaryIdentityFilter, FreshnessFilter, OriginFilter, SearchType, SourceIdentityFilter};
 
 pub trait IntoSourceIdentityFilter<QS, DB>
 where
@@ -66,9 +64,14 @@ impl<T: 'static> IntoSourceIdentityFilter<T, Sqlite> for SourceIdentityFilter {
             + Send
             + 'static,
     {
-        let name_is: Self::Output = match self.name {
-            Some(name) => Box::new(name_column.is(name)),
-            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        let name_is: Self::Output = if let Some(name) = self.name {
+            match self.search_type {
+                SearchType::Exact => Box::new(name_column.eq(name)),
+                SearchType::Contains => Box::new(name_column.like(format!("%{name}%"))),
+                SearchType::StartsWith => Box::new(name_column.like(format!("{name}%"))),
+            }
+        } else {
+            Box::new(AsExpression::<Bool>::as_expression(true))
         };
 
         let version_is: Self::Output = match self.version {
@@ -151,9 +154,14 @@ impl<T: 'static> IntoBinaryIdentityFilter<T, Sqlite> for BinaryIdentityFilter {
             + Send
             + 'static,
     {
-        let name_is: Self::Output = match self.name {
-            Some(name) => Box::new(name_column.is(name)),
-            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        let name_is: Self::Output = if let Some(name) = self.name {
+            match self.search_type {
+                SearchType::Exact => Box::new(name_column.eq(name)),
+                SearchType::Contains => Box::new(name_column.like(format!("%{name}%"))),
+                SearchType::StartsWith => Box::new(name_column.like(format!("{name}%"))),
+            }
+        } else {
+            Box::new(AsExpression::<Bool>::as_expression(true))
         };
 
         let version_is: Self::Output = match self.version {
