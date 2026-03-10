@@ -393,6 +393,28 @@ pub async fn get_build_artifact_diffoscope(
     }
 }
 
+#[get("/diffoscope/{diffoscope_log_id}")]
+pub async fn get_build_diffoscope(
+    req: HttpRequest,
+    pool: web::Data<Pool>,
+    diffoscope_log_id: web::Path<i32>,
+) -> web::Result<impl Responder> {
+    let mut connection = pool.get().map_err(Error::from)?;
+
+    let diffoscope = diffoscope_logs::table
+        .filter(diffoscope_logs::id.is(diffoscope_log_id.into_inner()))
+        .select(diffoscope_logs::diffoscope_log.nullable())
+        .first::<Option<Vec<u8>>>(connection.as_mut())
+        .optional()
+        .map_err(Error::from)?;
+
+    if let Some(diffoscope) = diffoscope.flatten() {
+        forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await
+    } else {
+        Ok(HttpResponse::NotFound().finish())
+    }
+}
+
 #[get("/{id}/artifacts/{artifact_id}/attestation")]
 pub async fn get_build_artifact_attestation(
     req: HttpRequest,
