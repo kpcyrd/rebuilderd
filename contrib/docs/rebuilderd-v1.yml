@@ -21,6 +21,8 @@ tags:
     description: Miscellaneous endpoints
   - name: meta
     description: Queries related to metadata about the database as a whole
+  - name: stats
+    description: Historical rebuild statistics snapshots
 paths:
   /builds:
     get:
@@ -837,6 +839,72 @@ paths:
                 items:
                   $ref: "#/components/schemas/PublicKey"
 
+  /stats:
+    get:
+      summary: Retrieve historical rebuild statistics snapshots
+      tags:
+        - stats
+      parameters:
+        - $ref: '#/components/parameters/distribution'
+        - $ref: '#/components/parameters/release'
+        - $ref: '#/components/parameters/architecture'
+        - in: query
+          name: since
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: |-
+            Only return snapshots captured at or after this timestamp (ISO 8601 / RFC 3339).
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 100
+          description: |-
+            Maximum number of snapshots to return. Defaults to 100; capped at 10 000.
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatsSnapshot'
+    post:
+      summary: Trigger a new rebuild statistics snapshot
+      description: |-
+        Computes current rebuild counts (good / bad / fail / unknown) for packages that were
+        seen in the last sync, optionally filtered by distribution, release, and architecture.
+        If a `backend` name is provided it is matched against `rebuilderd-stats.conf` to
+        produce a per-category breakdown of bad/failed packages; otherwise `categories` is
+        empty. The resulting snapshot is persisted in the database and returned.
+      tags:
+        - stats
+      security:
+        - AuthCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatsCollectRequest'
+      responses:
+        "200":
+          description: Snapshots created successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatsSnapshot'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
 components:
   schemas:
     PublicKey:
@@ -1380,6 +1448,107 @@ components:
           required:
             - name
             - status
+    StatsCategoryCount:
+      type: object
+      description: Count of bad/failed packages that matched a named error category.
+      properties:
+        category:
+          type: string
+          description: Human-readable category name as defined in rebuilderd-stats.conf.
+        count:
+          type: integer
+          minimum: 0
+          description: Number of packages that matched this category.
+      additionalProperties: false
+      required:
+        - category
+        - count
+    StatsSnapshot:
+      type: object
+      description: |-
+        A point-in-time snapshot of rebuild counts, optionally scoped to a
+        specific distribution, release, and/or architecture.
+      properties:
+        id:
+          type: integer
+          description: Unique snapshot identifier.
+        captured_at:
+          type: string
+          format: date-time
+          description: UTC timestamp at which the snapshot was taken.
+        distribution:
+          type: string
+          nullable: true
+          description: Distribution filter that was active when the snapshot was taken, if any.
+        release:
+          type: string
+          nullable: true
+          description: Release filter that was active when the snapshot was taken, if any.
+        architecture:
+          type: string
+          nullable: true
+          description: Architecture filter that was active when the snapshot was taken, if any.
+        good:
+          type: integer
+          minimum: 0
+          description: Number of packages whose latest rebuild status is GOOD.
+        bad:
+          type: integer
+          minimum: 0
+          description: Number of packages whose latest rebuild status is BAD.
+        fail:
+          type: integer
+          minimum: 0
+          description: Number of packages whose latest rebuild status is FAIL.
+        unknown:
+          type: integer
+          minimum: 0
+          description: Number of packages with no rebuild attempt yet (status UNKWN or missing).
+        categories:
+          type: array
+          description: |-
+            Per-category breakdown of bad/failed packages. Empty when no backend was
+            specified in the collect request or when no categories matched.
+          items:
+            $ref: '#/components/schemas/StatsCategoryCount'
+      additionalProperties: false
+      required:
+        - id
+        - captured_at
+        - distribution
+        - release
+        - architecture
+        - good
+        - bad
+        - fail
+        - unknown
+        - categories
+    StatsCollectRequest:
+      type: object
+      description: |-
+        Parameters sent by the client when requesting a new statistics snapshot.
+        All fields are optional; omitting them collects counts across all known
+        distributions, releases, and architectures.
+      properties:
+        backend:
+          type: string
+          nullable: true
+          description: |-
+            Backend name used to look up error categories in rebuilderd-stats.conf
+            (e.g. "debian"). Omit to skip per-category error analysis.
+        distribution:
+          type: string
+          nullable: true
+          description: Restrict counts to this distribution.
+        release:
+          type: string
+          nullable: true
+          description: Restrict counts to this release.
+        architecture:
+          type: string
+          nullable: true
+          description: Restrict counts to this architecture.
+      additionalProperties: false
     Error:
       type: object
       properties:

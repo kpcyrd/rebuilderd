@@ -11,7 +11,7 @@ use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryIdentityFilter, BinaryPackage, BuildRestApi, OriginFilter, PackageReport,
     PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, SourceIdentityFilter,
-    WorkerRestApi,
+    StatsCollectRequest, StatsRestApi, WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -445,6 +445,31 @@ async fn main() -> Result<()> {
                 .with_auth_cookie()?
                 .drop_queued_jobs(Some(&origin_filter), Some(&source_identity_filter))
                 .await?;
+        }
+        SubCommand::Stats(Stats::Collect(args)) => {
+            let snapshots = client
+                .with_auth_cookie()?
+                .collect_stats(StatsCollectRequest {
+                    backend: args.backend,
+                    distribution: args.distribution,
+                    release: args.release,
+                    architecture: args.architecture,
+                })
+                .await?;
+            for snapshot in &snapshots {
+                println!(
+                    "Captured stats snapshot #{} ({}/{}/{}) at {} — good={}, bad={}, fail={}, unknown={}",
+                    snapshot.id,
+                    snapshot.distribution.as_deref().unwrap_or("all"),
+                    snapshot.release.as_deref().unwrap_or("all"),
+                    snapshot.architecture.as_deref().unwrap_or("all"),
+                    snapshot.captured_at.format("%Y-%m-%d %H:%M:%S UTC"),
+                    snapshot.good,
+                    snapshot.bad,
+                    snapshot.fail,
+                    snapshot.unknown,
+                );
+            }
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,
     }
