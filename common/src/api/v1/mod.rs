@@ -6,41 +6,6 @@ use async_trait::async_trait;
 pub use models::*;
 use std::borrow::Cow;
 
-#[async_trait]
-pub trait StatsRestApi {
-    async fn collect_stats(&self, request: StatsCollectRequest) -> Result<Vec<StatsSnapshot>>;
-    async fn get_stats(&self, filter: Option<&StatsFilter>) -> Result<Vec<StatsSnapshot>>;
-}
-
-#[async_trait]
-impl StatsRestApi for Client {
-    async fn collect_stats(&self, request: StatsCollectRequest) -> Result<Vec<StatsSnapshot>> {
-        let snapshots = self
-            .post(Cow::Borrowed("api/v1/stats"))
-            .json(&request)
-            .send_encoded()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(snapshots)
-    }
-
-    async fn get_stats(&self, filter: Option<&StatsFilter>) -> Result<Vec<StatsSnapshot>> {
-        let snapshots = self
-            .get(Cow::Borrowed("api/v1/stats"))
-            .query(&filter)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(snapshots)
-    }
-}
-
 #[cfg(feature = "diesel")]
 use diesel::{
     deserialize::FromSql,
@@ -698,5 +663,40 @@ impl WorkerRestApi for Client {
             .error_for_status()?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+pub trait StatsRestApi {
+    async fn collect_stats(&self, request: StatsCollectRequest) -> Result<Vec<StatsSnapshot>>;
+    async fn get_stats(&self, filter: Option<&StatsFilter>) -> Result<Vec<StatsSnapshot>>;
+}
+
+#[async_trait]
+impl StatsRestApi for Client {
+    async fn collect_stats(&self, request: StatsCollectRequest) -> Result<Vec<StatsSnapshot>> {
+        let snapshots = self
+            .post(Cow::Borrowed("api/v1/stats"))
+            .json(&request)
+            .send_encoded()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(snapshots)
+    }
+
+    async fn get_stats(&self, filter: Option<&StatsFilter>) -> Result<Vec<StatsSnapshot>> {
+        let snapshots = self
+            .get(Cow::Borrowed("api/v1/stats"))
+            .query(&filter)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(snapshots)
     }
 }
