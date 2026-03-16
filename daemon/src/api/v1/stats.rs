@@ -437,14 +437,18 @@ fn categorize_bad_packages(
         return Ok(vec![]);
     }
 
-    // Step 2: Find which of the latest rebuilds are BAD/FAIL via two cheap indexed
-    // lookups and union them in Rust. Replaces the previous correlated EXISTS per row.
-    let bad_rebuild_ids: Vec<i32> = rebuild_artifacts::table
+    // Step 2: One entry per BAD artifact (with its own diffoscope log) +
+    // one entry per FAIL rebuild (no artifacts). This matches the original
+    // Python semantics where each binary package is counted separately.
+    let bad_artifacts: Vec<(i32, Option<Vec<u8>>)> = rebuild_artifacts::table
+        .left_join(diffoscope_logs::table)
         .filter(rebuild_artifacts::rebuild_id.eq_any(&latest_ids))
         .filter(rebuild_artifacts::status.is(ArtifactStatus::Bad.as_str()))
-        .select(rebuild_artifacts::rebuild_id)
-        .distinct()
-        .load::<i32>(connection)
+        .select((
+            rebuild_artifacts::rebuild_id,
+            diffoscope_logs::diffoscope_log.nullable(),
+        ))
+        .load::<(i32, Option<Vec<u8>>)>(connection)
         .map_err(Error::from)?;
     let fail_rebuild_ids: Vec<i32> = rebuilds::table
         .filter(rebuilds::id.eq_any(&latest_ids))
@@ -452,64 +456,61 @@ fn categorize_bad_packages(
         .select(rebuilds::id)
         .load::<i32>(connection)
         .map_err(Error::from)?;
-    let bad_or_fail_ids: Vec<i32> = {
-        let mut ids: HashSet<i32> = bad_rebuild_ids.into_iter().collect();
-        ids.extend(fail_rebuild_ids);
-        ids.into_iter().collect()
-    };
 
-    if bad_or_fail_ids.is_empty() {
+    if bad_artifacts.is_empty() && fail_rebuild_ids.is_empty() {
         return Ok(vec![]);
     }
 
-    // Step 3: Load build logs only for the bad/fail subset.
-    let rebuild_rows = rebuilds::table
+    // Step 3: Build logs for all relevant rebuilds, keyed by rebuild_id.
+    let all_rebuild_ids: Vec<i32> = {
+        let mut ids: HashSet<i32> = bad_artifacts.iter().map(|(id, _)| *id).collect();
+        ids.extend(&fail_rebuild_ids);
+        ids.into_iter().collect()
+    };
+    let build_log_map: HashMap<i32, Vec<u8>> = rebuilds::table
         .inner_join(build_logs::table)
-        .filter(rebuilds::id.eq_any(&bad_or_fail_ids))
+        .filter(rebuilds::id.eq_any(&all_rebuild_ids))
         .select((rebuilds::id, build_logs::build_log))
         .load::<(i32, Vec<u8>)>(connection)
-        .map_err(Error::from)?;
+        .map_err(Error::from)?
+        .into_iter()
+        .collect();
 
-    // Step 4: Diffoscope logs for the matched rebuilds.
-    let rebuild_ids: Vec<i32> = rebuild_rows.iter().map(|(id, _)| *id).collect();
-    let diffoscope_rows = rebuild_artifacts::table
-        .inner_join(diffoscope_logs::table)
-        .filter(rebuild_artifacts::rebuild_id.eq_any(&rebuild_ids))
-        .select((
-            rebuild_artifacts::rebuild_id,
-            diffoscope_logs::diffoscope_log,
-        ))
-        .load::<(i32, Vec<u8>)>(connection)
-        .map_err(Error::from)?;
-
-    // First diffoscope log per rebuild wins (rebuild_artifacts may have multiple entries).
-    let mut diffoscope_by_rebuild: HashMap<i32, Vec<u8>> = HashMap::new();
-    for (rebuild_id, log) in diffoscope_rows {
-        diffoscope_by_rebuild.entry(rebuild_id).or_insert(log);
-    }
-
-    // Pre-compile regexes once before the per-package loop.
+    // Pre-compile regexes once before the per-artifact loop.
     let compiled: Vec<CompiledCategory<'_>> = categories
         .iter()
         .map(|cat| cat.compile())
         .collect::<Result<_>>()?;
 
     let mut counts: HashMap<String, i32> = HashMap::new();
+    // Cache decompressed build logs: a single rebuild may have many BAD artifacts.
+    let mut decompressed_logs: HashMap<i32, String> = HashMap::new();
 
-    'outer: for (rebuild_id, build_log) in &rebuild_rows {
-        let log = zstd::stream::decode_all(build_log.as_slice()).unwrap_or_default();
-        let log = String::from_utf8_lossy(&log);
+    // Iterate one entry per BAD artifact then one per FAIL rebuild.
+    let items = bad_artifacts
+        .iter()
+        .map(|(id, diff)| (*id, diff.as_deref()))
+        .chain(fail_rebuild_ids.iter().map(|id| (*id, None)));
 
-        let diff = diffoscope_by_rebuild
-            .get(rebuild_id)
+    'outer: for (rebuild_id, diffoscope) in items {
+        if !decompressed_logs.contains_key(&rebuild_id) {
+            let Some(bl) = build_log_map.get(&rebuild_id) else {
+                continue 'outer;
+            };
+            let bytes = zstd::stream::decode_all(bl.as_slice()).unwrap_or_default();
+            decompressed_logs.insert(rebuild_id, String::from_utf8_lossy(&bytes).into_owned());
+        }
+        let log = decompressed_logs[&rebuild_id].as_str();
+
+        let diff = diffoscope
             .map(|d| {
-                String::from_utf8_lossy(&zstd::stream::decode_all(d.as_slice()).unwrap_or_default())
+                String::from_utf8_lossy(&zstd::stream::decode_all(d).unwrap_or_default())
                     .into_owned()
             })
             .unwrap_or_default();
 
         for cat in &compiled {
-            match cat.matches(&log, &diff, architecture) {
+            match cat.matches(log, &diff, architecture) {
                 Ok(true) => {
                     *counts.entry(cat.inner.name.clone()).or_insert(0) += 1;
                     continue 'outer;
