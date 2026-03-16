@@ -7,13 +7,12 @@ use crate::stats_config::{CompiledCategory, ErrorCategory, StatsConfigFile};
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use chrono::{NaiveDateTime, Utc};
-use std::time::Instant;
 use diesel::dsl::{case_when, max, sum};
 use diesel::prelude::*;
 use diesel::sql_types::Integer;
 use diesel::{BoolExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{StatsCategoryCount, StatsCollectRequest, StatsSnapshot};
+use rebuilderd_common::api::v1::{ArtifactStatus, BuildStatus, StatsCategoryCount, StatsCollectRequest, StatsSnapshot};
 use rebuilderd_common::errors::{Error, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -282,21 +281,19 @@ fn collect_one(
         rebuild_sql = rebuild_sql.filter(build_inputs::architecture.eq(arch));
     }
 
-    let t = Instant::now();
     let (good, bad, fail, unknown) = rebuild_sql
         .select((
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("GOOD"), 1).otherwise(0)),
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("BAD"),  1).otherwise(0)),
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("FAIL"), 1).otherwise(0)),
+            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Good.as_str()), 1).otherwise(0)),
+            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Bad.as_str()),  1).otherwise(0)),
+            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Fail.as_str()), 1).otherwise(0)),
             sum(case_when::<_, _, Integer>(
-                r1.field(rebuilds::status).nullable().eq("UNKWN")
+                r1.field(rebuilds::status).nullable().eq(BuildStatus::Unknown.as_str())
                     .or(r1.field(rebuilds::status).nullable().is_null()),
                 1,
             ).otherwise(0)),
         ))
         .get_result::<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)>(connection)
         .map_err(Error::from)?;
-    log::info!("collect_one: rebuild counts query took {:?}", t.elapsed());
 
     // ------------------------------------------------------------------
     // Error category breakdown (read-only, before the write transaction)
@@ -378,10 +375,7 @@ fn categorize_bad_packages(
     categories: &[&ErrorCategory],
 ) -> Result<Vec<(String, i32)>> {
     // Step 1: Latest rebuild ID per build_input, pre-filtered to the relevant
-    // distro/release/arch so subsequent IN clauses are small. The previous
-    // approach loaded 198k global IDs causing SQLite to scan rebuild_artifacts
-    // with a correlated EXISTS for each of them (~2 min per distro/arch combo).
-    let t = Instant::now();
+    // distro/release/arch so subsequent IN clauses are smaller.
     let mut latest_ids_query = rebuilds::table
         .inner_join(build_inputs::table.inner_join(source_packages::table))
         .filter(source_packages::seen_in_last_sync.is(true))
@@ -398,7 +392,6 @@ fn categorize_bad_packages(
         latest_ids_query = latest_ids_query.filter(build_inputs::architecture.eq(arch));
     }
     let latest_ids: Vec<i32> = latest_ids_query.load::<i32>(connection).map_err(Error::from)?;
-    log::info!("categorize: latest_ids: {} rows in {:?}", latest_ids.len(), t.elapsed());
 
     if latest_ids.is_empty() {
         return Ok(vec![]);
@@ -406,17 +399,16 @@ fn categorize_bad_packages(
 
     // Step 2: Find which of the latest rebuilds are BAD/FAIL via two cheap indexed
     // lookups and union them in Rust. Replaces the previous correlated EXISTS per row.
-    let t = Instant::now();
     let bad_rebuild_ids: Vec<i32> = rebuild_artifacts::table
         .filter(rebuild_artifacts::rebuild_id.eq_any(&latest_ids))
-        .filter(rebuild_artifacts::status.is("BAD"))
+        .filter(rebuild_artifacts::status.is(ArtifactStatus::Bad.as_str()))
         .select(rebuild_artifacts::rebuild_id)
         .distinct()
         .load::<i32>(connection)
         .map_err(Error::from)?;
     let fail_rebuild_ids: Vec<i32> = rebuilds::table
         .filter(rebuilds::id.eq_any(&latest_ids))
-        .filter(rebuilds::status.is("FAIL"))
+        .filter(rebuilds::status.is(BuildStatus::Fail.as_str()))
         .select(rebuilds::id)
         .load::<i32>(connection)
         .map_err(Error::from)?;
@@ -425,32 +417,27 @@ fn categorize_bad_packages(
         ids.extend(fail_rebuild_ids);
         ids.into_iter().collect()
     };
-    log::info!("categorize: bad/fail ids: {} in {:?}", bad_or_fail_ids.len(), t.elapsed());
 
     if bad_or_fail_ids.is_empty() {
         return Ok(vec![]);
     }
 
     // Step 3: Load build logs only for the bad/fail subset.
-    let t = Instant::now();
     let rebuild_rows = rebuilds::table
         .inner_join(build_logs::table)
         .filter(rebuilds::id.eq_any(&bad_or_fail_ids))
         .select((rebuilds::id, build_logs::build_log))
         .load::<(i32, Vec<u8>)>(connection)
         .map_err(Error::from)?;
-    log::info!("categorize: build logs: {} rows in {:?}", rebuild_rows.len(), t.elapsed());
 
     // Step 4: Diffoscope logs for the matched rebuilds.
     let rebuild_ids: Vec<i32> = rebuild_rows.iter().map(|(id, _)| *id).collect();
-    let t = Instant::now();
     let diffoscope_rows = rebuild_artifacts::table
         .inner_join(diffoscope_logs::table)
         .filter(rebuild_artifacts::rebuild_id.eq_any(&rebuild_ids))
         .select((rebuild_artifacts::rebuild_id, diffoscope_logs::diffoscope_log))
         .load::<(i32, Vec<u8>)>(connection)
         .map_err(Error::from)?;
-    log::info!("categorize: diffoscope logs: {} rows in {:?}", diffoscope_rows.len(), t.elapsed());
 
     // First diffoscope log per rebuild wins (rebuild_artifacts may have multiple entries).
     let mut diffoscope_by_rebuild: HashMap<i32, Vec<u8>> = HashMap::new();
@@ -466,7 +453,6 @@ fn categorize_bad_packages(
 
     let mut counts: HashMap<String, i32> = HashMap::new();
 
-    let t = Instant::now();
     'outer: for (rebuild_id, build_log) in &rebuild_rows {
         let log = zstd::stream::decode_all(build_log.as_slice()).unwrap_or_default();
         let log = String::from_utf8_lossy(&log);
@@ -493,7 +479,6 @@ fn categorize_bad_packages(
             }
         }
     }
-    log::info!("categorize: regex matching loop: {:?}", t.elapsed());
 
     // Return in config order so the response is stable.
     let result = categories
