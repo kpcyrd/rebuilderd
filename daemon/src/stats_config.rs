@@ -65,8 +65,13 @@ impl ErrorCategory {
             }
         }
 
+        // Helper: substitute {arch} with the actual architecture (or "" if unknown).
+        let sub = |s: &str| -> String {
+            s.replace("{arch}", architecture.unwrap_or(""))
+        };
+
         if let Some(s) = &self.log_has {
-            return Ok(log.contains(s.as_str()));
+            return Ok(log.contains(sub(s).as_str()));
         }
         if let Some(re) = &self.log_has_re {
             // (?s) enables DOTALL so '.' matches newlines, mirroring Python's re.DOTALL
@@ -75,13 +80,13 @@ impl ErrorCategory {
             return Ok(re.is_match(log)?);
         }
         if let Some(strs) = &self.log_has_any {
-            return Ok(strs.iter().any(|s| log.contains(s.as_str())));
+            return Ok(strs.iter().any(|s| log.contains(sub(s).as_str())));
         }
         if let Some(strs) = &self.log_has_all {
-            return Ok(strs.iter().all(|s| log.contains(s.as_str())));
+            return Ok(strs.iter().all(|s| log.contains(sub(s).as_str())));
         }
         if let Some(s) = &self.diff_has {
-            return Ok(diff.contains(s.as_str()));
+            return Ok(diff.contains(sub(s).as_str()));
         }
         if let Some(re) = &self.diff_has_re {
             let re = Regex::new(&format!("(?s){re}"))
@@ -89,7 +94,7 @@ impl ErrorCategory {
             return Ok(re.is_match(diff)?);
         }
         if let Some(strs) = &self.diff_has_any {
-            return Ok(!diff.is_empty() && strs.iter().any(|s| diff.contains(s.as_str())));
+            return Ok(!diff.is_empty() && strs.iter().any(|s| diff.contains(sub(s).as_str())));
         }
         if self.has_diff {
             return Ok(!diff.is_empty());
