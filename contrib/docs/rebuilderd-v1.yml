@@ -1527,15 +1527,20 @@ components:
       type: object
       description: |-
         Parameters sent by the client when requesting a new statistics snapshot.
-        All fields are optional; omitting them collects counts across all known
-        distributions, releases, and architectures.
+        When distribution, release, and architecture are all omitted (auto-collect mode),
+        all backends defined in rebuilderd-stats.conf are enumerated and one snapshot is
+        collected per (backend, release, architecture) combo found in the package database.
+        When any filter is set (single-combo mode), exactly one snapshot is collected for
+        that combination.
       properties:
         backend:
           type: string
           nullable: true
           description: |-
-            Backend name used to look up error categories in rebuilderd-stats.conf
-            (e.g. "debian"). Omit to skip per-category error analysis.
+            Only used in single-combo mode (when at least one of distribution/release/architecture
+            is set). Selects which category definitions to use from rebuilderd-stats.conf; defaults
+            to the distribution name if omitted. Ignored in auto-collect mode (no filters), where
+            all backends defined in rebuilderd-stats.conf are enumerated automatically.
         distribution:
           type: string
           nullable: true

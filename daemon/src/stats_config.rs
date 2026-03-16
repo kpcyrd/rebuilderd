@@ -52,15 +52,38 @@ pub struct ErrorCategory {
 }
 
 impl ErrorCategory {
-    /// Returns true if this category matches the given log and diffoscope.
-    pub fn matches(
-        &self,
-        log: &str,
-        diff: &str,
-        architecture: Option<&str>,
-    ) -> Result<bool> {
+    /// Pre-compile any regex patterns in this category.
+    /// Call once per collect_stats run, not once per package.
+    pub fn compile(&self) -> Result<CompiledCategory<'_>> {
+        CompiledCategory::new(self)
+    }
+}
+
+/// `ErrorCategory` with its regex fields pre-compiled.
+/// Create via `ErrorCategory::compile()` before the per-package matching loop.
+pub struct CompiledCategory<'a> {
+    pub inner: &'a ErrorCategory,
+    log_has_re: Option<Regex>,
+    diff_has_re: Option<Regex>,
+}
+
+impl<'a> CompiledCategory<'a> {
+    fn new(cat: &'a ErrorCategory) -> Result<Self> {
+        // (?s) enables DOTALL so '.' matches newlines, mirroring Python's re.DOTALL.
+        let compile = |re: &str| {
+            Regex::new(&format!("(?s){re}"))
+                .with_context(|| format!("Invalid regex in category {:?}: {re}", cat.name))
+        };
+        let log_has_re = cat.log_has_re.as_deref().map(compile).transpose()?;
+        let diff_has_re = cat.diff_has_re.as_deref().map(compile).transpose()?;
+        Ok(Self { inner: cat, log_has_re, diff_has_re })
+    }
+
+    pub fn matches(&self, log: &str, diff: &str, architecture: Option<&str>) -> Result<bool> {
+        let cat = self.inner;
+
         if let Some(arch) = architecture {
-            if self.exclude_architectures.iter().any(|x| arch.starts_with(x.as_str())) {
+            if cat.exclude_architectures.iter().any(|x| arch.starts_with(x.as_str())) {
                 return Ok(false);
             }
         }
@@ -70,40 +93,35 @@ impl ErrorCategory {
             s.replace("{arch}", architecture.unwrap_or(""))
         };
 
-        if let Some(s) = &self.log_has {
+        if let Some(s) = &cat.log_has {
             return Ok(log.contains(sub(s).as_str()));
         }
         if let Some(re) = &self.log_has_re {
-            // (?s) enables DOTALL so '.' matches newlines, mirroring Python's re.DOTALL
-            let re = Regex::new(&format!("(?s){re}"))
-                .with_context(|| format!("Invalid regex in category {:?}: {re}", self.name))?;
             return Ok(re.is_match(log)?);
         }
-        if let Some(strs) = &self.log_has_any {
+        if let Some(strs) = &cat.log_has_any {
             return Ok(strs.iter().any(|s| log.contains(sub(s).as_str())));
         }
-        if let Some(strs) = &self.log_has_all {
+        if let Some(strs) = &cat.log_has_all {
             return Ok(strs.iter().all(|s| log.contains(sub(s).as_str())));
         }
-        if let Some(s) = &self.diff_has {
+        if let Some(s) = &cat.diff_has {
             return Ok(diff.contains(sub(s).as_str()));
         }
         if let Some(re) = &self.diff_has_re {
-            let re = Regex::new(&format!("(?s){re}"))
-                .with_context(|| format!("Invalid regex in category {:?}: {re}", self.name))?;
             return Ok(re.is_match(diff)?);
         }
-        if let Some(strs) = &self.diff_has_any {
+        if let Some(strs) = &cat.diff_has_any {
             return Ok(!diff.is_empty() && strs.iter().any(|s| diff.contains(sub(s).as_str())));
         }
-        if self.has_diff {
+        if cat.has_diff {
             return Ok(!diff.is_empty());
         }
-        if self.catch_all {
+        if cat.catch_all {
             return Ok(true);
         }
 
-        bail!("Category {:?} has no matcher configured", self.name)
+        bail!("Category {:?} has no matcher configured", cat.name)
     }
 }
 

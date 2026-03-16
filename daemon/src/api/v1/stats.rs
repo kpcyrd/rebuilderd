@@ -2,30 +2,27 @@ use crate::api::v1::util::auth;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewStatsCategory, NewStatsSnapshot};
-use crate::schema::{build_inputs, rebuilds, source_packages, stats, stats_categories};
-use crate::stats_config::StatsConfigFile;
+use crate::schema::{build_inputs, build_logs, diffoscope_logs, rebuild_artifacts, rebuilds, source_packages, stats, stats_categories};
+use crate::stats_config::{CompiledCategory, ErrorCategory, StatsConfigFile};
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
 use chrono::{NaiveDateTime, Utc};
-use diesel::dsl::{case_when, sum};
+use std::time::Instant;
+use diesel::dsl::{case_when, max, sum};
 use diesel::prelude::*;
-use diesel::sql_types::{Binary, Integer, Nullable};
+use diesel::sql_types::Integer;
 use diesel::{BoolExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{StatsCategoryCount, StatsCollectRequest, StatsSnapshot};
-use rebuilderd_common::errors::Error;
+use rebuilderd_common::errors::{Error, Result};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-mod aliases {
-    diesel::alias!(
-        crate::schema::rebuilds as r1: RebuildsAlias1,
-        crate::schema::rebuilds as r2: RebuildsAlias2
-    );
-}
-
-use aliases::*;
+diesel::alias!(
+    crate::schema::rebuilds as r1: RebuildsAlias1,
+    crate::schema::rebuilds as r2: RebuildsAlias2
+);
 
 // ---------------------------------------------------------------------------
 // Row types
@@ -35,14 +32,6 @@ use aliases::*;
 struct IdRow {
     #[diesel(sql_type = Integer)]
     id: i32,
-}
-
-#[derive(QueryableByName, Debug)]
-struct BadPackageRow {
-    #[diesel(sql_type = Binary)]
-    build_log: Vec<u8>,
-    #[diesel(sql_type = Nullable<Binary>)]
-    diffoscope_log: Option<Vec<u8>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +84,10 @@ pub async fn get_stats(
     }
 
     // Keep only the latest snapshot per (day, distribution, release, architecture).
+    // This is done as a separate query rather than an inline subquery because Diesel's
+    // boxed query builder cannot express GROUP BY DATE(captured_at) in a type-safe way.
+    // The resulting ID list is small in practice (daily granularity × handful of distros)
+    // so the two-round-trip approach is harmless.
     let latest_ids: Vec<i32> = diesel::sql_query(
         "SELECT MAX(id) AS id FROM stats \
          GROUP BY DATE(captured_at), distribution, release, architecture",
@@ -152,13 +145,15 @@ pub async fn get_stats(
 
 #[post("")]
 pub async fn collect_stats(
-    pool: web::Data<Pool>,
-    config: web::Data<Config>,
-    stats_cfg: web::Data<Arc<StatsConfigFile>>,
     req: HttpRequest,
+    cfg: web::Data<Config>,
+    pool: web::Data<Pool>,
+    stats_cfg: web::Data<Arc<StatsConfigFile>>,
     body: web::Json<StatsCollectRequest>,
 ) -> web::Result<impl Responder> {
-    auth::admin(&config, &req).map_err(Error::from)?;
+    if auth::admin(&cfg, &req).is_err() {
+        return Ok(HttpResponse::Forbidden().finish());
+    }
 
     let mut connection = pool.get().map_err(Error::from)?;
     let now = Utc::now().naive_utc();
@@ -179,11 +174,11 @@ pub async fn collect_stats(
 
         let mut snapshots = Vec::new();
         for backend in &backend_names {
-            let combos = query_combos_for_backend(&mut *connection, backend)
+            let combos = query_combos_for_backend(connection.as_mut(), backend)
                 .map_err(Error::from)?;
             for (release, architecture) in combos {
                 let snapshot = collect_one(
-                    &mut *connection,
+                    connection.as_mut(),
                     &stats_cfg,
                     Some(backend.as_str()),
                     release.as_deref(),
@@ -205,7 +200,7 @@ pub async fn collect_stats(
             .or(body.distribution.as_deref());
 
         let snapshot = collect_one(
-            &mut *connection,
+            connection.as_mut(),
             &stats_cfg,
             body.distribution.as_deref(),
             body.release.as_deref(),
@@ -226,9 +221,9 @@ pub async fn collect_stats(
 // ---------------------------------------------------------------------------
 
 fn query_combos_for_backend(
-    connection: &mut crate::db::SqliteConnectionWrap,
+    connection: &mut SqliteConnection,
     distribution: &str,
-) -> rebuilderd_common::errors::Result<Vec<(Option<String>, String)>> {
+) -> Result<Vec<(Option<String>, String)>> {
     let rows = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.eq(distribution))
@@ -238,21 +233,21 @@ fn query_combos_for_backend(
             build_inputs::architecture,
         ))
         .distinct()
-        .get_results::<(Option<String>, String)>(connection.as_mut())
-        .map_err(rebuilderd_common::errors::Error::from)?;
+        .get_results::<(Option<String>, String)>(connection)
+        .map_err(Error::from)?;
 
     Ok(rows)
 }
 
 fn collect_one(
-    connection: &mut crate::db::SqliteConnectionWrap,
+    connection: &mut SqliteConnection,
     stats_cfg: &StatsConfigFile,
     distribution: Option<&str>,
     release: Option<&str>,
     architecture: Option<&str>,
     backend: Option<&str>,
     now: NaiveDateTime,
-) -> rebuilderd_common::errors::Result<StatsSnapshot> {
+) -> Result<StatsSnapshot> {
     // ------------------------------------------------------------------
     // Rebuild counts: latest rebuild per build_input, filtered by origin
     // ------------------------------------------------------------------
@@ -287,6 +282,7 @@ fn collect_one(
         rebuild_sql = rebuild_sql.filter(build_inputs::architecture.eq(arch));
     }
 
+    let t = Instant::now();
     let (good, bad, fail, unknown) = rebuild_sql
         .select((
             sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("GOOD"), 1).otherwise(0)),
@@ -298,29 +294,12 @@ fn collect_one(
                 1,
             ).otherwise(0)),
         ))
-        .get_result::<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)>(connection.as_mut())
-        .map_err(rebuilderd_common::errors::Error::from)?;
+        .get_result::<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)>(connection)
+        .map_err(Error::from)?;
+    log::info!("collect_one: rebuild counts query took {:?}", t.elapsed());
 
     // ------------------------------------------------------------------
-    // Insert snapshot
-    // ------------------------------------------------------------------
-    let new_snapshot = NewStatsSnapshot {
-        captured_at: now,
-        distribution: distribution.map(|s| s.to_owned()),
-        release: release.map(|s| s.to_owned()),
-        architecture: architecture.map(|s| s.to_owned()),
-        good: good.unwrap_or(0) as i32,
-        bad: bad.unwrap_or(0) as i32,
-        fail: fail.unwrap_or(0) as i32,
-        unknown: unknown.unwrap_or(0) as i32,
-    };
-
-    let snapshot_id = new_snapshot
-        .insert(connection.as_mut())
-        .map_err(rebuilderd_common::errors::Error::from)?;
-
-    // ------------------------------------------------------------------
-    // Error category breakdown
+    // Error category breakdown (read-only, before the write transaction)
     // ------------------------------------------------------------------
     let category_counts = if let Some(backend_name) = backend {
         let categories = stats_cfg.categories_for(backend_name);
@@ -330,41 +309,59 @@ fn collect_one(
                 backend_name
             );
         }
-        categorize_bad_packages(connection, distribution, release, architecture, &categories)
-            .map_err(rebuilderd_common::errors::Error::from)?
+        categorize_bad_packages(connection, distribution, release, architecture, &categories)?
     } else {
         vec![]
     };
 
-    let category_rows: Vec<NewStatsCategory> = category_counts
-        .iter()
-        .map(|(cat, count)| NewStatsCategory {
-            stats_id: snapshot_id,
-            category: cat.clone(),
-            count: *count,
-        })
-        .collect();
+    // ------------------------------------------------------------------
+    // Insert snapshot and categories atomically
+    // ------------------------------------------------------------------
+    let (snapshot_id, categories) = connection.transaction(|conn| {
+        let new_snapshot = NewStatsSnapshot {
+            captured_at: now,
+            distribution: distribution.map(str::to_owned),
+            release: release.map(str::to_owned),
+            architecture: architecture.map(str::to_owned),
+            good: good.unwrap_or(0) as i32,
+            bad: bad.unwrap_or(0) as i32,
+            fail: fail.unwrap_or(0) as i32,
+            unknown: unknown.unwrap_or(0) as i32,
+        };
 
-    if !category_rows.is_empty() {
-        NewStatsCategory::insert_batch(&category_rows, connection.as_mut())
-            .map_err(rebuilderd_common::errors::Error::from)?;
-    }
+        let id = new_snapshot.insert(conn).map_err(Error::from)?;
 
-    let categories = category_counts
-        .into_iter()
-        .map(|(category, count)| StatsCategoryCount { category, count })
-        .collect();
+        let category_rows: Vec<NewStatsCategory> = category_counts
+            .iter()
+            .map(|(cat, count)| NewStatsCategory {
+                stats_id: id,
+                category: cat.clone(),
+                count: *count,
+            })
+            .collect();
+
+        if !category_rows.is_empty() {
+            NewStatsCategory::insert_batch(&category_rows, conn).map_err(Error::from)?;
+        }
+
+        let categories = category_counts
+            .into_iter()
+            .map(|(category, count)| StatsCategoryCount { category, count })
+            .collect();
+
+        Ok::<_, Error>((id, categories))
+    }).map_err(Error::from)?;
 
     Ok(StatsSnapshot {
         id: snapshot_id,
         captured_at: now,
-        distribution: new_snapshot.distribution,
-        release: new_snapshot.release,
-        architecture: new_snapshot.architecture,
-        good: new_snapshot.good,
-        bad: new_snapshot.bad,
-        fail: new_snapshot.fail,
-        unknown: new_snapshot.unknown,
+        distribution: distribution.map(str::to_owned),
+        release: release.map(str::to_owned),
+        architecture: architecture.map(str::to_owned),
+        good: good.unwrap_or(0) as i32,
+        bad: bad.unwrap_or(0) as i32,
+        fail: fail.unwrap_or(0) as i32,
+        unknown: unknown.unwrap_or(0) as i32,
         categories,
     })
 }
@@ -374,78 +371,129 @@ fn collect_one(
 // ---------------------------------------------------------------------------
 
 fn categorize_bad_packages(
-    connection: &mut crate::db::SqliteConnectionWrap,
+    connection: &mut SqliteConnection,
     distribution: Option<&str>,
     release: Option<&str>,
     architecture: Option<&str>,
-    categories: &[&crate::stats_config::ErrorCategory],
-) -> rebuilderd_common::errors::Result<Vec<(String, i32)>> {
-    // Use raw SQL for the complex join + subquery; Diesel's type-safe builder
-    // becomes unwieldy for this particular shape.
-    let mut where_clauses = vec![
-        "sp.seen_in_last_sync = 1".to_string(),
-    ];
-
+    categories: &[&ErrorCategory],
+) -> Result<Vec<(String, i32)>> {
+    // Step 1: Latest rebuild ID per build_input, pre-filtered to the relevant
+    // distro/release/arch so subsequent IN clauses are small. The previous
+    // approach loaded 198k global IDs causing SQLite to scan rebuild_artifacts
+    // with a correlated EXISTS for each of them (~2 min per distro/arch combo).
+    let t = Instant::now();
+    let mut latest_ids_query = rebuilds::table
+        .inner_join(build_inputs::table.inner_join(source_packages::table))
+        .filter(source_packages::seen_in_last_sync.is(true))
+        .select(max(rebuilds::id).assume_not_null())
+        .group_by(rebuilds::build_input_id)
+        .into_boxed::<diesel::sqlite::Sqlite>();
     if let Some(dist) = distribution {
-        where_clauses.push(format!("sp.distribution = '{}'", dist.replace('\'', "''")));
+        latest_ids_query = latest_ids_query.filter(source_packages::distribution.eq(dist));
     }
     if let Some(rel) = release {
-        where_clauses.push(format!("sp.release = '{}'", rel.replace('\'', "''")));
+        latest_ids_query = latest_ids_query.filter(source_packages::release.eq(rel));
     }
     if let Some(arch) = architecture {
-        where_clauses.push(format!("bi.architecture = '{}'", arch.replace('\'', "''")));
+        latest_ids_query = latest_ids_query.filter(build_inputs::architecture.eq(arch));
+    }
+    let latest_ids: Vec<i32> = latest_ids_query.load::<i32>(connection).map_err(Error::from)?;
+    log::info!("categorize: latest_ids: {} rows in {:?}", latest_ids.len(), t.elapsed());
+
+    if latest_ids.is_empty() {
+        return Ok(vec![]);
     }
 
-    let sql = format!(
-        "SELECT l.build_log, \
-                ( SELECT d.diffoscope_log \
-                  FROM rebuild_artifacts a \
-                  LEFT JOIN diffoscope_logs d ON a.diffoscope_log_id = d.id \
-                  WHERE a.rebuild_id = r.id AND d.diffoscope_log IS NOT NULL \
-                  LIMIT 1 ) AS diffoscope_log \
-         FROM rebuilds r \
-         JOIN build_logs l ON r.build_log_id = l.id \
-         JOIN build_inputs bi ON r.build_input_id = bi.id \
-         JOIN source_packages sp ON bi.source_package_id = sp.id \
-         WHERE {} \
-         AND ( EXISTS ( SELECT 1 FROM rebuild_artifacts a \
-                        WHERE a.rebuild_id = r.id AND a.status = 'BAD' ) \
-               OR r.status = 'FAIL' ) \
-         AND r.id IN ( \
-             SELECT MAX(r2.id) FROM rebuilds r2 \
-             GROUP BY r2.build_input_id \
-         )",
-        where_clauses.join(" AND ")
-    );
+    // Step 2: Find which of the latest rebuilds are BAD/FAIL via two cheap indexed
+    // lookups and union them in Rust. Replaces the previous correlated EXISTS per row.
+    let t = Instant::now();
+    let bad_rebuild_ids: Vec<i32> = rebuild_artifacts::table
+        .filter(rebuild_artifacts::rebuild_id.eq_any(&latest_ids))
+        .filter(rebuild_artifacts::status.is("BAD"))
+        .select(rebuild_artifacts::rebuild_id)
+        .distinct()
+        .load::<i32>(connection)
+        .map_err(Error::from)?;
+    let fail_rebuild_ids: Vec<i32> = rebuilds::table
+        .filter(rebuilds::id.eq_any(&latest_ids))
+        .filter(rebuilds::status.is("FAIL"))
+        .select(rebuilds::id)
+        .load::<i32>(connection)
+        .map_err(Error::from)?;
+    let bad_or_fail_ids: Vec<i32> = {
+        let mut ids: HashSet<i32> = bad_rebuild_ids.into_iter().collect();
+        ids.extend(fail_rebuild_ids);
+        ids.into_iter().collect()
+    };
+    log::info!("categorize: bad/fail ids: {} in {:?}", bad_or_fail_ids.len(), t.elapsed());
 
-    let rows = diesel::sql_query(&sql)
-        .load::<BadPackageRow>(connection)
-        .map_err(rebuilderd_common::errors::Error::from)?;
+    if bad_or_fail_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Step 3: Load build logs only for the bad/fail subset.
+    let t = Instant::now();
+    let rebuild_rows = rebuilds::table
+        .inner_join(build_logs::table)
+        .filter(rebuilds::id.eq_any(&bad_or_fail_ids))
+        .select((rebuilds::id, build_logs::build_log))
+        .load::<(i32, Vec<u8>)>(connection)
+        .map_err(Error::from)?;
+    log::info!("categorize: build logs: {} rows in {:?}", rebuild_rows.len(), t.elapsed());
+
+    // Step 4: Diffoscope logs for the matched rebuilds.
+    let rebuild_ids: Vec<i32> = rebuild_rows.iter().map(|(id, _)| *id).collect();
+    let t = Instant::now();
+    let diffoscope_rows = rebuild_artifacts::table
+        .inner_join(diffoscope_logs::table)
+        .filter(rebuild_artifacts::rebuild_id.eq_any(&rebuild_ids))
+        .select((rebuild_artifacts::rebuild_id, diffoscope_logs::diffoscope_log))
+        .load::<(i32, Vec<u8>)>(connection)
+        .map_err(Error::from)?;
+    log::info!("categorize: diffoscope logs: {} rows in {:?}", diffoscope_rows.len(), t.elapsed());
+
+    // First diffoscope log per rebuild wins (rebuild_artifacts may have multiple entries).
+    let mut diffoscope_by_rebuild: HashMap<i32, Vec<u8>> = HashMap::new();
+    for (rebuild_id, log) in diffoscope_rows {
+        diffoscope_by_rebuild.entry(rebuild_id).or_insert(log);
+    }
+
+    // Pre-compile regexes once before the per-package loop.
+    let compiled: Vec<CompiledCategory<'_>> = categories
+        .iter()
+        .map(|cat| cat.compile())
+        .collect::<Result<_>>()?;
 
     let mut counts: HashMap<String, i32> = HashMap::new();
 
-    'outer: for row in &rows {
-        let log = zstd::stream::decode_all(row.build_log.as_slice()).unwrap_or_default();
+    let t = Instant::now();
+    'outer: for (rebuild_id, build_log) in &rebuild_rows {
+        let log = zstd::stream::decode_all(build_log.as_slice()).unwrap_or_default();
         let log = String::from_utf8_lossy(&log);
 
-        let diff = row.diffoscope_log.as_deref()
-            .map(|d| String::from_utf8_lossy(&zstd::stream::decode_all(d).unwrap_or_default()).into_owned())
+        let diff = diffoscope_by_rebuild
+            .get(rebuild_id)
+            .map(|d| {
+                String::from_utf8_lossy(&zstd::stream::decode_all(d.as_slice()).unwrap_or_default())
+                    .into_owned()
+            })
             .unwrap_or_default();
 
-        for cat in categories {
+        for cat in &compiled {
             match cat.matches(&log, &diff, architecture) {
                 Ok(true) => {
-                    *counts.entry(cat.name.clone()).or_insert(0) += 1;
+                    *counts.entry(cat.inner.name.clone()).or_insert(0) += 1;
                     continue 'outer;
                 }
                 Ok(false) => continue,
                 Err(e) => {
-                    log::warn!("Error matching category {:?}: {e}", cat.name);
+                    log::warn!("Error matching category {:?}: {e}", cat.inner.name);
                     continue;
                 }
             }
         }
     }
+    log::info!("categorize: regex matching loop: {:?}", t.elapsed());
 
     // Return in config order so the response is stable.
     let result = categories
