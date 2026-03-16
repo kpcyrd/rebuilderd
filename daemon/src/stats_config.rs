@@ -76,22 +76,28 @@ impl<'a> CompiledCategory<'a> {
         };
         let log_has_re = cat.log_has_re.as_deref().map(compile).transpose()?;
         let diff_has_re = cat.diff_has_re.as_deref().map(compile).transpose()?;
-        Ok(Self { inner: cat, log_has_re, diff_has_re })
+        Ok(Self {
+            inner: cat,
+            log_has_re,
+            diff_has_re,
+        })
     }
 
     pub fn matches(&self, log: &str, diff: &str, architecture: Option<&str>) -> Result<bool> {
         let cat = self.inner;
 
         if let Some(arch) = architecture {
-            if cat.exclude_architectures.iter().any(|x| arch.starts_with(x.as_str())) {
+            if cat
+                .exclude_architectures
+                .iter()
+                .any(|x| arch.starts_with(x.as_str()))
+            {
                 return Ok(false);
             }
         }
 
         // Helper: substitute {arch} with the actual architecture (or "" if unknown).
-        let sub = |s: &str| -> String {
-            s.replace("{arch}", architecture.unwrap_or(""))
-        };
+        let sub = |s: &str| -> String { s.replace("{arch}", architecture.unwrap_or("")) };
 
         if let Some(s) = &cat.log_has {
             return Ok(log.contains(sub(s).as_str()));
@@ -154,8 +160,7 @@ impl StatsConfigFile {
 // ---------------------------------------------------------------------------
 
 pub fn load(path: &Path) -> Result<StatsConfigFile> {
-    let buf =
-        fs::read_to_string(path).with_context(|| format!("Failed to read {:?}", path))?;
+    let buf = fs::read_to_string(path).with_context(|| format!("Failed to read {:?}", path))?;
     let cfg = toml::from_str::<StatsConfigFile>(&buf)
         .with_context(|| format!("Failed to parse {:?}", path))?;
     Ok(cfg)

@@ -2,7 +2,10 @@ use crate::api::v1::util::auth;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{NewStatsCategory, NewStatsSnapshot};
-use crate::schema::{build_inputs, build_logs, diffoscope_logs, rebuild_artifacts, rebuilds, source_packages, stats, stats_categories};
+use crate::schema::{
+    build_inputs, build_logs, diffoscope_logs, rebuild_artifacts, rebuilds, source_packages, stats,
+    stats_categories,
+};
 use crate::stats_config::{CompiledCategory, ErrorCategory, StatsConfigFile};
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, post};
@@ -12,7 +15,9 @@ use diesel::prelude::*;
 use diesel::sql_types::Integer;
 use diesel::{BoolExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
-use rebuilderd_common::api::v1::{ArtifactStatus, BuildStatus, StatsCategoryCount, StatsCollectRequest, StatsSnapshot};
+use rebuilderd_common::api::v1::{
+    ArtifactStatus, BuildStatus, StatsCategoryCount, StatsCollectRequest, StatsSnapshot,
+};
 use rebuilderd_common::errors::{Error, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -101,9 +106,17 @@ pub async fn get_stats(
 
     let rows = sql
         .limit(limit)
-        .get_results::<(i32, NaiveDateTime, Option<String>, Option<String>, Option<String>, i32, i32, i32, i32)>(
-            connection.as_mut(),
-        )
+        .get_results::<(
+            i32,
+            NaiveDateTime,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            i32,
+            i32,
+            i32,
+            i32,
+        )>(connection.as_mut())
         .map_err(Error::from)?;
 
     // Batch-load categories for all returned snapshots.
@@ -129,10 +142,23 @@ pub async fn get_stats(
 
     let snapshots: Vec<StatsSnapshot> = rows
         .into_iter()
-        .map(|(id, captured_at, distribution, release, architecture, good, bad, fail, unknown)| {
-            let categories = cats_by_snapshot.remove(&id).unwrap_or_default();
-            StatsSnapshot { id, captured_at, distribution, release, architecture, good, bad, fail, unknown, categories }
-        })
+        .map(
+            |(id, captured_at, distribution, release, architecture, good, bad, fail, unknown)| {
+                let categories = cats_by_snapshot.remove(&id).unwrap_or_default();
+                StatsSnapshot {
+                    id,
+                    captured_at,
+                    distribution,
+                    release,
+                    architecture,
+                    good,
+                    bad,
+                    fail,
+                    unknown,
+                    categories,
+                }
+            },
+        )
         .collect();
 
     Ok(HttpResponse::Ok().json(snapshots))
@@ -157,60 +183,55 @@ pub async fn collect_stats(
     let mut connection = pool.get().map_err(Error::from)?;
     let now = Utc::now().naive_utc();
 
-    let snapshots = if body.distribution.is_none()
-        && body.release.is_none()
-        && body.architecture.is_none()
-    {
-        // Enumerate all backends from the stats config (excluding "all"),
-        // then for each backend query the DB for distinct (release, architecture)
-        // combos and collect one snapshot per combo.
-        let backend_names: Vec<String> = stats_cfg
-            .backends
-            .keys()
-            .filter(|k| k.as_str() != "all")
-            .cloned()
-            .collect();
+    let snapshots =
+        if body.distribution.is_none() && body.release.is_none() && body.architecture.is_none() {
+            // Enumerate all backends from the stats config (excluding "all"),
+            // then for each backend query the DB for distinct (release, architecture)
+            // combos and collect one snapshot per combo.
+            let backend_names: Vec<String> = stats_cfg
+                .backends
+                .keys()
+                .filter(|k| k.as_str() != "all")
+                .cloned()
+                .collect();
 
-        let mut snapshots = Vec::new();
-        for backend in &backend_names {
-            let combos = query_combos_for_backend(connection.as_mut(), backend)
-                .map_err(Error::from)?;
-            for (release, architecture) in combos {
-                let snapshot = collect_one(
-                    connection.as_mut(),
-                    &stats_cfg,
-                    Some(backend.as_str()),
-                    release.as_deref(),
-                    Some(architecture.as_str()),
-                    Some(backend.as_str()),
-                    now,
-                )
-                .map_err(Error::from)?;
-                snapshots.push(snapshot);
+            let mut snapshots = Vec::new();
+            for backend in &backend_names {
+                let combos =
+                    query_combos_for_backend(connection.as_mut(), backend).map_err(Error::from)?;
+                for (release, architecture) in combos {
+                    let snapshot = collect_one(
+                        connection.as_mut(),
+                        &stats_cfg,
+                        Some(backend.as_str()),
+                        release.as_deref(),
+                        Some(architecture.as_str()),
+                        Some(backend.as_str()),
+                        now,
+                    )
+                    .map_err(Error::from)?;
+                    snapshots.push(snapshot);
+                }
             }
-        }
-        snapshots
-    } else {
-        // Single-combo mode: honour the explicit filters from the request body.
-        // If no backend was specified, fall back to using the distribution name.
-        let backend = body
-            .backend
-            .as_deref()
-            .or(body.distribution.as_deref());
+            snapshots
+        } else {
+            // Single-combo mode: honour the explicit filters from the request body.
+            // If no backend was specified, fall back to using the distribution name.
+            let backend = body.backend.as_deref().or(body.distribution.as_deref());
 
-        let snapshot = collect_one(
-            connection.as_mut(),
-            &stats_cfg,
-            body.distribution.as_deref(),
-            body.release.as_deref(),
-            body.architecture.as_deref(),
-            backend,
-            now,
-        )
-        .map_err(Error::from)?;
+            let snapshot = collect_one(
+                connection.as_mut(),
+                &stats_cfg,
+                body.distribution.as_deref(),
+                body.release.as_deref(),
+                body.architecture.as_deref(),
+                backend,
+                now,
+            )
+            .map_err(Error::from)?;
 
-        vec![snapshot]
-    };
+            vec![snapshot]
+        };
 
     Ok(HttpResponse::Ok().json(snapshots))
 }
@@ -227,10 +248,7 @@ fn query_combos_for_backend(
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.eq(distribution))
         .filter(source_packages::seen_in_last_sync.is(true))
-        .select((
-            source_packages::release,
-            build_inputs::architecture,
-        ))
+        .select((source_packages::release, build_inputs::architecture))
         .distinct()
         .get_results::<(Option<String>, String)>(connection)
         .map_err(Error::from)?;
@@ -254,18 +272,15 @@ fn collect_one(
         .inner_join(build_inputs::table)
         .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
         .left_join(
-            r2.on(r2
-                .field(rebuilds::build_input_id)
-                .is(build_inputs::id)
-                .and(
-                    r1.field(rebuilds::built_at)
-                        .lt(r2.field(rebuilds::built_at))
-                        .or(r1.fields(
-                            rebuilds::built_at
-                                .eq(r2.field(rebuilds::built_at))
-                                .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
-                        )),
-                )),
+            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
+                r1.field(rebuilds::built_at)
+                    .lt(r2.field(rebuilds::built_at))
+                    .or(r1.fields(
+                        rebuilds::built_at
+                            .eq(r2.field(rebuilds::built_at))
+                            .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
+                    )),
+            )),
         )
         .filter(r2.field(rebuilds::id).is_null())
         .filter(source_packages::seen_in_last_sync.is(true))
@@ -283,14 +298,35 @@ fn collect_one(
 
     let (good, bad, fail, unknown) = rebuild_sql
         .select((
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Good.as_str()), 1).otherwise(0)),
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Bad.as_str()),  1).otherwise(0)),
-            sum(case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq(BuildStatus::Fail.as_str()), 1).otherwise(0)),
             sum(case_when::<_, _, Integer>(
-                r1.field(rebuilds::status).nullable().eq(BuildStatus::Unknown.as_str())
+                r1.field(rebuilds::status)
+                    .nullable()
+                    .eq(BuildStatus::Good.as_str()),
+                1,
+            )
+            .otherwise(0)),
+            sum(case_when::<_, _, Integer>(
+                r1.field(rebuilds::status)
+                    .nullable()
+                    .eq(BuildStatus::Bad.as_str()),
+                1,
+            )
+            .otherwise(0)),
+            sum(case_when::<_, _, Integer>(
+                r1.field(rebuilds::status)
+                    .nullable()
+                    .eq(BuildStatus::Fail.as_str()),
+                1,
+            )
+            .otherwise(0)),
+            sum(case_when::<_, _, Integer>(
+                r1.field(rebuilds::status)
+                    .nullable()
+                    .eq(BuildStatus::Unknown.as_str())
                     .or(r1.field(rebuilds::status).nullable().is_null()),
                 1,
-            ).otherwise(0)),
+            )
+            .otherwise(0)),
         ))
         .get_result::<(Option<i64>, Option<i64>, Option<i64>, Option<i64>)>(connection)
         .map_err(Error::from)?;
@@ -314,40 +350,42 @@ fn collect_one(
     // ------------------------------------------------------------------
     // Insert snapshot and categories atomically
     // ------------------------------------------------------------------
-    let (snapshot_id, categories) = connection.transaction(|conn| {
-        let new_snapshot = NewStatsSnapshot {
-            captured_at: now,
-            distribution: distribution.map(str::to_owned),
-            release: release.map(str::to_owned),
-            architecture: architecture.map(str::to_owned),
-            good: good.unwrap_or(0) as i32,
-            bad: bad.unwrap_or(0) as i32,
-            fail: fail.unwrap_or(0) as i32,
-            unknown: unknown.unwrap_or(0) as i32,
-        };
+    let (snapshot_id, categories) = connection
+        .transaction(|conn| {
+            let new_snapshot = NewStatsSnapshot {
+                captured_at: now,
+                distribution: distribution.map(str::to_owned),
+                release: release.map(str::to_owned),
+                architecture: architecture.map(str::to_owned),
+                good: good.unwrap_or(0) as i32,
+                bad: bad.unwrap_or(0) as i32,
+                fail: fail.unwrap_or(0) as i32,
+                unknown: unknown.unwrap_or(0) as i32,
+            };
 
-        let id = new_snapshot.insert(conn).map_err(Error::from)?;
+            let id = new_snapshot.insert(conn).map_err(Error::from)?;
 
-        let category_rows: Vec<NewStatsCategory> = category_counts
-            .iter()
-            .map(|(cat, count)| NewStatsCategory {
-                stats_id: id,
-                category: cat.clone(),
-                count: *count,
-            })
-            .collect();
+            let category_rows: Vec<NewStatsCategory> = category_counts
+                .iter()
+                .map(|(cat, count)| NewStatsCategory {
+                    stats_id: id,
+                    category: cat.clone(),
+                    count: *count,
+                })
+                .collect();
 
-        if !category_rows.is_empty() {
-            NewStatsCategory::insert_batch(&category_rows, conn).map_err(Error::from)?;
-        }
+            if !category_rows.is_empty() {
+                NewStatsCategory::insert_batch(&category_rows, conn).map_err(Error::from)?;
+            }
 
-        let categories = category_counts
-            .into_iter()
-            .map(|(category, count)| StatsCategoryCount { category, count })
-            .collect();
+            let categories = category_counts
+                .into_iter()
+                .map(|(category, count)| StatsCategoryCount { category, count })
+                .collect();
 
-        Ok::<_, Error>((id, categories))
-    }).map_err(Error::from)?;
+            Ok::<_, Error>((id, categories))
+        })
+        .map_err(Error::from)?;
 
     Ok(StatsSnapshot {
         id: snapshot_id,
@@ -391,7 +429,9 @@ fn categorize_bad_packages(
     if let Some(arch) = architecture {
         latest_ids_query = latest_ids_query.filter(build_inputs::architecture.eq(arch));
     }
-    let latest_ids: Vec<i32> = latest_ids_query.load::<i32>(connection).map_err(Error::from)?;
+    let latest_ids: Vec<i32> = latest_ids_query
+        .load::<i32>(connection)
+        .map_err(Error::from)?;
 
     if latest_ids.is_empty() {
         return Ok(vec![]);
@@ -435,7 +475,10 @@ fn categorize_bad_packages(
     let diffoscope_rows = rebuild_artifacts::table
         .inner_join(diffoscope_logs::table)
         .filter(rebuild_artifacts::rebuild_id.eq_any(&rebuild_ids))
-        .select((rebuild_artifacts::rebuild_id, diffoscope_logs::diffoscope_log))
+        .select((
+            rebuild_artifacts::rebuild_id,
+            diffoscope_logs::diffoscope_log,
+        ))
         .load::<(i32, Vec<u8>)>(connection)
         .map_err(Error::from)?;
 

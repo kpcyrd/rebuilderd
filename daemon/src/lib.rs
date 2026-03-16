@@ -1,6 +1,6 @@
-use actix_cors::Cors;
 use crate::config::Config;
 use crate::stats_config::StatsConfigFile;
+use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::{Data, JsonConfig, scope};
