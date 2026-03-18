@@ -117,7 +117,11 @@ pub fn build_server(
     })
     .bind(&bind_addr)?;
 
-    let address = server.addrs()[0];
+    let address = server
+        .addrs()
+        .first()
+        .copied()
+        .context("Failed to determine bind address")?;
     Ok((server.run(), address))
 }
 
