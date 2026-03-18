@@ -10,7 +10,10 @@ use rstest::rstest;
 pub async fn returns_no_results_for_empty_database(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    let results = client.get_distributions().await.unwrap();
+    let results = client
+        .get_distribution_release_components(DUMMY_DISTRIBUTION, DUMMY_RELEASE)
+        .await
+        .unwrap();
     assert!(results.is_empty());
 
     isolated_server.shutdown().await;
