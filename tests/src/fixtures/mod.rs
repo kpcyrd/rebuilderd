@@ -90,19 +90,17 @@ pub fn isolated_server(
     )
     .unwrap();
 
-    let (server, pool, endpoint) = if !program_arguments.no_daemon {
-        let pool = {
-            let tmp_dir = TempDir::new().unwrap();
-            let database_path = tmp_dir.path().join("rebuilderd.db");
+    let (server, tmp_dir, endpoint) = if !program_arguments.no_daemon {
+        let tmp_dir = TempDir::new().unwrap();
+        let database_path = tmp_dir.path().join("rebuilderd.db");
 
-            db::setup_pool(database_path.to_str().unwrap()).unwrap()
-        };
+        let pool = db::setup_pool(database_path.to_str().unwrap()).unwrap();
 
         let mut server = ServerHolder::new(pool.clone(), config, private_key).unwrap();
         server.start().unwrap();
 
         let endpoint = format!("http://{}", server.address.to_string());
-        (Some(server), Some(pool), endpoint)
+        (Some(server), Some(tmp_dir), endpoint)
     } else {
         let addr = program_arguments.bind_addr;
         let endpoint = program_arguments
@@ -114,5 +112,5 @@ pub fn isolated_server(
 
     let client = make_client(config_file, endpoint);
 
-    IsolatedServer::new(server, pool, public_key, client)
+    IsolatedServer::new(server, tmp_dir, public_key, client)
 }

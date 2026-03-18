@@ -8,6 +8,7 @@ use std::io;
 use std::net::{SocketAddr, TcpStream};
 use std::thread;
 use std::time::Duration;
+use tempfile::TempDir;
 use tokio_util::task::AbortOnDropHandle;
 
 pub struct ServerHolder {
@@ -74,7 +75,7 @@ impl Drop for ServerHolder {
 
 pub struct IsolatedServer {
     server: Option<ServerHolder>,
-    pub database: Option<Pool>,
+    pub _tmp_dir: Option<TempDir>,
     pub public_key: PublicKey,
     pub client: Client,
 }
@@ -82,13 +83,13 @@ pub struct IsolatedServer {
 impl IsolatedServer {
     pub fn new(
         server: Option<ServerHolder>,
-        database: Option<Pool>,
+        tmp_dir: Option<TempDir>,
         public_key: PublicKey,
         client: Client,
     ) -> Self {
         Self {
             server,
-            database,
+            _tmp_dir: tmp_dir,
             public_key,
             client,
         }
