@@ -13,8 +13,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn can_requeue_bad_packages(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_requeue_bad_packages(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -33,12 +33,14 @@ pub async fn can_requeue_bad_packages(isolated_server: IsolatedServer) {
         })
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn requeued_packages_are_due_instantly(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn requeued_packages_are_due_instantly(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_rebuild_request(&client).await;
 
@@ -50,15 +52,17 @@ pub async fn requeued_packages_are_due_instantly(isolated_server: IsolatedServer
         .pop()
         .unwrap();
 
-    assert!(job.next_retry.unwrap() <= Utc::now().naive_utc())
+    assert!(job.next_retry.unwrap() <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn requeued_packages_are_queued_with_manual_priority_by_default(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_rebuild_request(&client).await;
 
@@ -70,13 +74,15 @@ pub async fn requeued_packages_are_queued_with_manual_priority_by_default(
         .pop()
         .unwrap();
 
-    assert_eq!(Priority::manual(), job.priority)
+    assert_eq!(Priority::manual(), job.priority);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_update_job_priority(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_update_job_priority(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_rebuild_request(&client).await;
 
@@ -102,13 +108,15 @@ pub async fn can_update_job_priority(isolated_server: IsolatedServer) {
         .pop()
         .unwrap();
 
-    assert_eq!(Priority::manual(), job.priority)
+    assert_eq!(Priority::manual(), job.priority);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     // zero out key
     client.auth_cookie("");
@@ -126,6 +134,8 @@ pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: Isola
         .await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -143,11 +153,11 @@ pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: Isola
     }, single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn does_not_requeue_friends(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     // first, a single package with a bad rebuild
     setup_single_bad_rebuild(&client).await;
@@ -182,15 +192,17 @@ pub async fn does_not_requeue_friends(
         .records;
 
     assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn can_requeue_package_beyond_max_retries(
     #[with(None, Some(1), None)] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_build_ready_database(&client).await;
 
@@ -228,4 +240,6 @@ pub async fn can_requeue_package_beyond_max_retries(
         .records;
 
     assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
 }

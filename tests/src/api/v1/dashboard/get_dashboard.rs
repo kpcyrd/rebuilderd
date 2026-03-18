@@ -6,8 +6,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_zero_sums_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_zero_sums_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -15,14 +15,16 @@ pub async fn returns_zero_sums_for_empty_database(isolated_server: IsolatedServe
     assert_eq!(0, result.rebuilds.fail);
     assert_eq!(0, result.rebuilds.good);
     assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_sums_for_database_with_unbuilt_package(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -32,12 +34,16 @@ pub async fn returns_correct_sums_for_database_with_unbuilt_package(
     assert_eq!(0, result.rebuilds.fail);
     assert_eq!(0, result.rebuilds.good);
     assert_eq!(1, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_correct_sums_for_database_with_good_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_correct_sums_for_database_with_good_package(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -47,12 +53,16 @@ pub async fn returns_correct_sums_for_database_with_good_package(isolated_server
     assert_eq!(0, result.rebuilds.fail);
     assert_eq!(1, result.rebuilds.good);
     assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_correct_sums_for_database_with_bad_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_correct_sums_for_database_with_bad_package(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -62,14 +72,16 @@ pub async fn returns_correct_sums_for_database_with_bad_package(isolated_server:
     assert_eq!(0, result.rebuilds.fail);
     assert_eq!(0, result.rebuilds.good);
     assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_sums_for_database_with_failed_package(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
@@ -79,24 +91,28 @@ pub async fn returns_correct_sums_for_database_with_failed_package(
     assert_eq!(1, result.rebuilds.fail);
     assert_eq!(0, result.rebuilds.good);
     assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_zero_job_counts_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_zero_job_counts_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let result = client.get_dashboard(None).await.unwrap();
 
     assert_eq!(0, result.jobs.available);
     assert_eq!(0, result.jobs.pending);
     assert_eq!(0, result.jobs.running);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_correct_job_counts_for_unbuilt_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_correct_job_counts_for_unbuilt_package(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -105,12 +121,14 @@ pub async fn returns_correct_job_counts_for_unbuilt_package(isolated_server: Iso
     assert_eq!(1, result.jobs.available);
     assert_eq!(0, result.jobs.pending);
     assert_eq!(0, result.jobs.running);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_correct_job_counts_for_failed_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_correct_job_counts_for_failed_package(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -119,12 +137,16 @@ pub async fn returns_correct_job_counts_for_failed_package(isolated_server: Isol
     assert_eq!(0, result.jobs.available);
     assert_eq!(1, result.jobs.pending);
     assert_eq!(0, result.jobs.running);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_correct_jobs_counts_for_package_in_progress(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_correct_jobs_counts_for_package_in_progress(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_rebuild_in_progress(&client).await;
 
@@ -133,12 +155,14 @@ pub async fn returns_correct_jobs_counts_for_package_in_progress(isolated_server
     assert_eq!(0, result.jobs.available);
     assert_eq!(0, result.jobs.pending);
     assert_eq!(1, result.jobs.running);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -150,4 +174,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_dashboard(None).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

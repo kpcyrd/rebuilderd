@@ -6,8 +6,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn can_ping_running_job(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_ping_running_job(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -15,11 +15,14 @@ pub async fn can_ping_running_job(isolated_server: IsolatedServer) {
     let job = pick_up_job(&client).await;
 
     client.ping_job(job.job.id).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
+
 #[rstest]
 #[tokio::test]
-pub async fn can_not_ping_available_job(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_not_ping_available_job(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -29,12 +32,14 @@ pub async fn can_not_ping_available_job(isolated_server: IsolatedServer) {
     let result = client.ping_job(job.id).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_not_ping_nonexistent_job(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_not_ping_nonexistent_job(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -42,12 +47,14 @@ pub async fn can_not_ping_nonexistent_job(isolated_server: IsolatedServer) {
     let result = client.ping_job(99999).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -57,4 +64,6 @@ pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: Isol
     let result = client.ping_job(1).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }

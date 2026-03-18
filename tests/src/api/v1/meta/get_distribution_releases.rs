@@ -7,22 +7,24 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_results_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_results_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let results = client
         .get_distribution_releases(DUMMY_DISTRIBUTION)
         .await
         .unwrap();
     assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_result_for_distribution_with_single_release(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -33,14 +35,16 @@ pub async fn returns_correct_result_for_distribution_with_single_release(
 
     assert_eq!(1, results.len());
     assert_eq!(DUMMY_RELEASE, results[0]);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_results_for_distribution_with_multiple_releases(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
     client
@@ -57,12 +61,14 @@ pub async fn returns_correct_results_for_distribution_with_multiple_releases(
 
     assert!(results.contains(&DUMMY_RELEASE.to_string()));
     assert!(results.contains(&DUMMY_OTHER_RELEASE.to_string()));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -74,4 +80,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_distribution_releases(DUMMY_DISTRIBUTION).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

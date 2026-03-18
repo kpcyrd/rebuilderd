@@ -13,8 +13,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -27,12 +27,14 @@ pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: Isol
     let result = client.submit_build_report(report).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_report_failed_rebuild(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_report_failed_rebuild(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -41,12 +43,16 @@ pub async fn can_report_failed_rebuild(isolated_server: IsolatedServer) {
     let report = failed_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn source_package_is_marked_failed_after_failed_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn source_package_is_marked_failed_after_failed_report(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
@@ -58,13 +64,17 @@ pub async fn source_package_is_marked_failed_after_failed_report(isolated_server
         .pop()
         .unwrap();
 
-    assert_eq!(Some(BuildStatus::Fail), package.status)
+    assert_eq!(Some(BuildStatus::Fail), package.status);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn binary_package_is_marked_unknown_after_failed_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn binary_package_is_marked_unknown_after_failed_report(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
@@ -76,13 +86,15 @@ pub async fn binary_package_is_marked_unknown_after_failed_report(isolated_serve
         .pop()
         .unwrap();
 
-    assert!(package.status.is_none_or(|v| v == ArtifactStatus::Unknown))
+    assert!(package.status.is_none_or(|v| v == ArtifactStatus::Unknown));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn package_is_requeued_after_failed_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn package_is_requeued_after_failed_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
@@ -93,12 +105,16 @@ pub async fn package_is_requeued_after_failed_report(isolated_server: IsolatedSe
         .records;
 
     assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn requeued_job_after_failed_report_has_correct_data(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn requeued_job_after_failed_report_has_correct_data(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
@@ -118,12 +134,14 @@ pub async fn requeued_job_after_failed_report_has_correct_data(isolated_server: 
     assert_eq!(Priority::retry(), job.priority);
     assert_eq!(None, job.started_at);
     assert!(job.queued_at <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_report_bad_rebuild(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_report_bad_rebuild(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -132,12 +150,14 @@ pub async fn can_report_bad_rebuild(isolated_server: IsolatedServer) {
     let report = bad_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn source_package_is_marked_bad_after_bad_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn source_package_is_marked_bad_after_bad_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -149,13 +169,15 @@ pub async fn source_package_is_marked_bad_after_bad_report(isolated_server: Isol
         .pop()
         .unwrap();
 
-    assert_eq!(Some(BuildStatus::Bad), package.status)
+    assert_eq!(Some(BuildStatus::Bad), package.status);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn binary_package_is_marked_bad_after_bad_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn binary_package_is_marked_bad_after_bad_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -167,13 +189,15 @@ pub async fn binary_package_is_marked_bad_after_bad_report(isolated_server: Isol
         .pop()
         .unwrap();
 
-    assert_eq!(Some(ArtifactStatus::Bad), package.status)
+    assert_eq!(Some(ArtifactStatus::Bad), package.status);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn package_is_requeued_after_bad_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn package_is_requeued_after_bad_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -184,12 +208,14 @@ pub async fn package_is_requeued_after_bad_report(isolated_server: IsolatedServe
         .records;
 
     assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn requeued_job_after_bad_report_has_correct_data(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn requeued_job_after_bad_report_has_correct_data(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
@@ -209,15 +235,17 @@ pub async fn requeued_job_after_bad_report_has_correct_data(isolated_server: Iso
     assert_eq!(Priority::retry(), job.priority);
     assert_eq!(None, job.started_at);
     assert!(job.queued_at <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn package_is_not_requeued_if_max_retries_is_exceeded(
     #[with(None, Some(1), None)] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -230,12 +258,14 @@ pub async fn package_is_not_requeued_if_max_retries_is_exceeded(
         .records;
 
     assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_report_good_rebuild(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_report_good_rebuild(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -244,12 +274,14 @@ pub async fn can_report_good_rebuild(isolated_server: IsolatedServer) {
     let report = good_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn source_package_is_marked_good_after_good_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn source_package_is_marked_good_after_good_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -261,13 +293,15 @@ pub async fn source_package_is_marked_good_after_good_report(isolated_server: Is
         .pop()
         .unwrap();
 
-    assert_eq!(Some(BuildStatus::Good), package.status)
+    assert_eq!(Some(BuildStatus::Good), package.status);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn binary_package_is_marked_good_after_good_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn binary_package_is_marked_good_after_good_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -279,13 +313,15 @@ pub async fn binary_package_is_marked_good_after_good_report(isolated_server: Is
         .pop()
         .unwrap();
 
-    assert_eq!(Some(ArtifactStatus::Good), package.status)
+    assert_eq!(Some(ArtifactStatus::Good), package.status);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn package_is_not_requeued_after_good_report(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn package_is_not_requeued_after_good_report(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -295,13 +331,15 @@ pub async fn package_is_not_requeued_after_good_report(isolated_server: Isolated
         .unwrap()
         .records;
 
-    assert!(jobs.is_empty())
+    assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_report_good_rebuild_with_signed_attestation(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_report_good_rebuild_with_signed_attestation(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -310,12 +348,16 @@ pub async fn can_report_good_rebuild_with_signed_attestation(isolated_server: Is
     let report = good_rebuild_report_with_signed_attestation(&job).await;
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_report_good_rebuild_with_unsigned_attestation(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_report_good_rebuild_with_unsigned_attestation(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -324,4 +366,6 @@ pub async fn can_report_good_rebuild_with_unsigned_attestation(isolated_server: 
     let report = good_rebuild_report_with_unsigned_attestation(&job).await;
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
 }

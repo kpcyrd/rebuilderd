@@ -10,8 +10,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_results_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_results_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let results = client
         .get_builds(None, None, None)
@@ -19,13 +19,17 @@ pub async fn returns_no_results_for_empty_database(isolated_server: IsolatedServ
         .map(|p| p.records)
         .unwrap();
 
-    assert!(results.is_empty())
+    assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_single_result_for_database_with_single_build(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_single_result_for_database_with_single_build(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -35,15 +39,17 @@ pub async fn returns_single_result_for_database_with_single_build(isolated_serve
         .map(|p| p.records)
         .unwrap();
 
-    assert_eq!(1, results.len())
+    assert_eq!(1, results.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_multiple_results_for_database_with_multiple_builds(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
     request_rebuild_of_all_bad_packages(&client).await;
@@ -55,13 +61,15 @@ pub async fn returns_multiple_results_for_database_with_multiple_builds(
         .map(|p| p.records)
         .unwrap();
 
-    assert_eq!(2, results.len())
+    assert_eq!(2, results.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -73,12 +81,14 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_builds(None, None, None).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_paginate(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_paginate(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
     request_rebuild_of_all_bad_packages(&client).await;
@@ -121,6 +131,8 @@ pub async fn can_paginate(isolated_server: IsolatedServer) {
         .unwrap();
 
     assert!(next_page.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -171,13 +183,13 @@ pub async fn can_paginate(isolated_server: IsolatedServer) {
     2)]
 #[tokio::test]
 pub async fn returns_result_for_matching_origin_filter(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
     #[case] is_friend: bool,
     #[case] expected_count: usize,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
     setup_single_imported_package(&client).await;
 
     register_worker(&client).await;
@@ -215,6 +227,8 @@ pub async fn returns_result_for_matching_origin_filter(
     if let Some(architecture) = origin_filter.architecture {
         assert_eq!(architecture, build.architecture);
     }
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -245,11 +259,11 @@ pub async fn returns_result_for_matching_origin_filter(
     2)]
 #[tokio::test]
 pub async fn returns_result_for_matching_identity_filter(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] identity_filter: IdentityFilter,
     #[case] expected_count: usize,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_multiple_imported_packages(&client).await;
 
@@ -277,4 +291,6 @@ pub async fn returns_result_for_matching_identity_filter(
             assert_eq!(version, package.version);
         }
     }
+
+    isolated_server.shutdown().await;
 }

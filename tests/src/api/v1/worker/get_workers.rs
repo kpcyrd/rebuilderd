@@ -7,34 +7,38 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_results_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_results_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let results = client.get_workers(None).await.unwrap().records;
 
     assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_single_result_for_database_with_single_worker(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
 
     let results = client.get_workers(None).await.unwrap().records;
 
     assert_eq!(1, results.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_multiple_results_for_database_with_multiple_workers(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let mut client = isolated_server.client;
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
 
@@ -46,12 +50,14 @@ pub async fn returns_multiple_results_for_database_with_multiple_workers(
     let results = client.get_workers(None).await.unwrap().records;
 
     assert_eq!(2, results.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
 
@@ -63,4 +69,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_workers(None).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

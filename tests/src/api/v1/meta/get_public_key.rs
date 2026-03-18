@@ -6,8 +6,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_valid_key(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_valid_key(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let mut results = client.get_public_keys().await.unwrap().current;
 
@@ -17,12 +17,14 @@ pub async fn returns_valid_key(isolated_server: IsolatedServer) {
     let key_as_pem = pubkey_to_pem(&isolated_server.public_key).unwrap();
 
     assert_eq!(key_as_pem, result);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     // zero out keys
     client.auth_cookie("");
@@ -32,4 +34,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_public_keys().await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

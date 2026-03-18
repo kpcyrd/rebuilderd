@@ -6,8 +6,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn worker_can_sign_up(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn worker_can_sign_up(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     client
         .register_worker(RegisterWorkerRequest {
@@ -15,12 +15,14 @@ pub async fn worker_can_sign_up(isolated_server: IsolatedServer) {
         })
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_signup_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_signup_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     // zero out key
     client.signup_secret("");
@@ -31,4 +33,6 @@ pub async fn fails_if_no_signup_authentication_is_provided(isolated_server: Isol
         .await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }

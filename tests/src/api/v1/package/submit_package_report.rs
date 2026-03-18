@@ -14,31 +14,37 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     // zero out key
     client.auth_cookie("");
     let result = client.submit_package_report(&single_package_report()).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_submit_package_report_with_single_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_submit_package_report_with_single_package(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn has_correct_packages_after_import_of_single_packages(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn has_correct_packages_after_import_of_single_packages(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     let report = single_package_report();
 
@@ -65,26 +71,31 @@ pub async fn has_correct_packages_after_import_of_single_packages(isolated_serve
 
     let binary_package = binary_packages.pop().unwrap();
     assert_binary_package_is_in_report(&binary_package, &report);
+
+    isolated_server.shutdown().await;
 }
+
 #[rstest]
 #[tokio::test]
 pub async fn can_submit_package_report_with_single_package_with_multiple_artifacts(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_with_multiple_artifacts_report())
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn has_correct_artifacts_after_import_of_single_package_with_multiple_artifacts(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     let report = single_package_with_multiple_artifacts_report();
 
@@ -112,25 +123,29 @@ pub async fn has_correct_artifacts_after_import_of_single_package_with_multiple_
     for package in binary_packages {
         assert_binary_package_is_in_report(&package, &report);
     }
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn can_submit_package_report_with_multiple_packages(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn can_submit_package_report_with_multiple_packages(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&multiple_package_report())
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn has_correct_packages_after_import_of_multiple_packages(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     let report = multiple_package_report();
 
@@ -158,12 +173,14 @@ pub async fn has_correct_packages_after_import_of_multiple_packages(
     for package in binary_packages {
         assert_binary_package_is_in_report(&package, &report);
     }
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn job_is_queued_after_import_of_new_package(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn job_is_queued_after_import_of_new_package(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -173,13 +190,15 @@ pub async fn job_is_queued_after_import_of_new_package(isolated_server: Isolated
         .unwrap()
         .records;
 
-    assert_eq!(jobs.len(), 1)
+    assert_eq!(jobs.len(), 1);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn queued_job_from_new_package_has_correct_data(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn queued_job_from_new_package_has_correct_data(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let package_report = single_package_report();
     client.submit_package_report(&package_report).await.unwrap();
@@ -199,14 +218,16 @@ pub async fn queued_job_from_new_package_has_correct_data(isolated_server: Isola
     assert_eq!(Priority::default(), job.priority);
     assert_eq!(None, job.started_at);
     assert!(job.queued_at <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn job_is_queued_after_import_of_new_package_with_multiple_artifacts(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package_with_multiple_artifacts(&client).await;
 
@@ -216,15 +237,17 @@ pub async fn job_is_queued_after_import_of_new_package_with_multiple_artifacts(
         .unwrap()
         .records;
 
-    assert_eq!(jobs.len(), 1)
+    assert_eq!(jobs.len(), 1);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn queued_job_from_new_package_with_multiple_artifacts_has_correct_data(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     let package_report = single_package_with_multiple_artifacts_report();
     client.submit_package_report(&package_report).await.unwrap();
@@ -244,12 +267,14 @@ pub async fn queued_job_from_new_package_with_multiple_artifacts_has_correct_dat
     assert_eq!(Priority::default(), job.priority);
     assert_eq!(None, job.started_at);
     assert!(job.queued_at <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn additional_job_is_not_queued_after_reimport(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn additional_job_is_not_queued_after_reimport(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
     import_single_package(&client).await;
@@ -260,13 +285,17 @@ pub async fn additional_job_is_not_queued_after_reimport(isolated_server: Isolat
         .unwrap()
         .records;
 
-    assert_eq!(jobs.len(), 1)
+    assert_eq!(jobs.len(), 1);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn queued_job_from_reimported_package_has_correct_data(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn queued_job_from_reimported_package_has_correct_data(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     let package_report = single_package_report();
     client.submit_package_report(&package_report).await.unwrap();
@@ -286,15 +315,17 @@ pub async fn queued_job_from_reimported_package_has_correct_data(isolated_server
     assert_eq!(Priority::default(), job.priority);
     assert_eq!(None, job.started_at);
     assert!(job.queued_at <= Utc::now().naive_utc());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn initial_delay_sets_next_retry_correctly_for_new_packages(
     #[with(None, None, Some(60))] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
@@ -313,15 +344,17 @@ pub async fn initial_delay_sets_next_retry_correctly_for_new_packages(
 
     let difference = job.next_retry.unwrap() - job.queued_at;
     assert_eq!(config_file.schedule.initial_delay(), difference);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn initial_delay_does_not_affect_existing_packages(
     #[with(None, None, Some(60))] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
@@ -360,14 +393,16 @@ pub async fn initial_delay_does_not_affect_existing_packages(
 
     let difference = job.next_retry.unwrap() - old_queued_at;
     assert_eq!(config_file.schedule.initial_delay(), difference);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn importing_the_same_package_multiple_times_is_idempotent(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     let report = single_package_report();
 
@@ -397,12 +432,16 @@ pub async fn importing_the_same_package_multiple_times_is_idempotent(
 
     let binary_package = binary_packages.pop().unwrap();
     assert_binary_package_is_in_report(&binary_package, &report);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn friend_source_packages_are_imported_independently(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn friend_source_packages_are_imported_independently(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
@@ -421,12 +460,16 @@ pub async fn friend_source_packages_are_imported_independently(isolated_server: 
         .records;
 
     assert_eq!(2, source_packages.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn friend_binary_packages_are_imported_independently(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn friend_binary_packages_are_imported_independently(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
@@ -445,6 +488,8 @@ pub async fn friend_binary_packages_are_imported_independently(isolated_server: 
         .records;
 
     assert_eq!(2, binary_packages.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -462,11 +507,11 @@ pub async fn friend_binary_packages_are_imported_independently(isolated_server: 
     }, single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn existing_rebuilds_are_copied_from_friends(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
     setup_single_good_rebuild(&client).await;
@@ -489,6 +534,8 @@ pub async fn existing_rebuilds_are_copied_from_friends(
 
     let rebuild = rebuilds.pop().unwrap();
     assert_eq!(BuildStatus::Good, rebuild.status.unwrap());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -507,11 +554,11 @@ pub async fn existing_rebuilds_are_copied_from_friends(
     }, single_package_report_from_different_architecture())]
 #[tokio::test]
 pub async fn existing_rebuilds_are_not_copied_from_nonfriends(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
     setup_single_good_rebuild(&client).await;
@@ -531,12 +578,14 @@ pub async fn existing_rebuilds_are_not_copied_from_nonfriends(
         .records;
 
     assert!(rebuilds.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn next_retry_is_not_set_for_new_packages(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn next_retry_is_not_set_for_new_packages(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     client
         .submit_package_report(&single_package_report())
@@ -552,12 +601,14 @@ pub async fn next_retry_is_not_set_for_new_packages(isolated_server: IsolatedSer
         .unwrap();
 
     assert!(job.next_retry.is_none());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn next_retry_is_unchanged_for_reimports(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn next_retry_is_unchanged_for_reimports(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     // one bad rebuild, which gets next_retry set
     setup_single_bad_rebuild(&client).await;
@@ -584,6 +635,8 @@ pub async fn next_retry_is_unchanged_for_reimports(isolated_server: IsolatedServ
         .unwrap();
 
     assert_eq!(old_job.next_retry, job.next_retry);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -601,11 +654,11 @@ pub async fn next_retry_is_unchanged_for_reimports(isolated_server: IsolatedServ
     }, single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn retry_count_is_independent_of_friends(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     // one bad rebuild, which would have a retry count of 1
     setup_single_bad_rebuild(&client).await;
@@ -623,6 +676,8 @@ pub async fn retry_count_is_independent_of_friends(
 
     let build = builds.pop().unwrap();
     assert_eq!(0, build.retries);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -640,11 +695,11 @@ pub async fn retry_count_is_independent_of_friends(
     }, single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn package_is_not_queued_if_any_friend_is_marked_good(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -656,6 +711,8 @@ pub async fn package_is_not_queued_if_any_friend_is_marked_good(
         .unwrap()
         .records;
     assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -673,11 +730,11 @@ pub async fn package_is_not_queued_if_any_friend_is_marked_good(
     }, single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn package_is_not_queued_if_any_friend_is_already_queued(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -697,6 +754,8 @@ pub async fn package_is_not_queued_if_any_friend_is_already_queued(
         .records;
 
     assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -715,11 +774,11 @@ pub async fn package_is_not_queued_if_any_friend_is_already_queued(
 #[tokio::test]
 pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
     #[with(None, Some(1), None)] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_build_ready_database(&client).await;
 
@@ -746,12 +805,14 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
         .records;
 
     assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn drops_available_jobs_not_in_current_sync(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn drops_available_jobs_not_in_current_sync(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     import_single_package(&client).await;
 
@@ -772,12 +833,14 @@ pub async fn drops_available_jobs_not_in_current_sync(isolated_server: IsolatedS
         .records;
 
     assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn enqueues_jobs_for_all_packages_in_sync(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn enqueues_jobs_for_all_packages_in_sync(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     import_multiple_packages(&client).await;
 
@@ -788,4 +851,6 @@ pub async fn enqueues_jobs_for_all_packages_in_sync(isolated_server: IsolatedSer
         .records;
 
     assert_eq!(2, jobs.len());
+
+    isolated_server.shutdown().await;
 }

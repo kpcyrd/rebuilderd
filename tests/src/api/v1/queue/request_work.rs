@@ -11,42 +11,49 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn new_database_has_no_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn new_database_has_no_work(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_registered_worker(&client).await;
 
     let job = client.request_work(job_request()).await.unwrap();
 
-    assert!(matches!(job, JobAssignment::Nothing))
+    assert!(matches!(job, JobAssignment::Nothing));
+
+    isolated_server.shutdown().await;
 }
+
 #[rstest]
 #[tokio::test]
-pub async fn unregistered_worker_cannot_request_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn unregistered_worker_cannot_request_work(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let result = client.request_work(job_request()).await;
 
-    assert!(result.is_err())
+    assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn registered_worker_can_request_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn registered_worker_can_request_work(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
 
     let job = client.request_work(job_request()).await.unwrap();
 
-    assert!(matches!(job, JobAssignment::Rebuild(_)))
+    assert!(matches!(job, JobAssignment::Rebuild(_)));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -56,12 +63,14 @@ pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: Isol
     let result = client.request_work(job_request()).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn worker_with_incompatible_backend_gets_no_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn worker_with_incompatible_backend_gets_no_work(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -74,13 +83,17 @@ pub async fn worker_with_incompatible_backend_gets_no_work(isolated_server: Isol
         .await
         .unwrap();
 
-    assert!(matches!(job, JobAssignment::Nothing))
+    assert!(matches!(job, JobAssignment::Nothing));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn worker_with_incompatible_architecture_gets_no_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn worker_with_incompatible_architecture_gets_no_work(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -93,13 +106,17 @@ pub async fn worker_with_incompatible_architecture_gets_no_work(isolated_server:
         .await
         .unwrap();
 
-    assert!(matches!(job, JobAssignment::Nothing))
+    assert!(matches!(job, JobAssignment::Nothing));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn worker_with_different_native_architecture_gets_work(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn worker_with_different_native_architecture_gets_work(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -112,16 +129,18 @@ pub async fn worker_with_different_native_architecture_gets_work(isolated_server
         .await
         .unwrap();
 
-    assert!(matches!(job, JobAssignment::Rebuild(_)))
+    assert!(matches!(job, JobAssignment::Rebuild(_)));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn manually_queued_item_past_max_retries_is_available(
     #[with(None, Some(1), None)] config_file: ConfigFile,
-    #[with(config_file.clone())] isolated_server: IsolatedServer,
+    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_build_ready_database(&client).await;
 
@@ -149,4 +168,6 @@ pub async fn manually_queued_item_past_max_retries_is_available(
 
     let job = client.request_work(job_request()).await.unwrap();
     assert!(matches!(job, JobAssignment::Rebuild(_)));
+
+    isolated_server.shutdown().await;
 }

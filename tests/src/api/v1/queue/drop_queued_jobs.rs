@@ -11,16 +11,18 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn does_nothing_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn does_nothing_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     client.drop_queued_jobs(None, None).await.unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn drops_all_jobs_if_no_filters_are_specified(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn drops_all_jobs_if_no_filters_are_specified(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     import_multiple_packages(&client).await;
 
@@ -33,12 +35,14 @@ pub async fn drops_all_jobs_if_no_filters_are_specified(isolated_server: Isolate
         .records;
 
     assert!(jobs.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     import_multiple_packages(&client).await;
 
@@ -47,6 +51,8 @@ pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: Isola
     let result = client.drop_queued_jobs(None, None).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -65,11 +71,11 @@ pub async fn fails_if_no_admin_authentication_is_provided(isolated_server: Isola
     }, single_package_report_from_different_architecture())]
 #[tokio::test]
 pub async fn drops_correct_job_for_matching_origin_filter(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     let report = single_package_report();
     client.submit_package_report(&report).await.unwrap();
@@ -99,6 +105,8 @@ pub async fn drops_correct_job_for_matching_origin_filter(
     assert_eq!(1, jobs.len());
 
     assert_job_matches_package(&report, &report.packages[0], &jobs[0]);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
@@ -120,10 +128,10 @@ pub async fn drops_correct_job_for_matching_origin_filter(
     })]
 #[tokio::test]
 pub async fn drops_correct_job_for_matching_identity_filter(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
     #[case] identity_filter: IdentityFilter,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_multiple_imported_packages(&client).await;
 
@@ -149,4 +157,6 @@ pub async fn drops_correct_job_for_matching_identity_filter(
     if let Some(version) = identity_filter.version {
         assert_ne!(version, job.version);
     }
+
+    isolated_server.shutdown().await;
 }

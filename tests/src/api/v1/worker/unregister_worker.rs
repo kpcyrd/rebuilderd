@@ -8,8 +8,8 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn unregisters_worker_correctly(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn unregisters_worker_correctly(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
 
@@ -18,12 +18,14 @@ pub async fn unregisters_worker_correctly(isolated_server: IsolatedServer) {
     let workers = client.get_workers(None).await.unwrap().records;
 
     assert!(workers.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_unregister_other_workers(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_unregister_other_workers(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
 
@@ -38,24 +40,28 @@ pub async fn does_not_unregister_other_workers(isolated_server: IsolatedServer) 
 
     assert_eq!(1, workers.len());
     assert_eq!(DUMMY_OTHER_WORKER, workers[0].name);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_worker_does_not_exist(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn fails_if_worker_does_not_exist(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
 
     let result = client.unregister_worker(9999).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
 
@@ -64,4 +70,6 @@ pub async fn fails_if_no_worker_authentication_is_provided(isolated_server: Isol
     let result = client.unregister_worker(1).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }

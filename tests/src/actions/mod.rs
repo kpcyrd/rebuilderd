@@ -1,8 +1,8 @@
 use crate::data::*;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    BuildRestApi, BuildStatus, JobAssignment, PackageRestApi, PopQueuedJobRequest, Priority,
-    QueueJobRequest, QueueRestApi, QueuedJobWithArtifacts, RegisterWorkerRequest, WorkerRestApi,
+    BuildRestApi, BuildStatus, JobAssignment, PackageRestApi, PopQueuedJobRequest, QueueJobRequest,
+    QueueRestApi, QueuedJobWithArtifacts, RegisterWorkerRequest, WorkerRestApi,
 };
 
 pub async fn register_worker(client: &Client) {

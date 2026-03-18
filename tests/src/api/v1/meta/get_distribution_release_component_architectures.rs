@@ -7,19 +7,21 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_results_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_results_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let results = client.get_distributions().await.unwrap();
     assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_result_for_component_with_single_architecture(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -34,14 +36,16 @@ pub async fn returns_correct_result_for_component_with_single_architecture(
 
     assert_eq!(1, results.len());
     assert_eq!(DUMMY_ARCHITECTURE, results[0]);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn returns_correct_results_for_component_with_multiple_architectures(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     setup_single_imported_package(&client).await;
     client
@@ -62,12 +66,14 @@ pub async fn returns_correct_results_for_component_with_multiple_architectures(
 
     assert!(results.contains(&DUMMY_ARCHITECTURE.to_string()));
     assert!(results.contains(&DUMMY_OTHER_ARCHITECTURE.to_string()));
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     setup_single_imported_package(&client).await;
 
@@ -85,4 +91,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
         .await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

@@ -9,30 +9,36 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_result_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_result_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 
-    assert!(results.is_err())
+    assert!(results.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_result_for_failed_build(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_result_for_failed_build(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 
-    assert!(results.is_err())
+    assert!(results.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_result_for_good_build_without_attestation(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_result_for_good_build_without_attestation(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
 
     import_single_package(&client).await;
     register_worker(&client).await;
@@ -40,13 +46,15 @@ pub async fn returns_no_result_for_good_build_without_attestation(isolated_serve
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 
-    assert!(results.is_err())
+    assert!(results.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -60,14 +68,16 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_build_artifact_attestation(1, 1).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn artifact_has_attestation_for_good_build_with_signed_attestation(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -95,14 +105,16 @@ pub async fn artifact_has_attestation_for_good_build_with_signed_attestation(
         .get_build_artifact_attestation(build_id, artifact_id)
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
 pub async fn artifact_has_attestation_for_good_build_with_unsigned_attestation(
-    isolated_server: IsolatedServer,
+    mut isolated_server: IsolatedServer,
 ) {
-    let client = isolated_server.client;
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -130,12 +142,14 @@ pub async fn artifact_has_attestation_for_good_build_with_unsigned_attestation(
         .get_build_artifact_attestation(build_id, artifact_id)
         .await
         .unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn attestation_is_signed_by_server(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn attestation_is_signed_by_server(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -169,12 +183,14 @@ pub async fn attestation_is_signed_by_server(isolated_server: IsolatedServer) {
     }
 
     attestation.verify(1, &keys).unwrap();
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn server_transparently_signs_attestations(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn server_transparently_signs_attestations(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     register_worker(&client).await;
     import_single_package(&client).await;
@@ -208,4 +224,6 @@ pub async fn server_transparently_signs_attestations(isolated_server: IsolatedSe
     }
 
     attestation.verify(1, &keys).unwrap();
+
+    isolated_server.shutdown().await;
 }

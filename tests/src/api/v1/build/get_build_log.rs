@@ -7,42 +7,48 @@ use rstest::rstest;
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_no_result_for_empty_database(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_no_result_for_empty_database(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     let result = client.get_build_log(1).await;
 
     assert!(result.is_err());
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_result_for_failed_build(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_result_for_failed_build(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_failed_rebuild(&client).await;
 
     let result = client.get_build_log(1).await.unwrap();
 
     assert_eq!(DUMMY_BUILD_LOG, result);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn returns_result_for_bad_build(isolated_server: IsolatedServer) {
-    let client = isolated_server.client;
+pub async fn returns_result_for_bad_build(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
 
     setup_single_bad_rebuild(&client).await;
 
     let result = client.get_build_log(1).await.unwrap();
 
     assert_eq!(DUMMY_BUILD_LOG, result);
+
+    isolated_server.shutdown().await;
 }
 
 #[rstest]
 #[tokio::test]
-pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
-    let mut client = isolated_server.client;
+pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
+    let client = &mut isolated_server.client;
 
     setup_single_good_rebuild(&client).await;
 
@@ -54,4 +60,6 @@ pub async fn does_not_need_authentication(isolated_server: IsolatedServer) {
     let result = client.get_build_log(1).await;
 
     assert!(result.is_ok());
+
+    isolated_server.shutdown().await;
 }

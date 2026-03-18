@@ -4,14 +4,16 @@ use rebuilderd::config::Config;
 use rebuilderd::db::Pool;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::bail;
+use std::io;
 use std::net::{SocketAddr, TcpStream};
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use tokio_util::task::AbortOnDropHandle;
 
 pub struct ServerHolder {
     server: Option<Server>,
-    server_handle: Mutex<Option<ServerHandle>>,
+    server_handle: Option<ServerHandle>,
+    join: Option<AbortOnDropHandle<io::Result<()>>>,
     pub address: SocketAddr,
 }
 
@@ -25,7 +27,8 @@ impl ServerHolder {
 
         Ok(Self {
             server: Some(server),
-            server_handle: Mutex::default(),
+            server_handle: None,
+            join: None,
             address,
         })
     }
@@ -33,9 +36,9 @@ impl ServerHolder {
     pub fn start(&mut self) -> rebuilderd_common::errors::Result<()> {
         if let Some(server) = self.server.take() {
             let handle = server.handle();
-            self.server_handle = Mutex::new(Some(handle));
+            self.server_handle = Some(handle);
 
-            tokio::spawn(server);
+            self.join = Some(AbortOnDropHandle::new(tokio::spawn(server)));
 
             for _ in 0..100 {
                 if TcpStream::connect(self.address).is_ok() {
@@ -50,19 +53,27 @@ impl ServerHolder {
             bail!("can't start the server more than once")
         }
     }
+
+    pub async fn shutdown(mut self) {
+        if let Some(server_handle) = self.server_handle.take() {
+            server_handle.stop(false).await;
+        }
+        if let Some(join) = self.join.take() {
+            join.await.unwrap().unwrap();
+        }
+    }
 }
 
 impl Drop for ServerHolder {
     fn drop(&mut self) {
-        if let Some(server_handle) = self.server_handle.lock().unwrap().as_ref() {
-            #[allow(clippy::let_underscore_future)]
-            let _ = server_handle.stop(true);
+        if self.server_handle.is_some() {
+            panic!("IsolatedServer::shutdown wasn't called");
         }
     }
 }
 
 pub struct IsolatedServer {
-    _server: Option<ServerHolder>,
+    server: Option<ServerHolder>,
     pub database: Option<Pool>,
     pub public_key: PublicKey,
     pub client: Client,
@@ -76,10 +87,16 @@ impl IsolatedServer {
         client: Client,
     ) -> Self {
         Self {
-            _server: server,
+            server,
             database,
             public_key,
             client,
+        }
+    }
+
+    pub async fn shutdown(&mut self) {
+        if let Some(server) = self.server.take() {
+            server.shutdown().await;
         }
     }
 }
