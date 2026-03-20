@@ -22,7 +22,7 @@ pub async fn returns_no_result_for_empty_database(mut isolated_server: IsolatedS
 pub async fn returns_no_result_for_failed_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let result = client.get_build_artifact_diffoscope(1, 1).await;
 
@@ -36,7 +36,7 @@ pub async fn returns_no_result_for_failed_build(mut isolated_server: IsolatedSer
 pub async fn returns_result_for_bad_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let result = client.get_build_artifact_diffoscope(1, 1).await.unwrap();
 
@@ -50,7 +50,7 @@ pub async fn returns_result_for_bad_build(mut isolated_server: IsolatedServer) {
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     // zero out keys
     client.auth_cookie("");

@@ -26,7 +26,7 @@ pub async fn returns_correct_sums_for_database_with_unbuilt_package(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -45,7 +45,7 @@ pub async fn returns_correct_sums_for_database_with_good_package(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -64,7 +64,7 @@ pub async fn returns_correct_sums_for_database_with_bad_package(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -83,7 +83,7 @@ pub async fn returns_correct_sums_for_database_with_failed_package(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -114,7 +114,7 @@ pub async fn returns_zero_job_counts_for_empty_database(mut isolated_server: Iso
 pub async fn returns_correct_job_counts_for_unbuilt_package(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -130,7 +130,7 @@ pub async fn returns_correct_job_counts_for_unbuilt_package(mut isolated_server:
 pub async fn returns_correct_job_counts_for_failed_package(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -148,7 +148,7 @@ pub async fn returns_correct_jobs_counts_for_package_in_progress(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_rebuild_in_progress(&client).await;
+    setup_single_rebuild_in_progress(client).await;
 
     let result = client.get_dashboard(None).await.unwrap();
 
@@ -164,7 +164,7 @@ pub async fn returns_correct_jobs_counts_for_package_in_progress(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");

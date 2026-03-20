@@ -14,7 +14,7 @@ use rstest::rstest;
 pub async fn new_database_has_no_work(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_registered_worker(&client).await;
+    setup_registered_worker(client).await;
 
     let job = client.request_work(job_request()).await.unwrap();
 
@@ -40,8 +40,8 @@ pub async fn unregistered_worker_cannot_request_work(mut isolated_server: Isolat
 pub async fn registered_worker_can_request_work(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
     let job = client.request_work(job_request()).await.unwrap();
 
@@ -55,8 +55,8 @@ pub async fn registered_worker_can_request_work(mut isolated_server: IsolatedSer
 pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
     // zero out key
     client.worker_key("");
@@ -72,8 +72,8 @@ pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: 
 pub async fn worker_with_incompatible_backend_gets_no_work(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
     let job = client
         .request_work(PopQueuedJobRequest {
@@ -95,8 +95,8 @@ pub async fn worker_with_incompatible_architecture_gets_no_work(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
     let job = client
         .request_work(PopQueuedJobRequest {
@@ -118,8 +118,8 @@ pub async fn worker_with_different_native_architecture_gets_work(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
     let job = client
         .request_work(PopQueuedJobRequest {
@@ -143,10 +143,10 @@ pub async fn manually_queued_item_past_max_retries_is_available(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    setup_build_ready_database(&client).await;
+    setup_build_ready_database(client).await;
 
     // first attempt, get and report
-    report_bad_rebuild(&client).await;
+    report_bad_rebuild(client).await;
 
     // ensure no job is available
     let job = client.request_work(job_request()).await.unwrap();

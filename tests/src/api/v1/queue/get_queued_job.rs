@@ -44,7 +44,7 @@ pub async fn returns_no_result_for_nonexistent_id(mut isolated_server: IsolatedS
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     // zero out keys
     client.auth_cookie("");

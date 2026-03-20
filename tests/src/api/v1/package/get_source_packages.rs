@@ -84,7 +84,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_packages(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");

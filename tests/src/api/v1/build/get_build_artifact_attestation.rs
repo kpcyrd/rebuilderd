@@ -24,7 +24,7 @@ pub async fn returns_no_result_for_empty_database(mut isolated_server: IsolatedS
 pub async fn returns_no_result_for_failed_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 
@@ -40,9 +40,9 @@ pub async fn returns_no_result_for_good_build_without_attestation(
 ) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
-    register_worker(&client).await;
-    report_good_rebuild(&client).await;
+    import_single_package(client).await;
+    register_worker(client).await;
+    report_good_rebuild(client).await;
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 
@@ -56,9 +56,9 @@ pub async fn returns_no_result_for_good_build_without_attestation(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_good_rebuild_with_signed_attestation(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_good_rebuild_with_signed_attestation(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -79,9 +79,9 @@ pub async fn artifact_has_attestation_for_good_build_with_signed_attestation(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_good_rebuild_with_signed_attestation(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_good_rebuild_with_signed_attestation(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -116,9 +116,9 @@ pub async fn artifact_has_attestation_for_good_build_with_unsigned_attestation(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_good_rebuild_with_unsigned_attestation(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_good_rebuild_with_unsigned_attestation(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -151,9 +151,9 @@ pub async fn artifact_has_attestation_for_good_build_with_unsigned_attestation(
 pub async fn attestation_is_signed_by_server(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_good_rebuild_with_signed_attestation(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_good_rebuild_with_signed_attestation(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -192,9 +192,9 @@ pub async fn attestation_is_signed_by_server(mut isolated_server: IsolatedServer
 pub async fn server_transparently_signs_attestations(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_good_rebuild_with_unsigned_attestation(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_good_rebuild_with_unsigned_attestation(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)

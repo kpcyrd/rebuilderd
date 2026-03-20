@@ -24,7 +24,7 @@ pub async fn returns_single_result_for_database_with_single_worker(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     let results = client.get_workers(None).await.unwrap().records;
 
@@ -40,12 +40,12 @@ pub async fn returns_multiple_results_for_database_with_multiple_workers(
 ) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     // create a new key for the new worker
     let worker_key = Alphanumeric.sample_string(&mut rand::rng(), 32);
     client.worker_key(worker_key);
-    register_other_worker(&client).await;
+    register_other_worker(client).await;
 
     let results = client.get_workers(None).await.unwrap().records;
 
@@ -59,7 +59,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_workers(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     // zero out keys
     client.auth_cookie("");

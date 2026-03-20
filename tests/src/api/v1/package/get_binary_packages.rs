@@ -65,7 +65,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_artifacts(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -84,7 +84,7 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 pub async fn can_paginate(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package_with_multiple_artifacts(&client).await;
+    setup_single_imported_package_with_multiple_artifacts(client).await;
 
     let mut page = Page {
         limit: Some(1),

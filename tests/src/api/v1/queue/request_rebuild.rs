@@ -15,9 +15,9 @@ use rstest::rstest;
 pub async fn can_requeue_bad_packages(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_bad_rebuild(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_bad_rebuild(client).await;
 
     client
         .request_rebuild(QueueJobRequest {
@@ -41,7 +41,7 @@ pub async fn can_requeue_bad_packages(mut isolated_server: IsolatedServer) {
 pub async fn requeued_packages_are_due_instantly(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_rebuild_request(&client).await;
+    setup_single_rebuild_request(client).await;
 
     let job = client
         .get_queued_jobs(None, None, None)
@@ -63,7 +63,7 @@ pub async fn requeued_packages_are_queued_with_manual_priority_by_default(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_rebuild_request(&client).await;
+    setup_single_rebuild_request(client).await;
 
     let job = client
         .get_queued_jobs(None, None, None)
@@ -83,7 +83,7 @@ pub async fn requeued_packages_are_queued_with_manual_priority_by_default(
 pub async fn can_update_job_priority(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_rebuild_request(&client).await;
+    setup_single_rebuild_request(client).await;
 
     client
         .request_rebuild(QueueJobRequest {
@@ -148,7 +148,7 @@ pub async fn does_not_requeue_friends(
     let client = &isolated_server.client;
 
     // first, a single package with a bad rebuild
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     // then, the friend of that package
     client.submit_package_report(&extra_packages).await.unwrap();
@@ -188,10 +188,10 @@ pub async fn can_requeue_package_beyond_max_retries(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    setup_build_ready_database(&client).await;
+    setup_build_ready_database(client).await;
 
     // first attempt, get and report
-    report_bad_rebuild(&client).await;
+    report_bad_rebuild(client).await;
 
     // ensure package is not enqueued after failed attempt
     let jobs = client

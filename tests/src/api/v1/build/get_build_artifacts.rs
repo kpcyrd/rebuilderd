@@ -23,7 +23,7 @@ pub async fn returns_no_results_for_empty_database(mut isolated_server: Isolated
 pub async fn returns_no_results_for_failed_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let results = client.get_build_artifacts(1).await.unwrap();
 
@@ -37,9 +37,9 @@ pub async fn returns_no_results_for_failed_build(mut isolated_server: IsolatedSe
 pub async fn returns_correct_results_for_good_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
-    register_worker(&client).await;
-    report_good_rebuild(&client).await;
+    import_single_package(client).await;
+    register_worker(client).await;
+    report_good_rebuild(client).await;
 
     let results = client.get_build_artifacts(1).await.unwrap();
 
@@ -58,9 +58,9 @@ pub async fn returns_correct_results_for_good_build_with_multiple_artifacts(
 ) {
     let client = &isolated_server.client;
 
-    import_single_package_with_multiple_artifacts(&client).await;
-    register_worker(&client).await;
-    report_good_rebuild(&client).await;
+    import_single_package_with_multiple_artifacts(client).await;
+    register_worker(client).await;
+    report_good_rebuild(client).await;
 
     let results = client.get_build_artifacts(1).await.unwrap();
 
@@ -79,7 +79,7 @@ pub async fn returns_correct_results_for_good_build_with_multiple_artifacts(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     // zero out keys
     client.auth_cookie("");

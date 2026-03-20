@@ -31,7 +31,7 @@ pub async fn returns_single_result_for_database_with_single_job(
 ) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
+    import_single_package(client).await;
 
     let results = client
         .get_queued_jobs(None, None, None)
@@ -51,7 +51,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_jobs(
 ) {
     let client = &isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     let results = client
         .get_queued_jobs(None, None, None)
@@ -69,7 +69,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_jobs(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -88,7 +88,7 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 pub async fn can_paginate(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     let mut page = Page {
         limit: Some(1),
@@ -184,7 +184,7 @@ pub async fn returns_result_for_matching_origin_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -251,7 +251,7 @@ pub async fn returns_result_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(&client).await;
+    setup_multiple_imported_packages(client).await;
 
     let results = client
         .get_queued_jobs(None, None, Some(&identity_filter))

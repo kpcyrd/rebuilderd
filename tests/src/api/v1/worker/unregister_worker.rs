@@ -11,7 +11,7 @@ use rstest::rstest;
 pub async fn unregisters_worker_correctly(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     client.unregister_worker(1).await.unwrap();
 
@@ -27,12 +27,12 @@ pub async fn unregisters_worker_correctly(mut isolated_server: IsolatedServer) {
 pub async fn does_not_unregister_other_workers(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     // create a new key for the new worker
     let worker_key = Alphanumeric.sample_string(&mut rand::rng(), 32);
     client.worker_key(worker_key);
-    register_other_worker(&client).await;
+    register_other_worker(client).await;
 
     client.unregister_worker(1).await.unwrap();
 
@@ -49,7 +49,7 @@ pub async fn does_not_unregister_other_workers(mut isolated_server: IsolatedServ
 pub async fn fails_if_worker_does_not_exist(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     let result = client.unregister_worker(9999).await;
 
@@ -63,7 +63,7 @@ pub async fn fails_if_worker_does_not_exist(mut isolated_server: IsolatedServer)
 pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
     // zero out key
     client.worker_key("");

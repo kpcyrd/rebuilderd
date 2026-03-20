@@ -31,7 +31,7 @@ pub async fn returns_single_result_for_database_with_single_build(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     let results = client
         .get_builds(None, None, None)
@@ -51,9 +51,9 @@ pub async fn returns_multiple_results_for_database_with_multiple_builds(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
-    request_rebuild_of_all_bad_packages(&client).await;
-    report_good_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
+    request_rebuild_of_all_bad_packages(client).await;
+    report_good_rebuild(client).await;
 
     let results = client
         .get_builds(None, None, None)
@@ -71,7 +71,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_builds(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -90,9 +90,9 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 pub async fn can_paginate(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
-    request_rebuild_of_all_bad_packages(&client).await;
-    report_good_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
+    request_rebuild_of_all_bad_packages(client).await;
+    report_good_rebuild(client).await;
 
     let mut page = Page {
         limit: Some(1),
@@ -190,16 +190,16 @@ pub async fn returns_result_for_matching_origin_filter(
     #[case] expected_count: usize,
 ) {
     let client = &isolated_server.client;
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
-    register_worker(&client).await;
-    report_good_rebuild(&client).await;
+    register_worker(client).await;
+    report_good_rebuild(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
     // friends get their builds copied, so skip them
     if !is_friend {
-        report_good_rebuild(&client).await;
+        report_good_rebuild(client).await;
     }
 
     let mut results = client
@@ -265,12 +265,12 @@ pub async fn returns_result_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(&client).await;
+    setup_multiple_imported_packages(client).await;
 
-    register_worker(&client).await;
+    register_worker(client).await;
 
-    report_good_rebuild(&client).await;
-    report_good_rebuild(&client).await;
+    report_good_rebuild(client).await;
+    report_good_rebuild(client).await;
 
     let results = client
         .get_builds(None, None, Some(&identity_filter))

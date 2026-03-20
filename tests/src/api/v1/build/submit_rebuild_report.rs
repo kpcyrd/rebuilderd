@@ -16,10 +16,10 @@ use rstest::rstest;
 pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = failed_rebuild_report(&job);
 
     // zero out key
@@ -36,10 +36,10 @@ pub async fn fails_if_no_worker_authentication_is_provided(mut isolated_server: 
 pub async fn can_report_failed_rebuild(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = failed_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
@@ -54,7 +54,7 @@ pub async fn source_package_is_marked_failed_after_failed_report(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let package = client
         .get_source_packages(None, None, None)
@@ -76,7 +76,7 @@ pub async fn binary_package_is_marked_unknown_after_failed_report(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -96,7 +96,7 @@ pub async fn binary_package_is_marked_unknown_after_failed_report(
 pub async fn package_is_requeued_after_failed_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -116,7 +116,7 @@ pub async fn requeued_job_after_failed_report_has_correct_data(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(&client).await;
+    setup_single_failed_rebuild(client).await;
 
     let package_report = single_package_report();
     let job = client
@@ -143,10 +143,10 @@ pub async fn requeued_job_after_failed_report_has_correct_data(
 pub async fn can_report_bad_rebuild(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = bad_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
@@ -159,7 +159,7 @@ pub async fn can_report_bad_rebuild(mut isolated_server: IsolatedServer) {
 pub async fn source_package_is_marked_bad_after_bad_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let package = client
         .get_source_packages(None, None, None)
@@ -179,7 +179,7 @@ pub async fn source_package_is_marked_bad_after_bad_report(mut isolated_server: 
 pub async fn binary_package_is_marked_bad_after_bad_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -199,7 +199,7 @@ pub async fn binary_package_is_marked_bad_after_bad_report(mut isolated_server: 
 pub async fn package_is_requeued_after_bad_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -217,7 +217,7 @@ pub async fn package_is_requeued_after_bad_report(mut isolated_server: IsolatedS
 pub async fn requeued_job_after_bad_report_has_correct_data(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let package_report = single_package_report();
     let job = client
@@ -248,9 +248,9 @@ pub async fn package_is_not_requeued_if_max_retries_is_exceeded(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
-    report_bad_rebuild(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
+    report_bad_rebuild(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -268,10 +268,10 @@ pub async fn package_is_not_requeued_if_max_retries_is_exceeded(
 pub async fn can_report_good_rebuild(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = good_rebuild_report(&job);
 
     client.submit_build_report(report).await.unwrap();
@@ -284,7 +284,7 @@ pub async fn can_report_good_rebuild(mut isolated_server: IsolatedServer) {
 pub async fn source_package_is_marked_good_after_good_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     let package = client
         .get_source_packages(None, None, None)
@@ -304,7 +304,7 @@ pub async fn source_package_is_marked_good_after_good_report(mut isolated_server
 pub async fn binary_package_is_marked_good_after_good_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     let package = client
         .get_binary_packages(None, None, None)
@@ -324,7 +324,7 @@ pub async fn binary_package_is_marked_good_after_good_report(mut isolated_server
 pub async fn package_is_not_requeued_after_good_report(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -342,10 +342,10 @@ pub async fn package_is_not_requeued_after_good_report(mut isolated_server: Isol
 pub async fn can_report_good_rebuild_with_signed_attestation(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = good_rebuild_report_with_signed_attestation(&job).await;
 
     client.submit_build_report(report).await.unwrap();
@@ -360,10 +360,10 @@ pub async fn can_report_good_rebuild_with_unsigned_attestation(
 ) {
     let client = &isolated_server.client;
 
-    register_worker(&client).await;
-    import_single_package(&client).await;
+    register_worker(client).await;
+    import_single_package(client).await;
 
-    let job = pick_up_job(&client).await;
+    let job = pick_up_job(client).await;
     let report = good_rebuild_report_with_unsigned_attestation(&job).await;
 
     client.submit_build_report(report).await.unwrap();

@@ -9,7 +9,7 @@ use rstest::rstest;
 pub async fn drops_job_correctly(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
+    import_single_package(client).await;
 
     client.drop_queued_job(1).await.unwrap();
 
@@ -29,7 +29,7 @@ pub async fn drops_job_correctly(mut isolated_server: IsolatedServer) {
 pub async fn fails_if_job_does_not_exist(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
+    import_single_package(client).await;
 
     let result = client.drop_queued_job(9999).await;
 
@@ -43,7 +43,7 @@ pub async fn fails_if_job_does_not_exist(mut isolated_server: IsolatedServer) {
 pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     // zero out key
     client.auth_cookie("");

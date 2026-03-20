@@ -24,7 +24,7 @@ pub async fn does_nothing_for_empty_database(mut isolated_server: IsolatedServer
 pub async fn drops_all_jobs_if_no_filters_are_specified(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     client.drop_queued_jobs(None, None).await.unwrap();
 
@@ -44,7 +44,7 @@ pub async fn drops_all_jobs_if_no_filters_are_specified(mut isolated_server: Iso
 pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     // zero out key
     client.auth_cookie("");
@@ -133,7 +133,7 @@ pub async fn drops_correct_job_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(&client).await;
+    setup_multiple_imported_packages(client).await;
 
     client
         .drop_queued_jobs(None, Some(&identity_filter))

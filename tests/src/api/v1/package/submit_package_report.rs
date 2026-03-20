@@ -182,7 +182,7 @@ pub async fn has_correct_packages_after_import_of_multiple_packages(
 pub async fn job_is_queued_after_import_of_new_package(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -229,7 +229,7 @@ pub async fn job_is_queued_after_import_of_new_package_with_multiple_artifacts(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package_with_multiple_artifacts(&client).await;
+    setup_single_imported_package_with_multiple_artifacts(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -276,8 +276,8 @@ pub async fn queued_job_from_new_package_with_multiple_artifacts_has_correct_dat
 pub async fn additional_job_is_not_queued_after_reimport(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
-    import_single_package(&client).await;
+    setup_single_imported_package(client).await;
+    import_single_package(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -514,7 +514,7 @@ pub async fn existing_rebuilds_are_copied_from_friends(
     let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     // then, the friend of that package
     let friend_identity = IdentityFilter {
@@ -561,7 +561,7 @@ pub async fn existing_rebuilds_are_not_copied_from_nonfriends(
     let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     // then, the nonfriends of that package
     let friend_identity = IdentityFilter {
@@ -611,7 +611,7 @@ pub async fn next_retry_is_unchanged_for_reimports(mut isolated_server: Isolated
     let client = &isolated_server.client;
 
     // one bad rebuild, which gets next_retry set
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     let old_job = client
         .get_queued_jobs(None, None, None)
@@ -661,7 +661,7 @@ pub async fn retry_count_is_independent_of_friends(
     let client = &isolated_server.client;
 
     // one bad rebuild, which would have a retry count of 1
-    setup_single_bad_rebuild(&client).await;
+    setup_single_bad_rebuild(client).await;
 
     // a friend, which will get the builds copied
     client.submit_package_report(&extra_packages).await.unwrap();
@@ -701,7 +701,7 @@ pub async fn package_is_not_queued_if_any_friend_is_marked_good(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(&client).await;
+    setup_single_good_rebuild(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -736,7 +736,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_queued(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -781,10 +781,10 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    setup_build_ready_database(&client).await;
+    setup_build_ready_database(client).await;
 
     // first attempt, get and report
-    report_bad_rebuild(&client).await;
+    report_bad_rebuild(client).await;
 
     // ensure package is not enqueued after failed attempt
     let jobs = client
@@ -815,7 +815,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
 pub async fn drops_available_jobs_not_in_current_sync(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_single_package(&client).await;
+    import_single_package(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -825,7 +825,7 @@ pub async fn drops_available_jobs_not_in_current_sync(mut isolated_server: Isola
 
     assert_eq!(1, jobs.len());
 
-    import_single_package_with_multiple_artifacts(&client).await;
+    import_single_package_with_multiple_artifacts(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -843,7 +843,7 @@ pub async fn drops_available_jobs_not_in_current_sync(mut isolated_server: Isola
 pub async fn enqueues_jobs_for_all_packages_in_sync(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    import_multiple_packages(&client).await;
+    import_multiple_packages(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)

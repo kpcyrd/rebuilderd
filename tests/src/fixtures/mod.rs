@@ -99,7 +99,7 @@ pub fn isolated_server(
         let mut server = ServerHolder::new(pool.clone(), config, private_key).unwrap();
         server.start().unwrap();
 
-        let endpoint = format!("http://{}", server.address.to_string());
+        let endpoint = format!("http://{}", server.address);
         (Some(server), Some(tmp_dir), endpoint)
     } else {
         let addr = program_arguments.bind_addr;

@@ -26,7 +26,7 @@ pub async fn returns_correct_result_for_release_with_single_architecture(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     let results = client
         .get_distribution_release_architectures(DUMMY_DISTRIBUTION, DUMMY_RELEASE)
@@ -46,7 +46,7 @@ pub async fn returns_correct_results_for_release_with_multiple_architectures(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
     client
         .submit_package_report(&single_package_report_from_different_architecture())
         .await
@@ -70,7 +70,7 @@ pub async fn returns_correct_results_for_release_with_multiple_architectures(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(&client).await;
+    setup_single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");
