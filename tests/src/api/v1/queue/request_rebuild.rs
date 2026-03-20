@@ -5,8 +5,7 @@ use crate::fixtures::*;
 use crate::setup::*;
 use chrono::Utc;
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Priority,
-    QueueJobRequest, QueueRestApi,
+    BuildStatus, PackageReport, PackageRestApi, Priority, QueueJobRequest, QueueRestApi,
 };
 use rebuilderd_common::config::ConfigFile;
 use rstest::rstest;
@@ -139,22 +138,11 @@ pub async fn fails_if_no_admin_authentication_is_provided(mut isolated_server: I
 }
 
 #[rstest]
-#[case(OriginFilter {
-        distribution: None,
-        release: Some(DUMMY_OTHER_RELEASE.to_string()),
-        component: None,
-        architecture: None,
-    }, single_package_report_from_different_release())]
-#[case(OriginFilter {
-        distribution: None,
-        release: None,
-        component: Some(DUMMY_OTHER_COMPONENT.to_string()),
-        architecture: None,
-    }, single_package_report_from_different_component())]
+#[case(single_package_report_from_different_release())]
+#[case(single_package_report_from_different_component())]
 #[tokio::test]
 pub async fn does_not_requeue_friends(
     mut isolated_server: IsolatedServer,
-    #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
     let client = &isolated_server.client;
@@ -163,11 +151,6 @@ pub async fn does_not_requeue_friends(
     setup_single_bad_rebuild(&client).await;
 
     // then, the friend of that package
-    let friend_identity = IdentityFilter {
-        name: Some(DUMMY_BINARY_PACKAGE.to_string()),
-        version: Some(DUMMY_BINARY_PACKAGE_VERSION.to_string()),
-    };
-
     client.submit_package_report(&extra_packages).await.unwrap();
 
     // should only queue one of the packages, since they're friends
@@ -203,6 +186,7 @@ pub async fn can_requeue_package_beyond_max_retries(
     #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
     let client = &isolated_server.client;
+    let _config_file = config_file;
 
     setup_build_ready_database(&client).await;
 

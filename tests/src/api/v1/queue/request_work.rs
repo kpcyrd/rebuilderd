@@ -141,6 +141,7 @@ pub async fn manually_queued_item_past_max_retries_is_available(
     #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
     let client = &isolated_server.client;
+    let _config_file = config_file;
 
     setup_build_ready_database(&client).await;
 

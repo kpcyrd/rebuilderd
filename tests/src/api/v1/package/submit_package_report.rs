@@ -779,6 +779,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
     #[case] extra_packages: PackageReport,
 ) {
     let client = &isolated_server.client;
+    let _config_file = config_file;
 
     setup_build_ready_database(&client).await;
 

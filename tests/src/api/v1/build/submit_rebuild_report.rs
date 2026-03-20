@@ -246,6 +246,7 @@ pub async fn package_is_not_requeued_if_max_retries_is_exceeded(
     #[with(config_file.clone())] mut isolated_server: IsolatedServer,
 ) {
     let client = &isolated_server.client;
+    let _config_file = config_file;
 
     register_worker(&client).await;
     import_single_package(&client).await;
