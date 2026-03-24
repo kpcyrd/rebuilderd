@@ -8,7 +8,7 @@ use crate::schema::workers;
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
 use chrono::Utc;
-use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl, SqliteExpressionMethods};
+use diesel::{OptionalExtension, QueryDsl, RunQueryDsl, SqliteExpressionMethods};
 use rebuilderd_common::api::WORKER_KEY_HEADER;
 use rebuilderd_common::api::v1::{Page, RegisterWorkerRequest, ResultPage};
 use rebuilderd_common::errors::{Context, Error, format_err};
@@ -112,13 +112,14 @@ pub async fn unregister_worker(
         return Ok(HttpResponse::Forbidden().finish());
     }
 
-    connection
-        .transaction(|conn| {
-            diesel::delete(workers::table)
-                .filter(workers::id.is(id.into_inner()))
-                .execute(conn)
-        })
+    let unregistered_count = diesel::delete(workers::table)
+        .filter(workers::id.is(id.into_inner()))
+        .execute(connection.as_mut())
         .map_err(Error::from)?;
 
-    Ok(HttpResponse::NoContent().finish())
+    if unregistered_count < 1 {
+        Ok(HttpResponse::NotFound().finish())
+    } else {
+        Ok(HttpResponse::NoContent().finish())
+    }
 }

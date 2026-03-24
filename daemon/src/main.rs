@@ -45,7 +45,11 @@ async fn main() -> Result<()> {
     } else {
         let privkey = attestation::load_or_create_privkey_pem(&args.signing_key)?;
         let pool = db::setup_pool("rebuilderd.db")?;
-        rebuilderd::run_config(pool, config, privkey).await?;
+
+        let (server, address) = rebuilderd::build_server(pool, config, privkey)?;
+
+        info!("Listening on {}", address);
+        server.await?;
     }
     Ok(())
 }
