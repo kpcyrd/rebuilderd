@@ -7,3 +7,6 @@ members = [
     "worker",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+toml = "1"
