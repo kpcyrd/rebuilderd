@@ -3,7 +3,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
 use rebuilderd_common::api::v1::{
-    IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page,
+    BinaryIdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page,
 };
 use rstest::rstest;
 
@@ -209,35 +209,40 @@ pub async fn returns_result_for_matching_origin_filter(
 }
 
 #[rstest]
-#[case(IdentityFilter{
+#[case(BinaryIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1.to_string()),
         version: None,
+        source_name: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(BinaryIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2.to_string()),
         version: None,
+        source_name: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(BinaryIdentityFilter{
         name: None,
         version: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_VERSION.to_string()),
+        source_name: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(BinaryIdentityFilter{
         name: None,
         version: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_VERSION.to_string()),
+        source_name: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(BinaryIdentityFilter{
         name: None,
         version: None,
+        source_name: None,
     },
     2)]
 #[tokio::test]
 pub async fn returns_result_for_matching_identity_filter(
     mut isolated_server: IsolatedServer,
-    #[case] identity_filter: IdentityFilter,
+    #[case] identity_filter: BinaryIdentityFilter,
     #[case] expected_count: usize,
 ) {
     setup_single_imported_package_with_multiple_artifacts(&isolated_server.client).await;

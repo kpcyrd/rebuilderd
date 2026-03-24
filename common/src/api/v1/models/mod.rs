@@ -43,9 +43,16 @@ pub struct OriginFilter {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IdentityFilter {
+pub struct SourceIdentityFilter {
     pub name: Option<String>,
     pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinaryIdentityFilter {
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub source_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

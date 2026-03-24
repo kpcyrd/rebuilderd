@@ -5,7 +5,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
 use rebuilderd_common::api::v1::{
-    IdentityFilter, OriginFilter, PackageReport, PackageRestApi, QueueRestApi,
+    OriginFilter, PackageReport, PackageRestApi, QueueRestApi, SourceIdentityFilter,
 };
 use rstest::rstest;
 
@@ -110,26 +110,26 @@ pub async fn drops_correct_job_for_matching_origin_filter(
 }
 
 #[rstest]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
         version: None,
     })]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string()),
         version: None,
     })]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: None,
         version: Some(DUMMY_SOURCE_PACKAGE_VERSION.to_string()),
     })]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: None,
         version: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION.to_string()),
     })]
 #[tokio::test]
 pub async fn drops_correct_job_for_matching_identity_filter(
     mut isolated_server: IsolatedServer,
-    #[case] identity_filter: IdentityFilter,
+    #[case] identity_filter: SourceIdentityFilter,
 ) {
     let client = &isolated_server.client;
 

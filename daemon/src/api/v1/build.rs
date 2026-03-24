@@ -1,6 +1,6 @@
 use crate::api::forward_compressed_data;
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
+use crate::api::v1::util::filters::{IntoOriginFilter, IntoSourceIdentityFilter};
 use crate::api::v1::util::friends::{
     get_build_input_friends, get_largest_retry_count_among_friends,
     mark_build_input_friends_as_non_retriable,
@@ -26,7 +26,8 @@ use diesel::{
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api;
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, OriginFilter, Page, Priority, Rebuild, RebuildReport, ResultPage,
+    BuildStatus, OriginFilter, Page, Priority, Rebuild, RebuildReport, ResultPage,
+    SourceIdentityFilter,
 };
 use rebuilderd_common::errors::Error;
 use rebuilderd_common::utils::{is_zstd_compressed, zstd_compress};
@@ -59,7 +60,7 @@ pub async fn get_builds(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
-    identity_filter: web::Query<IdentityFilter>,
+    source_identity_filter: web::Query<SourceIdentityFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -71,7 +72,7 @@ pub async fn get_builds(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
@@ -88,7 +89,7 @@ pub async fn get_builds(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),

@@ -9,8 +9,9 @@ use glob::Pattern;
 use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
-    ArtifactStatus, BinaryPackage, BuildRestApi, IdentityFilter, OriginFilter, PackageReport,
-    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, WorkerRestApi,
+    ArtifactStatus, BinaryIdentityFilter, BinaryPackage, BuildRestApi, OriginFilter, PackageReport,
+    PackageRestApi, Page, Priority, QueueJobRequest, QueueRestApi, SourceIdentityFilter,
+    WorkerRestApi,
 };
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
@@ -109,13 +110,14 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
         architecture: filter.architecture,
     };
 
-    let identity_filter = IdentityFilter {
+    let binary_identity_filter = BinaryIdentityFilter {
         name: filter.name,
         version: None, // TODO: ls.filter.version
+        source_name: None,
     };
 
     let mut results = client
-        .get_binary_packages(None, Some(&origin_filter), Some(&identity_filter))
+        .get_binary_packages(None, Some(&origin_filter), Some(&binary_identity_filter))
         .await
         .context("Failed to fetch package")?;
 
@@ -224,9 +226,10 @@ async fn main() -> Result<()> {
                 architecture: ls.filter.architecture,
             };
 
-            let identity_filter = IdentityFilter {
+            let binary_identity_filter = BinaryIdentityFilter {
                 name: ls.filter.name,
                 version: None, // TODO: ls.filter.version
+                source_name: None,
             };
 
             let mut page = Page {
@@ -239,7 +242,11 @@ async fn main() -> Result<()> {
 
             loop {
                 let mut results = client
-                    .get_binary_packages(Some(&page), Some(&origin_filter), Some(&identity_filter))
+                    .get_binary_packages(
+                        Some(&page),
+                        Some(&origin_filter),
+                        Some(&binary_identity_filter),
+                    )
                     .await?;
 
                 if let Some(last) = results.records.last() {
@@ -429,14 +436,14 @@ async fn main() -> Result<()> {
                 architecture: push.architecture,
             };
 
-            let identity_filter = IdentityFilter {
+            let source_identity_filter = SourceIdentityFilter {
                 name: Some(push.name),
                 version: push.version,
             };
 
             client
                 .with_auth_cookie()?
-                .drop_queued_jobs(Some(&origin_filter), Some(&identity_filter))
+                .drop_queued_jobs(Some(&origin_filter), Some(&source_identity_filter))
                 .await?;
         }
         SubCommand::Completions(completions) => args::gen_completions(&completions)?,

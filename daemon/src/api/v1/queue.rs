@@ -1,5 +1,5 @@
 use crate::api::v1::util::auth;
-use crate::api::v1::util::filters::{IntoIdentityFilter, IntoOriginFilter};
+use crate::api::v1::util::filters::{IntoOriginFilter, IntoSourceIdentityFilter};
 use crate::api::v1::util::friends::{build_input_friends, has_queued_friend};
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
@@ -14,8 +14,8 @@ use diesel::{BoolExpressionMethods, JoinOnDsl};
 use diesel::{Connection, OptionalExtension, QueryDsl, RunQueryDsl};
 use diesel::{ExpressionMethods, SqliteExpressionMethods, define_sql_function};
 use rebuilderd_common::api::v1::{
-    BuildStatus, IdentityFilter, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, Priority,
-    QueueJobRequest, QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage,
+    BuildStatus, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, Priority, QueueJobRequest,
+    QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage, SourceIdentityFilter,
 };
 use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
@@ -47,7 +47,7 @@ pub async fn get_queued_jobs(
     pool: web::Data<Pool>,
     page: web::Query<Page>,
     origin_filter: web::Query<OriginFilter>,
-    identity_filter: web::Query<IdentityFilter>,
+    source_identity_filter: web::Query<SourceIdentityFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
@@ -59,7 +59,7 @@ pub async fn get_queued_jobs(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
@@ -81,7 +81,7 @@ pub async fn get_queued_jobs(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
@@ -115,7 +115,7 @@ pub async fn request_rebuild(
         architecture: queue_request.architecture,
     };
 
-    let identity_filter = IdentityFilter {
+    let source_identity_filter = SourceIdentityFilter {
         name: queue_request.name,
         version: queue_request.version,
     };
@@ -129,7 +129,7 @@ pub async fn request_rebuild(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_filter(source_packages::name, source_packages::version),
         )
@@ -201,7 +201,7 @@ pub async fn drop_queued_jobs(
     cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     origin_filter: web::Query<OriginFilter>,
-    identity_filter: web::Query<IdentityFilter>,
+    source_identity_filter: web::Query<SourceIdentityFilter>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
         return Ok(HttpResponse::Forbidden());
@@ -218,7 +218,7 @@ pub async fn drop_queued_jobs(
                 .into_filter(build_inputs::architecture),
         )
         .filter(
-            identity_filter
+            source_identity_filter
                 .clone()
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),

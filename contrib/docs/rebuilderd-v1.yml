@@ -329,6 +329,7 @@ paths:
         - $ref: '#/components/parameters/component'
 
         - $ref: '#/components/parameters/name'
+        - $ref: '#/components/parameters/source_name'
         - $ref: '#/components/parameters/version'
         - $ref: '#/components/parameters/architecture'
       responses:
@@ -1469,6 +1470,14 @@ components:
         type: string
       description: |-
         Filters the results by the name of the package.
+    source_name:
+      in: query
+      name: source_name
+      required: false
+      schema:
+        type: string
+      description: |-
+        Filters the results by the source name of the package.
     version:
       in: query
       name: version
