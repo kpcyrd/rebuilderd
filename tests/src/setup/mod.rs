@@ -17,6 +17,10 @@ pub async fn setup_multiple_imported_packages(client: &Client) {
     import_multiple_packages(client).await;
 }
 
+pub async fn single_imported_package_with_null_release(client: &Client) {
+    import_single_package_with_null_release(client).await;
+}
+
 pub async fn setup_single_bad_rebuild(client: &Client) {
     register_worker(client).await;
     import_single_package(client).await;

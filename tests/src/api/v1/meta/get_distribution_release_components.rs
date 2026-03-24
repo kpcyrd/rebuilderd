@@ -1,7 +1,7 @@
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::setup_single_imported_package;
+use crate::setup;
 use rebuilderd_common::api::v1::{MetaRestApi, PackageRestApi};
 use rstest::rstest;
 
@@ -26,7 +26,7 @@ pub async fn returns_correct_result_for_release_with_single_component(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::setup_single_imported_package(client).await;
 
     let results = client
         .get_distribution_release_components(DUMMY_DISTRIBUTION, DUMMY_RELEASE)
@@ -46,7 +46,8 @@ pub async fn returns_correct_results_for_release_with_multiple_components(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::setup_single_imported_package(client).await;
+
     client
         .submit_package_report(&single_package_report_from_different_component())
         .await
@@ -67,10 +68,28 @@ pub async fn returns_correct_results_for_release_with_multiple_components(
 
 #[rstest]
 #[tokio::test]
+pub async fn returns_correct_results_for_null_release(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
+
+    setup::single_imported_package_with_null_release(client).await;
+
+    let results = client
+        .get_distribution_release_components(DUMMY_DISTRIBUTION, "-")
+        .await
+        .unwrap();
+
+    assert_eq!(1, results.len());
+    assert_eq!(DUMMY_COMPONENT, results[0]);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::setup_single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");

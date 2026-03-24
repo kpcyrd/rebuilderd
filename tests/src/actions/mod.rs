@@ -44,6 +44,13 @@ pub async fn import_multiple_packages(client: &Client) {
         .unwrap();
 }
 
+pub async fn import_single_package_with_null_release(client: &Client) {
+    client
+        .submit_package_report(&single_package_report_with_null_release())
+        .await
+        .unwrap();
+}
+
 pub async fn pick_up_job(client: &Client) -> QueuedJobWithArtifacts {
     match client
         .request_work(PopQueuedJobRequest {
