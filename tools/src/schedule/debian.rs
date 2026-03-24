@@ -457,20 +457,27 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             sources.import_compressed_source_package_file(&bytes)?;
 
             for arch in &sync.architectures {
-                // Downloading binary package index
-                let db_url = format!(
-                    "{}/dists/{}/{}/binary-{}/Packages.xz",
-                    sync.source, release, component, arch
-                );
-
-                match fetch_url_or_path(http, &db_url).await {
-                    Ok(bytes) => {
-                        state.import_compressed_binary_package_file(
-                            &bytes, &sources, release, component, sync,
-                        )?;
-                    }
-                    Err(e) => {
-                        warn!("{}, skipping", e);
+                for db_url in [
+                    // Binary package index
+                    format!(
+                        "{}/dists/{}/{}/binary-{}/Packages.xz",
+                        sync.source, release, component, arch
+                    ),
+                    // Binary installer package index
+                    format!(
+                        "{}/dists/{}/{}/debian-installer/binary-{}/Packages.xz",
+                        sync.source, release, component, arch
+                    ),
+                ] {
+                    match fetch_url_or_path(http, &db_url).await {
+                        Ok(bytes) => {
+                            state.import_compressed_binary_package_file(
+                                &bytes, &sources, release, component, sync,
+                            )?;
+                        }
+                        Err(e) => {
+                            warn!("{}, skipping", e);
+                        }
                     }
                 }
             }
