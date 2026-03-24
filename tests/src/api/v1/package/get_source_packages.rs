@@ -3,7 +3,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup::*;
 use rebuilderd_common::api::v1::{
-    IdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page,
+    OriginFilter, PackageReport, PackageRestApi, Page, SourceIdentityFilter,
 };
 use rstest::rstest;
 
@@ -230,27 +230,27 @@ pub async fn returns_result_for_matching_origin_filter(
 }
 
 #[rstest]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
         version: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string()),
         version: None,
     },
     1)]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: None,
         version: Some(DUMMY_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: None,
         version: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
-#[case(IdentityFilter{
+#[case(SourceIdentityFilter{
         name: None,
         version: None,
     },
@@ -258,7 +258,7 @@ pub async fn returns_result_for_matching_origin_filter(
 #[tokio::test]
 pub async fn returns_result_for_matching_identity_filter(
     mut isolated_server: IsolatedServer,
-    #[case] identity_filter: IdentityFilter,
+    #[case] identity_filter: SourceIdentityFilter,
     #[case] expected_count: usize,
 ) {
     setup_multiple_imported_packages(&isolated_server.client).await;

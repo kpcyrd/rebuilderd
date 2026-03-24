@@ -6,8 +6,8 @@ use crate::fixtures::*;
 use crate::setup::*;
 use chrono::Utc;
 use rebuilderd_common::api::v1::{
-    BuildRestApi, BuildStatus, IdentityFilter, OriginFilter, PackageReport, PackageRestApi,
-    Priority, QueueRestApi,
+    BuildRestApi, BuildStatus, OriginFilter, PackageReport, PackageRestApi, Priority, QueueRestApi,
+    SourceIdentityFilter,
 };
 use rebuilderd_common::config::ConfigFile;
 use rstest::rstest;
@@ -517,7 +517,7 @@ pub async fn existing_rebuilds_are_copied_from_friends(
     setup_single_good_rebuild(client).await;
 
     // then, the friend of that package
-    let friend_identity = IdentityFilter {
+    let friend_identity = SourceIdentityFilter {
         name: Some(DUMMY_BINARY_PACKAGE.to_string()),
         version: Some(DUMMY_BINARY_PACKAGE_VERSION.to_string()),
     };
@@ -564,7 +564,7 @@ pub async fn existing_rebuilds_are_not_copied_from_nonfriends(
     setup_single_good_rebuild(client).await;
 
     // then, the nonfriends of that package
-    let friend_identity = IdentityFilter {
+    let friend_identity = SourceIdentityFilter {
         name: Some(DUMMY_BINARY_PACKAGE.to_string()),
         version: Some(DUMMY_BINARY_PACKAGE_VERSION.to_string()),
     };
