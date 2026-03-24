@@ -19,7 +19,7 @@ dirs-next = "2.0.0"
 log = "0.4.17"
 reqwest = { version = "0.13", features = ["blocking", "json", "query", "rustls", "stream", "zstd"], default-features = false }
 serde = { version = "1.0.137", features = ["derive"] }
-toml = "0.9"
+toml.workspace = true
 url = "2.2.2"
 zstd = "0.13.3"
 tokio = "1.44.2"
