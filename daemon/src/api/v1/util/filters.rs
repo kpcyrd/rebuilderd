@@ -3,11 +3,18 @@ use diesel::backend::Backend;
 use diesel::expression::is_aggregate::No;
 use diesel::expression::{AsExpression, ValidGrouping};
 use diesel::query_builder::QueryFragment;
-use diesel::sql_types::{Bool, Text};
+use diesel::sql_types::{Bool, Nullable, Text};
 use diesel::sqlite::Sqlite;
-use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
+use diesel::{
+    BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression, define_sql_function,
+};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{FreshnessFilter, IdentityFilter, OriginFilter};
+
+define_sql_function! {
+    #[sql_name = "COALESCE"]
+    fn sqlite_coalesce(value: Nullable<Bool>, default: Bool) -> Bool;
+}
 
 pub trait IntoIdentityFilter<QS, DB>
 where
@@ -129,9 +136,13 @@ where
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         };
 
-        let release_is: Self::Output = match self.release {
-            Some(release) => Box::new(source_packages::release.is(release)),
-            None => Box::new(AsExpression::<Bool>::as_expression(true)),
+        let release_is: Self::Output = if !self.release.is_empty() {
+            Box::new(sqlite_coalesce(
+                source_packages::release.eq_any(self.release),
+                false,
+            ))
+        } else {
+            Box::new(AsExpression::<Bool>::as_expression(true))
         };
 
         let component_is: Self::Output = match self.component {

@@ -110,6 +110,7 @@ pub trait BuildRestApi {
     async fn get_build_artifacts(&self, id: i32) -> Result<Vec<RebuildArtifact>>;
     async fn get_build_artifact(&self, id: i32, artifact_id: i32) -> Result<RebuildArtifact>;
     async fn get_build_artifact_diffoscope(&self, id: i32, artifact_id: i32) -> Result<String>;
+    async fn get_build_diffoscope(&self, id: i32) -> Result<String>;
     async fn get_build_artifact_attestation(&self, id: i32, artifact_id: i32) -> Result<Vec<u8>>;
 }
 
@@ -167,6 +168,12 @@ pub trait PackageRestApi {
     ) -> Result<ResultPage<BinaryPackage>>;
 
     async fn get_binary_package(&self, id: i32) -> Result<BinaryPackage>;
+
+    async fn get_transition_packages(
+        &self,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
+    ) -> Result<TransitionBinaryPackage>;
 }
 
 #[async_trait]
@@ -284,6 +291,20 @@ impl BuildRestApi for Client {
         let data = self
             .get(Cow::Owned(format!(
                 "api/v1/builds/{id}/artifacts/{artifact_id}/diffoscope"
+            )))
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+
+        Ok(data)
+    }
+
+    async fn get_build_diffoscope(&self, diffoscope_log_id: i32) -> Result<String> {
+        let data = self
+            .get(Cow::Owned(format!(
+                "api/v1/builds/diffoscope/{diffoscope_log_id}"
             )))
             .send()
             .await?
@@ -523,6 +544,24 @@ impl PackageRestApi for Client {
             .await?;
 
         Ok(record)
+    }
+
+    async fn get_transition_packages(
+        &self,
+        origin_filter: Option<&OriginFilter>,
+        identity_filter: Option<&IdentityFilter>,
+    ) -> Result<TransitionBinaryPackage> {
+        let records = self
+            .get(Cow::Borrowed("api/v1/packages/transition_packages"))
+            .query(&origin_filter)
+            .query(&identity_filter)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        Ok(records)
     }
 }
 

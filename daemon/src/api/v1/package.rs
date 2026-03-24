@@ -65,6 +65,39 @@ fn source_packages_base() -> _ {
 }
 
 #[diesel::dsl::auto_type]
+fn transition_binary_packages_base() -> _ {
+    binary_packages::table
+        .inner_join(source_packages::table)
+        .inner_join(build_inputs::table)
+        .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
+        .left_join(
+            rebuild_artifacts::table.on(rebuild_artifacts::rebuild_id
+                .is(r1.field(rebuilds::id))
+                .and(rebuild_artifacts::name.is(binary_packages::name))),
+        )
+        .left_join(
+            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
+                r1.field(rebuilds::built_at)
+                    .lt(r2.field(rebuilds::built_at))
+                    .or(r1.fields(
+                        rebuilds::built_at
+                            .eq(r2.field(rebuilds::built_at))
+                            .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
+                    )),
+            )),
+        )
+        .filter(r2.field(rebuilds::id).is_null())
+        .select((
+            binary_packages::name,
+            binary_packages::version,
+            binary_packages::architecture,
+            rebuild_artifacts::status.nullable(),
+            r1.field(rebuilds::id).nullable(),
+            rebuild_artifacts::diffoscope_log_id.nullable(),
+        ))
+}
+
+#[diesel::dsl::auto_type]
 fn binary_packages_base() -> _ {
     binary_packages::table
         .inner_join(source_packages::table)
@@ -469,6 +502,36 @@ pub async fn get_source_package(
     } else {
         Ok(HttpResponse::NotFound().finish())
     }
+}
+
+#[get("/transition_packages")]
+pub async fn get_transition_packages(
+    pool: web::Data<Pool>,
+    origin_filter: web::Query<OriginFilter>,
+    identity_filter: web::Query<IdentityFilter>,
+    freshness_filter: web::Query<FreshnessFilter>,
+) -> web::Result<impl Responder> {
+    let mut connection = pool.get().map_err(Error::from)?;
+
+    let records = transition_binary_packages_base()
+        .filter(
+            origin_filter
+                .clone()
+                .into_inner()
+                .into_filter(binary_packages::architecture),
+        )
+        .filter(
+            identity_filter
+                .clone()
+                .into_inner()
+                .into_filter(binary_packages::name, binary_packages::version),
+        )
+        .filter(freshness_filter.clone().into_inner().into_filter())
+        .distinct()
+        .load::<rebuilderd_common::api::v1::TransitionBinaryPackage>(connection.as_mut())
+        .map_err(Error::from)?;
+
+    Ok(HttpResponse::Ok().json(records))
 }
 
 #[get("/binary")]

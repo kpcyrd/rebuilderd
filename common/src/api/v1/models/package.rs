@@ -65,3 +65,15 @@ pub struct BinaryPackage {
     pub last_seen: NaiveDateTime,
     pub seen_in_last_sync: bool,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "diesel", derive(Queryable))]
+#[cfg_attr(feature = "diesel", diesel(check_for_backend(diesel::sqlite::Sqlite)))]
+pub struct TransitionBinaryPackage {
+    pub name: String,
+    pub version: String,
+    pub architecture: String,
+    pub status: Option<ArtifactStatus>,
+    pub build_id: Option<i32>,
+    pub diffoscope_log_id: Option<i32>,
+}

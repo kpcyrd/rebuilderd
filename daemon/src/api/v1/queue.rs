@@ -110,7 +110,7 @@ pub async fn request_rebuild(
 
     let origin_filter = OriginFilter {
         distribution: queue_request.distribution,
-        release: queue_request.release,
+        release: queue_request.release.as_slice().to_vec(),
         component: queue_request.component,
         architecture: queue_request.architecture,
     };

@@ -71,6 +71,7 @@ pub fn build_server(
                                     .service(api::v1::get_build_artifacts)
                                     .service(api::v1::get_build_artifact)
                                     .service(api::v1::get_build_artifact_diffoscope)
+                                    .service(api::v1::get_build_diffoscope)
                                     .service(api::v1::get_build_artifact_attestation),
                             )
                             .service(scope("/dashboard").service(api::v1::get_dashboard))
@@ -93,6 +94,7 @@ pub fn build_server(
                                     .service(api::v1::get_source_packages)
                                     .service(api::v1::get_source_package)
                                     .service(api::v1::get_binary_packages)
+                                    .service(api::v1::get_transition_packages)
                                     .service(api::v1::get_binary_package),
                             )
                             .service(
