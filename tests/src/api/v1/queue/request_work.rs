@@ -2,7 +2,7 @@ use crate::actions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::{
     JobAssignment, PopQueuedJobRequest, Priority, QueueJobRequest, QueueRestApi,
 };
@@ -14,7 +14,7 @@ use rstest::rstest;
 pub async fn new_database_has_no_work(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_registered_worker(client).await;
+    setup::registered_worker(client).await;
 
     let job = client.request_work(job_request()).await.unwrap();
 
@@ -143,7 +143,7 @@ pub async fn manually_queued_item_past_max_retries_is_available(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    setup_build_ready_database(client).await;
+    setup::build_ready_database(client).await;
 
     // first attempt, get and report
     report_bad_rebuild(client).await;

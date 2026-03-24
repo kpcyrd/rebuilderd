@@ -96,6 +96,13 @@ pub fn single_package_report_from_different_architecture() -> PackageReport {
     }
 }
 
+pub fn single_package_report_with_null_release() -> PackageReport {
+    PackageReport {
+        release: None,
+        ..single_package_report()
+    }
+}
+
 pub fn multiple_package_report() -> PackageReport {
     PackageReport {
         distribution: DUMMY_DISTRIBUTION.to_string(),

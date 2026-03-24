@@ -3,7 +3,7 @@ use crate::assertions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use chrono::Utc;
 use rebuilderd_common::api::v1::{
     BuildRestApi, BuildStatus, OriginFilter, PackageReport, PackageRestApi, Priority, QueueRestApi,
@@ -182,7 +182,7 @@ pub async fn has_correct_packages_after_import_of_multiple_packages(
 pub async fn job_is_queued_after_import_of_new_package(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -229,7 +229,7 @@ pub async fn job_is_queued_after_import_of_new_package_with_multiple_artifacts(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package_with_multiple_artifacts(client).await;
+    setup::single_imported_package_with_multiple_artifacts(client).await;
 
     let jobs = client
         .get_queued_jobs(None, None, None)
@@ -276,7 +276,7 @@ pub async fn queued_job_from_new_package_with_multiple_artifacts_has_correct_dat
 pub async fn additional_job_is_not_queued_after_reimport(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
     import_single_package(client).await;
 
     let jobs = client
@@ -514,7 +514,7 @@ pub async fn existing_rebuilds_are_copied_from_friends(
     let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     // then, the friend of that package
     let friend_identity = SourceIdentityFilter {
@@ -561,7 +561,7 @@ pub async fn existing_rebuilds_are_not_copied_from_nonfriends(
     let client = &isolated_server.client;
 
     // first, a single package with a good rebuild
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     // then, the nonfriends of that package
     let friend_identity = SourceIdentityFilter {
@@ -611,7 +611,7 @@ pub async fn next_retry_is_unchanged_for_reimports(mut isolated_server: Isolated
     let client = &isolated_server.client;
 
     // one bad rebuild, which gets next_retry set
-    setup_single_bad_rebuild(client).await;
+    setup::single_bad_rebuild(client).await;
 
     let old_job = client
         .get_queued_jobs(None, None, None)
@@ -661,7 +661,7 @@ pub async fn retry_count_is_independent_of_friends(
     let client = &isolated_server.client;
 
     // one bad rebuild, which would have a retry count of 1
-    setup_single_bad_rebuild(client).await;
+    setup::single_bad_rebuild(client).await;
 
     // a friend, which will get the builds copied
     client.submit_package_report(&extra_packages).await.unwrap();
@@ -701,7 +701,7 @@ pub async fn package_is_not_queued_if_any_friend_is_marked_good(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -736,7 +736,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_queued(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -781,7 +781,7 @@ pub async fn package_is_not_queued_if_any_friend_is_already_past_max_retries(
     let client = &isolated_server.client;
     let _config_file = config_file;
 
-    setup_build_ready_database(client).await;
+    setup::build_ready_database(client).await;
 
     // first attempt, get and report
     report_bad_rebuild(client).await;

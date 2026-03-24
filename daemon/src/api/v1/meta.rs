@@ -10,6 +10,12 @@ use rebuilderd_common::errors::Error;
 use serde_json::json;
 use std::sync::Arc;
 
+const NO_RELEASE: &str = "-";
+
+fn derive_release(release: &str) -> Option<&str> {
+    Some(release).filter(|r| *r != NO_RELEASE)
+}
+
 #[get("/distributions")]
 pub async fn get_distributions(
     pool: web::Data<Pool>,
@@ -92,11 +98,12 @@ pub async fn get_distribution_release_architectures(
     freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+    let release = derive_release(&path.1);
 
     let distribution_release_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
-        .filter(source_packages::release.is(&path.1))
+        .filter(source_packages::release.is(release))
         .filter(freshness_filter.into_inner().into_filter())
         .select(build_inputs::architecture)
         .distinct()
@@ -113,10 +120,11 @@ pub async fn get_distribution_release_components(
     freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+    let release = derive_release(&path.1);
 
     let distribution_release_components = source_packages::table
         .filter(source_packages::distribution.is(&path.0))
-        .filter(source_packages::release.is(&path.1))
+        .filter(source_packages::release.is(release))
         .filter(freshness_filter.into_inner().into_filter())
         .select(source_packages::component)
         .distinct()
@@ -133,11 +141,12 @@ pub async fn get_distribution_release_component_architectures(
     freshness_filter: web::Query<FreshnessFilter>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+    let release = derive_release(&path.1);
 
     let distribution_release_component_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
-        .filter(source_packages::release.is(&path.1))
+        .filter(source_packages::release.is(release))
         .filter(source_packages::component.is(&path.2))
         .filter(freshness_filter.into_inner().into_filter())
         .select(build_inputs::architecture)

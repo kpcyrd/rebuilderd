@@ -2,7 +2,7 @@ use crate::actions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::{
     BuildRestApi, OriginFilter, PackageReport, PackageRestApi, Page, SourceIdentityFilter,
 };
@@ -31,7 +31,7 @@ pub async fn returns_single_result_for_database_with_single_build(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     let results = client
         .get_builds(None, None, None)
@@ -51,7 +51,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_builds(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(client).await;
+    setup::single_bad_rebuild(client).await;
     request_rebuild_of_all_bad_packages(client).await;
     report_good_rebuild(client).await;
 
@@ -71,7 +71,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_builds(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -90,7 +90,7 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 pub async fn can_paginate(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_bad_rebuild(client).await;
+    setup::single_bad_rebuild(client).await;
     request_rebuild_of_all_bad_packages(client).await;
     report_good_rebuild(client).await;
 
@@ -190,7 +190,7 @@ pub async fn returns_result_for_matching_origin_filter(
     #[case] expected_count: usize,
 ) {
     let client = &isolated_server.client;
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     register_worker(client).await;
     report_good_rebuild(client).await;
@@ -265,7 +265,7 @@ pub async fn returns_result_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(client).await;
+    setup::multiple_imported_packages(client).await;
 
     register_worker(client).await;
 

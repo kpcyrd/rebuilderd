@@ -3,7 +3,7 @@ use crate::assertions::assert_job_matches_package;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::{
     OriginFilter, PackageReport, PackageRestApi, QueueRestApi, SourceIdentityFilter,
 };
@@ -133,7 +133,7 @@ pub async fn drops_correct_job_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(client).await;
+    setup::multiple_imported_packages(client).await;
 
     client
         .drop_queued_jobs(None, Some(&identity_filter))
