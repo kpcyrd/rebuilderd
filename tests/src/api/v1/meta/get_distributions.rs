@@ -1,7 +1,7 @@
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::setup_single_imported_package;
+use crate::setup;
 use rebuilderd_common::api::v1::{MetaRestApi, PackageRestApi};
 use rstest::rstest;
 
@@ -23,7 +23,7 @@ pub async fn returns_correct_result_for_database_with_single_distribution(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     let results = client.get_distributions().await.unwrap();
 
@@ -40,7 +40,7 @@ pub async fn returns_correct_results_for_database_with_multiple_distributions(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
     client
         .submit_package_report(&single_package_report_from_different_distribution())
         .await
@@ -61,7 +61,7 @@ pub async fn returns_correct_results_for_database_with_multiple_distributions(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");

@@ -1,6 +1,6 @@
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::BuildRestApi;
 use rstest::rstest;
 
@@ -21,7 +21,7 @@ pub async fn returns_no_results_for_empty_database(mut isolated_server: Isolated
 pub async fn returns_result_for_existing_id(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     let results = client.get_build_artifact(1, 1).await;
 
@@ -35,7 +35,7 @@ pub async fn returns_result_for_existing_id(mut isolated_server: IsolatedServer)
 pub async fn returns_no_result_for_nonexistent_build_id(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     let results = client.get_build_artifact(99999, 1).await;
 
@@ -49,7 +49,7 @@ pub async fn returns_no_result_for_nonexistent_build_id(mut isolated_server: Iso
 pub async fn returns_no_result_for_nonexistent_artifact_id(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     let results = client.get_build_artifact(1, 99999).await;
 
@@ -63,7 +63,7 @@ pub async fn returns_no_result_for_nonexistent_artifact_id(mut isolated_server: 
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_good_rebuild(client).await;
+    setup::single_good_rebuild(client).await;
 
     // zero out keys
     client.auth_cookie("");

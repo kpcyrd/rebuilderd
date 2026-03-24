@@ -2,7 +2,7 @@ use crate::actions::*;
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::{
     OriginFilter, PackageReport, PackageRestApi, Page, QueueRestApi, SourceIdentityFilter,
 };
@@ -184,7 +184,7 @@ pub async fn returns_result_for_matching_origin_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     client.submit_package_report(&extra_packages).await.unwrap();
 
@@ -251,7 +251,7 @@ pub async fn returns_result_for_matching_identity_filter(
 ) {
     let client = &isolated_server.client;
 
-    setup_multiple_imported_packages(client).await;
+    setup::multiple_imported_packages(client).await;
 
     let results = client
         .get_queued_jobs(None, None, Some(&identity_filter))

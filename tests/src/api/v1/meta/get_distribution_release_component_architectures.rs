@@ -30,7 +30,7 @@ pub async fn returns_correct_result_for_component_with_single_architecture(
 ) {
     let client = &isolated_server.client;
 
-    setup::setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     let results = client
         .get_distribution_release_component_architectures(
@@ -54,7 +54,7 @@ pub async fn returns_correct_results_for_component_with_multiple_architectures(
 ) {
     let client = &isolated_server.client;
 
-    setup::setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
     client
         .submit_package_report(&single_package_report_from_different_architecture())
         .await
@@ -100,7 +100,7 @@ pub async fn returns_correct_result_for_null_release(mut isolated_server: Isolat
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup::setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");

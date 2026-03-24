@@ -1,7 +1,7 @@
 use crate::actions::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd::attestation;
 use rebuilderd::attestation::Attestation;
 use rebuilderd_common::api::v1::{BuildRestApi, MetaRestApi, PackageRestApi};
@@ -24,7 +24,7 @@ pub async fn returns_no_result_for_empty_database(mut isolated_server: IsolatedS
 pub async fn returns_no_result_for_failed_build(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_failed_rebuild(client).await;
+    setup::single_failed_rebuild(client).await;
 
     let results = client.get_build_artifact_attestation(1, 1).await;
 

@@ -1,7 +1,7 @@
 use crate::data::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
-use crate::setup::*;
+use crate::setup;
 use rebuilderd_common::api::v1::{
     BinaryIdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page,
 };
@@ -27,7 +27,7 @@ pub async fn returns_no_results_for_empty_database(mut isolated_server: Isolated
 pub async fn returns_single_result_for_database_with_single_artifact(
     mut isolated_server: IsolatedServer,
 ) {
-    setup_single_imported_package(&isolated_server.client).await;
+    setup::single_imported_package(&isolated_server.client).await;
 
     let results = isolated_server
         .client
@@ -46,7 +46,7 @@ pub async fn returns_single_result_for_database_with_single_artifact(
 pub async fn returns_multiple_results_for_database_with_multiple_artifacts(
     mut isolated_server: IsolatedServer,
 ) {
-    setup_single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
+    setup::single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
 
     let results = isolated_server
         .client
@@ -65,7 +65,7 @@ pub async fn returns_multiple_results_for_database_with_multiple_artifacts(
 pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
     let client = &mut isolated_server.client;
 
-    setup_single_imported_package(client).await;
+    setup::single_imported_package(client).await;
 
     // zero out keys
     client.auth_cookie("");
@@ -84,7 +84,7 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 pub async fn can_paginate(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
 
-    setup_single_imported_package_with_multiple_artifacts(client).await;
+    setup::single_imported_package_with_multiple_artifacts(client).await;
 
     let mut page = Page {
         limit: Some(1),
@@ -165,7 +165,7 @@ pub async fn returns_result_for_matching_origin_filter(
     #[case] origin_filter: OriginFilter,
     #[case] extra_packages: PackageReport,
 ) {
-    setup_single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
+    setup::single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
 
     isolated_server
         .client
@@ -245,7 +245,7 @@ pub async fn returns_result_for_matching_identity_filter(
     #[case] identity_filter: BinaryIdentityFilter,
     #[case] expected_count: usize,
 ) {
-    setup_single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
+    setup::single_imported_package_with_multiple_artifacts(&isolated_server.client).await;
 
     let results = isolated_server
         .client
