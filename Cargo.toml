@@ -10,5 +10,6 @@ resolver = "2"
 
 [workspace.dependencies]
 rand = "0.10"
-rebuilderd-common = { version = "=0.25.0", path = "common" }
+rebuilderd = { version = "=0.26.0", path = "daemon" }
+rebuilderd-common = { version = "=0.26.0", path = "common" }
 toml = "1"
