@@ -1,3 +1,4 @@
+use crate::config::SyncRelease;
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::Shell;
 use glob::Pattern;
@@ -88,7 +89,7 @@ pub struct PkgsSync {
     pub maintainers: Vec<String>,
 
     #[arg(long = "release")]
-    pub releases: Vec<String>,
+    pub releases: Vec<SyncRelease>,
 
     #[arg(long = "pkg")]
     pub pkgs: Vec<Pattern>,

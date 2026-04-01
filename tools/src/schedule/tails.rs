@@ -18,7 +18,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             url.path_segments_mut()
                 .map_err(|_| anyhow!("cannot be base"))?
                 .pop_if_empty()
-                .push(release);
+                .push(release.name());
 
             info!("Downloading directory list from {}", url);
             let directory_list = http
@@ -31,7 +31,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             let mut report = PackageReport {
                 distribution: "tails".to_string(),
-                release: Some(release.clone()),
+                release: Some(release.name().to_string()),
                 component: None,
                 architecture: architecture.clone(),
                 packages: Vec::new(),
@@ -59,7 +59,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     .map_err(|_| anyhow!("cannot be base"))?
                     .pop_if_empty()
                     .extend(&[
-                        release,
+                        release.name(),
                         &format!("tails-{architecture}-{version}"),
                         &filename,
                     ]);

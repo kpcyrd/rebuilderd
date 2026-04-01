@@ -14,7 +14,13 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     for release in &sync.releases {
         for component in &sync.components {
             for arch in &sync.architectures {
-                let url = format!("{}/{}/{}/{}/os/", sync.source, release, component, arch);
+                let url = format!(
+                    "{}/{}/{}/{}/os/",
+                    release.source(&sync.source),
+                    release.name(),
+                    component,
+                    arch
+                );
                 let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
                 let location = get_primary_location_from_xml(&bytes)?;
 

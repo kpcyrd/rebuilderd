@@ -454,12 +454,11 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             } else {
                 component
             };
-            // Downloading source package index
-            let db_url = format!(
-                "{}/dists/{}/{}/source/Sources.xz",
-                sync.source, release, source_component
-            );
 
+            let base_url = format!("{}/dists/{}", release.source(&sync.source), release.name());
+
+            // Downloading source package index
+            let db_url = format!("{base_url}/{source_component}/source/Sources.xz");
             let bytes = fetch_url_or_path(http, &db_url).await?;
 
             info!("Building map of all source packages");
@@ -467,15 +466,16 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             for arch in &sync.architectures {
                 // Downloading binary package index
-                let db_url = format!(
-                    "{}/dists/{}/{}/binary-{}/Packages.xz",
-                    sync.source, release, component, arch
-                );
+                let db_url = format!("{base_url}/{component}/binary-{arch}/Packages.xz");
 
                 match fetch_url_or_path(http, &db_url).await {
                     Ok(bytes) => {
                         state.import_compressed_binary_package_file(
-                            &bytes, &sources, release, component, sync,
+                            &bytes,
+                            &sources,
+                            release.name(),
+                            component,
+                            sync,
                         )?;
                     }
                     Err(e) => {
@@ -492,6 +492,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SyncRelease;
     use std::io::Cursor;
 
     #[test]
@@ -1540,7 +1541,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             architectures: vec!["amd64".to_string()],
             print_json: true,
             maintainers: vec![],
-            releases: vec!["sid".to_string(), "testing".to_string()],
+            releases: vec![SyncRelease::new("sid"), SyncRelease::new("testing")],
             pkgs: vec![],
             excludes: vec![],
             sync_method: None,
@@ -1613,7 +1614,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             architectures: vec!["amd64".to_string(), "all".to_string()],
             print_json: true,
             maintainers: vec![],
-            releases: vec!["sid".to_string(), "testing".to_string()],
+            releases: vec![SyncRelease::new("sid"), SyncRelease::new("testing")],
             pkgs: vec![],
             excludes: vec![],
             sync_method: None,
