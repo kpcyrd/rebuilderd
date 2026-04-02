@@ -4,7 +4,7 @@ use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::BufReader;
 use std::io::prelude::*;
 use xz2::read::XzDecoder;
@@ -288,7 +288,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    reports: HashMap<(String, String, String), PackageReport>,
+    reports: BTreeMap<(String, String, String), PackageReport>,
 }
 
 impl SyncState {
@@ -759,7 +759,7 @@ Section: misc
         let mut state = SyncState::new();
         state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
 
-        let mut reports = HashMap::new();
+        let mut reports = BTreeMap::new();
         reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
@@ -871,7 +871,7 @@ Section: misc
             );
         }
 
-        let mut reports = HashMap::new();
+        let mut reports = BTreeMap::new();
         reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
@@ -1201,7 +1201,7 @@ Section: mail
             state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
         }
 
-        let mut reports = HashMap::new();
+        let mut reports = BTreeMap::new();
         reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
@@ -1569,7 +1569,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             )
             .unwrap();
 
-        let mut reports = HashMap::new();
+        let mut reports = BTreeMap::new();
         reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
@@ -1821,7 +1821,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
             )
             .unwrap();
 
-        let mut reports = HashMap::new();
+        let mut reports = BTreeMap::new();
 
         reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()),
            PackageReport {
@@ -1916,5 +1916,116 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
         );
 
         assert_eq!(state, SyncState { reports });
+    }
+
+    #[test]
+    fn test_release_with_source_override() {
+        let sources_bytes = b"Package: rust-sniffglue
+Binary: librust-sniffglue-dev, sniffglue, sniffglue-dbgsym
+Version: 0.14.0-2
+Maintainer: Debian Rust Maintainers <pkg-rust-maintainers@alioth-lists.debian.net>
+Uploaders: kpcyrd <git@rxv.cc>
+Architecture: any
+Directory: pool/main/r/rust-sniffglue
+Priority: optional
+Section: misc
+
+";
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
+            .import_uncompressed_source_package_file(&sources_bytes[..])
+            .unwrap();
+
+        let pkg_bytes = b"Package: sniffglue
+Source: rust-sniffglue
+Version: 0.14.0-2
+Architecture: amd64
+Filename: pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb
+
+";
+
+        let debug_pkg_bytes = b"Package: sniffglue-dbgsym
+Source: rust-sniffglue
+Version: 0.14.0-2
+Architecture: amd64
+Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
+
+";
+
+        let mut state = SyncState::new();
+        let sync = PkgsSync {
+            distro: "debian".to_string(),
+            components: vec!["main".to_string()],
+            source: "http://deb.debian.org/debian".to_string(),
+            architectures: vec!["amd64".to_string()],
+            print_json: true,
+            maintainers: vec![],
+            releases: vec![/* this is not used during this test */],
+            pkgs: vec![],
+            excludes: vec![],
+            sync_method: None,
+        };
+
+        for (release, bytes) in [
+            (SyncRelease::new("trixie"), &pkg_bytes[..]),
+            (
+                SyncRelease::ReleaseWithSource {
+                    name: "trixie-debug".to_string(),
+                    source: Some("http://deb.debian.org/debian-debug".to_string()),
+                },
+                &debug_pkg_bytes[..],
+            ),
+        ] {
+            state
+                .import_uncompressed_binary_package_file(
+                    bytes,
+                    &source_pkgs,
+                    &release,
+                    "main",
+                    &sync,
+                )
+                .unwrap();
+        }
+
+        let reports = state.to_vec();
+        assert_eq!(
+            reports,
+            vec![
+                PackageReport {
+                    distribution: "debian".to_string(),
+                    release: Some("trixie".to_string()),
+                    component: Some("main".to_string()),
+                    architecture: "amd64".to_string(),
+                    packages: vec![SourcePackageReport {
+                        name: "rust-sniffglue".to_string(),
+                        version: "0.14.0-2".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-sniffglue/rust-sniffglue_0.14.0-2_amd64.buildinfo".to_string(),
+                        artifacts: vec![BinaryPackageReport {
+                            name: "sniffglue".to_string(),
+                            version: "0.14.0-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
+                        }]
+                    }]
+                },
+                PackageReport {
+                    distribution: "debian".to_string(),
+                    release: Some("trixie-debug".to_string()),
+                    component: Some("main".to_string()),
+                    architecture: "amd64".to_string(),
+                    packages: vec![SourcePackageReport {
+                        name: "rust-sniffglue".to_string(),
+                        version: "0.14.0-2".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-sniffglue/rust-sniffglue_0.14.0-2_amd64.buildinfo".to_string(),
+                        artifacts: vec![BinaryPackageReport {
+                            name: "sniffglue-dbgsym".to_string(),
+                            version: "0.14.0-2".to_string(),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian-debug/pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb".to_string()
+                        }]
+                    }]
+                },
+            ]
+        );
     }
 }
