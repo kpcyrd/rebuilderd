@@ -6,13 +6,13 @@ use regex::Regex;
 use url::Url;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
-    let source = sync
-        .source
-        .parse::<Url>()
-        .context("Failed to parse source as url")?;
-
     let mut reports = Vec::new();
     for release in &sync.releases {
+        let source = release
+            .source(&sync.source)
+            .parse::<Url>()
+            .context("Failed to parse source as url")?;
+
         for architecture in &sync.architectures {
             let mut url = source.clone();
             url.path_segments_mut()
