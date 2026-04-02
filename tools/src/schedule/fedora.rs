@@ -14,17 +14,18 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     for release in &sync.releases {
         for component in &sync.components {
             for arch in &sync.architectures {
-                let url = format!(
-                    "{}/{}/{}/{}/os/",
+                let base_url = format!(
+                    "{}/{}/{}/{}/os",
                     release.source(&sync.source),
                     release.name(),
                     component,
                     arch
                 );
-                let bytes = fetch_url_or_path(http, &format!("{url}repodata/repomd.xml")).await?;
+                let bytes =
+                    fetch_url_or_path(http, &format!("{base_url}/repodata/repomd.xml")).await?;
                 let location = get_primary_location_from_xml(&bytes)?;
 
-                let bytes = fetch_url_or_path(http, &format!("{url}{location}")).await?;
+                let bytes = fetch_url_or_path(http, &format!("{base_url}/{location}")).await?;
                 info!("Parsing index ({} bytes)...", bytes.len());
 
                 let comp = decompress::detect_compression(&bytes);
@@ -46,7 +47,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                         continue;
                     }
 
-                    let url = format!("{url}{}", pkg.location.href);
+                    let url = format!("{base_url}/{}", pkg.location.href);
                     let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
                     let artifact = BinaryPackageReport {
                         name: pkg.name,
