@@ -1,4 +1,5 @@
 use crate::args::PkgsSync;
+use crate::config::SyncRelease;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
@@ -369,8 +370,8 @@ impl SyncState {
     pub fn import_binary_pkg(
         &mut self,
         pkg: DebianBinPkg,
-        sources: &SourcePkgBucket,
-        release: &str,
+        source_pkgs: &SourcePkgBucket,
+        release: &SyncRelease,
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
@@ -382,14 +383,15 @@ impl SyncState {
 
         debug!("Found binary package: {:?} {:?}", pkg.name, pkg.version);
 
-        match sources.get(&pkg) {
-            Ok(source) => {
+        match source_pkgs.get(&pkg) {
+            Ok(source_pkg) => {
                 debug!(
                     "Matched binary package to source package: {:?} {:?}",
-                    source.base, source.version
+                    source_pkg.base, source_pkg.version
                 );
 
-                self.push(&source, pkg, &sync.source, release, component);
+                let source = release.source(&sync.source);
+                self.push(&source_pkg, pkg, source, release.name(), component);
             }
             Err(e) => {
                 warn!("{}, skipping", e)
@@ -410,14 +412,14 @@ impl SyncState {
     pub fn import_compressed_binary_package_file(
         &mut self,
         bytes: &[u8],
-        sources: &SourcePkgBucket,
-        release: &str,
+        source_pkgs: &SourcePkgBucket,
+        release: &SyncRelease,
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release, component, sync);
+        self.create_all_release_groups(release.name(), component, sync);
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
-            self.import_binary_pkg(pkg, sources, release, component, sync)?;
+            self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
         Ok(())
     }
@@ -425,14 +427,14 @@ impl SyncState {
     pub fn import_uncompressed_binary_package_file(
         &mut self,
         bytes: &[u8],
-        sources: &SourcePkgBucket,
-        release: &str,
+        source_pkgs: &SourcePkgBucket,
+        release: &SyncRelease,
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release, component, sync);
+        self.create_all_release_groups(release.name(), component, sync);
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
-            self.import_binary_pkg(pkg, sources, release, component, sync)?;
+            self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
         Ok(())
     }
@@ -442,7 +444,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
     let mut state = SyncState::new();
 
     for release in &sync.releases {
-        let mut sources = SourcePkgBucket::new();
+        let mut source_pkgs = SourcePkgBucket::new();
 
         for component in &sync.components {
             let source_component = if component.ends_with("/debian-installer") {
@@ -462,7 +464,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             let bytes = fetch_url_or_path(http, &db_url).await?;
 
             info!("Building map of all source packages");
-            sources.import_compressed_source_package_file(&bytes)?;
+            source_pkgs.import_compressed_source_package_file(&bytes)?;
 
             for arch in &sync.architectures {
                 // Downloading binary package index
@@ -472,8 +474,8 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     Ok(bytes) => {
                         state.import_compressed_binary_package_file(
                             &bytes,
-                            &sources,
-                            release.name(),
+                            &source_pkgs,
+                            release,
                             component,
                             sync,
                         )?;
@@ -502,7 +504,7 @@ mod tests {
             .import_uncompressed_binary_package_file(
                 b"",
                 &SourcePkgBucket::new(),
-                "trixie-proposed-updates",
+                &SyncRelease::new("trixie-proposed-updates"),
                 "main",
                 &PkgsSync {
                     distro: "debian".to_string(),
@@ -1188,14 +1190,14 @@ Section: mail
 ";
         let cursor = Cursor::new(bytes);
 
-        let mut sources = SourcePkgBucket::new();
-        sources
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
             .import_uncompressed_source_package_file(cursor)
             .unwrap();
 
         let mut state = SyncState::new();
         for bin in bin_pkgs {
-            let src = sources.get(&bin).unwrap();
+            let src = source_pkgs.get(&bin).unwrap();
             state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
         }
 
@@ -1428,8 +1430,8 @@ Section: misc
 
 ";
 
-        let mut sources = SourcePkgBucket::new();
-        sources
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
             .import_uncompressed_source_package_file(sources_bytes.as_bytes())
             .unwrap();
 
@@ -1438,7 +1440,7 @@ Section: misc
 
         // test first package (with Extra-Source-Only)
         let pkg = pkgs.next().unwrap();
-        let src = sources.get(&pkg).unwrap();
+        let src = source_pkgs.get(&pkg).unwrap();
         assert_eq!(
             src,
             DebianSourcePkg {
@@ -1453,7 +1455,7 @@ Section: misc
 
         // test second package (without Extra-Source-Only)
         let pkg = pkgs.next().unwrap();
-        let src = sources.get(&pkg).unwrap();
+        let src = source_pkgs.get(&pkg).unwrap();
         assert_eq!(
             src,
             DebianSourcePkg {
@@ -1505,8 +1507,8 @@ Priority: optional
 Section: misc
 
 ";
-        let mut sources = SourcePkgBucket::new();
-        sources
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
             .import_uncompressed_source_package_file(&sources_bytes[..])
             .unwrap();
 
@@ -1549,10 +1551,22 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
 
         // add the package list twice, to simulate importing sid and testing
         state
-            .import_uncompressed_binary_package_file(&bytes[..], &sources, "sid", "main", &sync)
+            .import_uncompressed_binary_package_file(
+                &bytes[..],
+                &source_pkgs,
+                &SyncRelease::new("sid"),
+                "main",
+                &sync,
+            )
             .unwrap();
         state
-            .import_uncompressed_binary_package_file(&bytes[..], &sources, "testing", "main", &sync)
+            .import_uncompressed_binary_package_file(
+                &bytes[..],
+                &source_pkgs,
+                &SyncRelease::new("testing"),
+                "main",
+                &sync,
+            )
             .unwrap();
 
         let mut reports = HashMap::new();
@@ -1713,12 +1727,18 @@ MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
 "[..]);
-        let mut sources = SourcePkgBucket::new();
-        sources
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
             .import_uncompressed_source_package_file(source)
             .unwrap();
         state
-            .import_uncompressed_binary_package_file(binary, &sources, "sid", "main", &sync)
+            .import_uncompressed_binary_package_file(
+                binary,
+                &source_pkgs,
+                &SyncRelease::new("sid"),
+                "main",
+                &sync,
+            )
             .unwrap();
 
         // testing
@@ -1787,12 +1807,18 @@ MD5sum: e088e49616de39f4cfa162959335340e
 SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
 ");
-        let mut sources = SourcePkgBucket::new();
-        sources
+        let mut source_pkgs = SourcePkgBucket::new();
+        source_pkgs
             .import_uncompressed_source_package_file(&source[..])
             .unwrap();
         state
-            .import_uncompressed_binary_package_file(binary, &sources, "testing", "main", &sync)
+            .import_uncompressed_binary_package_file(
+                binary,
+                &source_pkgs,
+                &SyncRelease::new("testing"),
+                "main",
+                &sync,
+            )
             .unwrap();
 
         let mut reports = HashMap::new();
