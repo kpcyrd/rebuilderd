@@ -294,9 +294,7 @@ pub async fn returns_result_for_matching_identity_filter(
 
 #[rstest]
 #[tokio::test]
-pub async fn contains_search_returns_matching_source_packages(
-    mut isolated_server: IsolatedServer,
-) {
+pub async fn contains_search_returns_matching_source_packages(mut isolated_server: IsolatedServer) {
     setup::multiple_imported_packages(&isolated_server.client).await;
 
     // DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE is "barbaz"; "arb" is a substring

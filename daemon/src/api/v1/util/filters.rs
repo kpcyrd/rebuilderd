@@ -6,10 +6,12 @@ use diesel::query_builder::QueryFragment;
 use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::Sqlite;
 use diesel::{
-    BoolExpressionMethods, BoxableExpression, Expression, ExpressionMethods,
-    SelectableExpression, SqliteExpressionMethods, TextExpressionMethods,
+    BoolExpressionMethods, BoxableExpression, Expression, ExpressionMethods, SelectableExpression,
+    SqliteExpressionMethods, TextExpressionMethods,
 };
-use rebuilderd_common::api::v1::{BinaryIdentityFilter, FreshnessFilter, OriginFilter, SearchType, SourceIdentityFilter};
+use rebuilderd_common::api::v1::{
+    BinaryIdentityFilter, FreshnessFilter, OriginFilter, SearchType, SourceIdentityFilter,
+};
 
 pub trait IntoSourceIdentityFilter<QS, DB>
 where
