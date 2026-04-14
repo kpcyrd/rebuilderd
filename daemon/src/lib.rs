@@ -1,4 +1,6 @@
 use crate::config::Config;
+use crate::stats_config::StatsConfigFile;
+use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::{Data, JsonConfig, scope};
@@ -15,23 +17,33 @@ pub mod config;
 pub mod db;
 pub mod models;
 pub mod schema;
+pub mod stats_config;
 pub mod web;
 
 pub fn build_server(
     pool: db::Pool,
     config: Config,
     privkey: PrivateKey,
+    stats_config: StatsConfigFile,
 ) -> Result<(Server, SocketAddr)> {
     let bind_addr = config.bind_addr.clone();
 
     let privkey = Arc::new(privkey);
+    let stats_config = Arc::new(stats_config);
 
     let server = HttpServer::new(move || {
         let json_config = JsonConfig::default().limit(config.post_body_size_limit);
 
         let v0_dashboard_cache = Arc::new(RwLock::new(api::v0::DashboardState::new()));
 
+        let cors = if config.permissive_cors {
+            Cors::permissive()
+        } else {
+            Cors::default()
+        };
+
         App::new()
+            .wrap(cors)
             .wrap(Logger::default())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
@@ -40,6 +52,7 @@ pub fn build_server(
             .app_data(Data::new(config.clone()))
             .app_data(Data::new(privkey.clone()))
             .app_data(Data::new(v0_dashboard_cache.clone()))
+            .app_data(Data::new(stats_config.clone()))
             .service(
                 scope("/api")
                     .service(
@@ -74,6 +87,11 @@ pub fn build_server(
                                     .service(api::v1::get_build_artifact_attestation),
                             )
                             .service(scope("/dashboard").service(api::v1::get_dashboard))
+                            .service(
+                                scope("/stats")
+                                    .service(api::v1::get_stats)
+                                    .service(api::v1::collect_stats),
+                            )
                             .service(
                                 scope("/meta")
                                     .service(api::v1::get_distributions)
@@ -125,9 +143,14 @@ pub fn build_server(
     Ok((server.run(), address))
 }
 
-pub async fn run_config(pool: db::Pool, config: Config, privkey: PrivateKey) -> Result<()> {
-    let (server, _) = build_server(pool, config, privkey)?;
-
+pub async fn run_config(
+    pool: db::Pool,
+    config: Config,
+    privkey: PrivateKey,
+    stats_config: StatsConfigFile,
+) -> Result<()> {
+    let (server, address) = build_server(pool, config, privkey, stats_config)?;
+    info!("Listening on {}", address);
     server.await?;
     Ok(())
 }

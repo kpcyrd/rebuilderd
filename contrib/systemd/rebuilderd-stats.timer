@@ -1,0 +1,9 @@
+[Unit]
+Description=rebuilderctl stats: collect a daily snapshot
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

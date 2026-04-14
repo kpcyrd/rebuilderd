@@ -35,8 +35,34 @@ pub enum SubCommand {
     /// Queue related subcommands
     #[command(subcommand)]
     Queue(Queue),
+    /// Stats related subcommands
+    #[command(subcommand)]
+    Stats(Stats),
     /// Generate shell completions
     Completions(Completions),
+}
+
+#[derive(Debug, Parser)]
+pub enum Stats {
+    /// Trigger the daemon to capture a stats snapshot now
+    Collect(StatsCollect),
+}
+
+#[derive(Debug, Parser)]
+pub struct StatsCollect {
+    /// Backend name for error categorization, matching a [backend."x"] section
+    /// in rebuilderd-stats.conf (e.g. "debian"). Omit to skip categorization.
+    #[arg(long)]
+    pub backend: Option<String>,
+    /// Filter by distribution (e.g. "debian")
+    #[arg(long)]
+    pub distribution: Option<String>,
+    /// Filter by release (e.g. "trixie")
+    #[arg(long)]
+    pub release: Option<String>,
+    /// Filter by architecture (e.g. "amd64")
+    #[arg(long)]
+    pub architecture: Option<String>,
 }
 
 #[derive(Debug, Parser)]
