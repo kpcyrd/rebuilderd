@@ -8,11 +8,7 @@ use rstest::rstest;
 #[rstest]
 #[tokio::test]
 pub async fn returns_empty_for_new_database(mut isolated_server: IsolatedServer) {
-    let results = isolated_server
-        .client
-        .get_stats(None)
-        .await
-        .unwrap();
+    let results = isolated_server.client.get_stats(None).await.unwrap();
 
     assert!(results.is_empty());
 
