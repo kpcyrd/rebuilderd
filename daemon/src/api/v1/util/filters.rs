@@ -5,8 +5,10 @@ use diesel::expression::{AsExpression, ValidGrouping};
 use diesel::query_builder::QueryFragment;
 use diesel::sql_types::{Bool, Text};
 use diesel::sqlite::Sqlite;
-use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
-use diesel::{ExpressionMethods, SqliteExpressionMethods};
+use diesel::{
+    BoolExpressionMethods, BoxableExpression, Expression, ExpressionMethods,
+    SelectableExpression, SqliteExpressionMethods, TextExpressionMethods,
+};
 use rebuilderd_common::api::v1::{BinaryIdentityFilter, FreshnessFilter, OriginFilter, SearchType, SourceIdentityFilter};
 
 pub trait IntoSourceIdentityFilter<QS, DB>

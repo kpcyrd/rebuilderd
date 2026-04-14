@@ -4,7 +4,8 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use rebuilderd_common::api::v1::{
-    OriginFilter, PackageReport, PackageRestApi, Page, QueueRestApi, SourceIdentityFilter,
+    OriginFilter, PackageReport, PackageRestApi, Page, QueueRestApi, SearchType,
+    SourceIdentityFilter,
 };
 use rstest::rstest;
 
@@ -220,26 +221,31 @@ pub async fn returns_result_for_matching_origin_filter(
 #[rstest]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     },
     1)]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: None,
     },
     2)]

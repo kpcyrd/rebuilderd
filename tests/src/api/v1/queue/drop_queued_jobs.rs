@@ -5,7 +5,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use rebuilderd_common::api::v1::{
-    OriginFilter, PackageReport, PackageRestApi, QueueRestApi, SourceIdentityFilter,
+    OriginFilter, PackageReport, PackageRestApi, QueueRestApi, SearchType, SourceIdentityFilter,
 };
 use rstest::rstest;
 
@@ -112,18 +112,22 @@ pub async fn drops_correct_job_for_matching_origin_filter(
 #[rstest]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     })]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     })]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_SOURCE_PACKAGE_VERSION.to_string()),
     })]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION.to_string()),
     })]
 #[tokio::test]
