@@ -447,15 +447,9 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
         let mut source_pkgs = SourcePkgBucket::new();
 
         for component in &sync.components {
-            let source_component = if component.ends_with("/debian-installer") {
-                if let Some((a, _)) = component.split_once('/') {
-                    a
-                } else {
-                    component
-                }
-            } else {
-                component
-            };
+            let source_component = component
+                .strip_suffix("/debian-installer")
+                .unwrap_or(component);
 
             let base_url = format!("{}/dists/{}", release.source(&sync.source), release.name());
 
