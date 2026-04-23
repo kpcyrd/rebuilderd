@@ -3,7 +3,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use rebuilderd_common::api::v1::{
-    BinaryIdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page,
+    BinaryIdentityFilter, OriginFilter, PackageReport, PackageRestApi, Page, SearchType,
 };
 use rstest::rstest;
 
@@ -211,30 +211,35 @@ pub async fn returns_result_for_matching_origin_filter(
 #[rstest]
 #[case(BinaryIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1.to_string()),
+        search_type: SearchType::Exact,
         version: None,
         source_name: None,
     },
     1)]
 #[case(BinaryIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2.to_string()),
+        search_type: SearchType::Exact,
         version: None,
         source_name: None,
     },
     1)]
 #[case(BinaryIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_VERSION.to_string()),
         source_name: None,
     },
     1)]
 #[case(BinaryIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_VERSION.to_string()),
         source_name: None,
     },
     1)]
 #[case(BinaryIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: None,
         source_name: None,
     },
@@ -267,6 +272,150 @@ pub async fn returns_result_for_matching_identity_filter(
             assert_eq!(version, package.version);
         }
     }
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn exact_search_returns_only_exact_name_match(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    let filter = BinaryIdentityFilter {
+        name: Some(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1.to_string()),
+        search_type: SearchType::Exact,
+        version: None,
+        source_name: None,
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert_eq!(1, results.len());
+    assert_eq!(DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1, results[0].name);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn exact_search_does_not_match_partial_name(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1 is "bar"; "ba" should not match exactly
+    let filter = BinaryIdentityFilter {
+        name: Some("ba".to_string()),
+        search_type: SearchType::Exact,
+        version: None,
+        source_name: None,
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn contains_search_returns_all_packages_with_substring(
+    mut isolated_server: IsolatedServer,
+) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // "ba" is a substring of "bar" and "baz"
+    let filter = BinaryIdentityFilter {
+        name: Some("ba".to_string()),
+        search_type: SearchType::Contains,
+        version: None,
+        source_name: None,
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert_eq!(2, results.len());
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn starts_with_search_returns_matching_packages(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // "ba" is a prefix of "bar" and "baz"
+    let filter = BinaryIdentityFilter {
+        name: Some("ba".to_string()),
+        search_type: SearchType::StartsWith,
+        version: None,
+        source_name: None,
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert_eq!(2, results.len());
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn starts_with_search_does_not_match_suffix(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // "oo" appears in "foo" as a suffix, not a prefix
+    let filter = BinaryIdentityFilter {
+        name: Some("oo".to_string()),
+        search_type: SearchType::StartsWith,
+        version: None,
+        source_name: None,
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert!(results.is_empty());
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn default_search_type_is_exact(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // "ba" would match "bar"/"baz" with contains, but not with exact (default)
+    let filter = BinaryIdentityFilter {
+        name: Some("ba".to_string()),
+        ..Default::default()
+    };
+    let results = isolated_server
+        .client
+        .get_binary_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert!(results.is_empty());
 
     isolated_server.shutdown().await;
 }

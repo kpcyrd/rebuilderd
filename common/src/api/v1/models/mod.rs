@@ -42,17 +42,35 @@ pub struct OriginFilter {
     pub architecture: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SourceIdentityFilter {
     pub name: Option<String>,
+    #[serde(default)]
+    pub search_type: SearchType,
     pub version: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinaryIdentityFilter {
     pub name: Option<String>,
+    #[serde(default)]
+    pub search_type: SearchType,
     pub version: Option<String>,
     pub source_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchType {
+    Exact,
+    Contains,
+    StartsWith,
+}
+
+impl Default for SearchType {
+    fn default() -> Self {
+        Self::Exact
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
