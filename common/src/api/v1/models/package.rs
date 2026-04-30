@@ -3,12 +3,11 @@ use chrono::NaiveDateTime;
 #[cfg(feature = "diesel")]
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageReport {
     pub distribution: String,
-    pub release: Option<String>,
-    pub component: Option<String>,
     pub architecture: String,
     pub packages: Vec<SourcePackageReport>,
 }
@@ -27,6 +26,8 @@ pub struct BinaryPackageReport {
     pub version: String,
     pub architecture: String,
     pub url: String,
+    #[serde(default)]
+    pub releases: BTreeSet<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

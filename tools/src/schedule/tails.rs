@@ -3,6 +3,7 @@ use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePacka
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use regex::Regex;
+use std::collections::BTreeSet;
 use url::Url;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
@@ -31,8 +32,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             let mut report = PackageReport {
                 distribution: "tails".to_string(),
-                release: Some(release.name().to_string()),
-                component: None,
                 architecture: architecture.clone(),
                 packages: Vec::new(),
             };
@@ -72,6 +71,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     version: version.to_string(),
                     architecture: architecture.clone(),
                     url: url.clone(),
+                    releases: BTreeSet::from([release.name().to_string()]),
                 };
 
                 if let Some(ref mut group) = group {

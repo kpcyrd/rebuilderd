@@ -5,7 +5,7 @@ use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePacka
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::Read;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
@@ -34,8 +34,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
                 let mut report = PackageReport {
                     distribution: "fedora".to_string(),
-                    release: None,
-                    component: Some(component.clone()),
                     architecture: arch.clone(),
                     packages: Vec::new(),
                 };
@@ -54,6 +52,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                         version,
                         architecture: pkg.arch,
                         url: url.clone(),
+                        releases: BTreeSet::from([release.name().to_string()]),
                     };
 
                     if let Some(group) = bases.get_mut(&pkg.format.sourcerpm) {

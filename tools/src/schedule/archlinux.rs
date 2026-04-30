@@ -5,7 +5,7 @@ use nom::bytes::complete::take_till;
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::TryInto;
 use std::io::prelude::*;
 use tar::{Archive, EntryType};
@@ -166,8 +166,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             let mut report = PackageReport {
                 distribution: "archlinux".to_string(),
-                release: None,
-                component: Some(component.clone()),
                 architecture: arch.clone(),
                 packages: Vec::new(),
             };
@@ -186,6 +184,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     version: pkg.version.clone(),
                     architecture: pkg.architecture,
                     url: url.clone(),
+                    releases: BTreeSet::from(["latest".to_string()]),
                 };
 
                 if let Some(group) = bases.get_mut(&pkg.base) {

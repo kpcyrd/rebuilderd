@@ -4,7 +4,7 @@ use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::BufReader;
 use std::io::prelude::*;
 use xz2::read::XzDecoder;
@@ -286,9 +286,14 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
     Ok(pkgs)
 }
 
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct SyncKey {
+    architecture: String,
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    reports: BTreeMap<(String, String, String), PackageReport>,
+    reports: BTreeMap<SyncKey, PackageReport>,
 }
 
 impl SyncState {
@@ -296,21 +301,12 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn create_release_group(
-        &mut self,
-        release: &str,
-        component: &str,
-        architecture: &str,
-    ) -> &mut PackageReport {
-        let key = (
-            release.to_string(),
-            component.to_string(),
-            architecture.to_string(),
-        );
+    fn create_release_group(&mut self, architecture: &str) -> &mut PackageReport {
+        let key = SyncKey {
+            architecture: architecture.to_string(),
+        };
         self.reports.entry(key).or_insert_with(|| PackageReport {
             distribution: "debian".to_string(),
-            release: Some(release.to_string()),
-            component: Some(component.to_string()),
             architecture: architecture.to_string(),
             packages: Vec::new(),
         })
@@ -319,11 +315,9 @@ impl SyncState {
     fn get_mut_group(
         &mut self,
         src: &DebianSourcePkg,
-        release: &str,
-        component: &str,
         architecture: &str,
     ) -> &mut SourcePackageReport {
-        let report = self.create_release_group(release, component, architecture);
+        let report = self.create_release_group(architecture);
 
         match report
             .packages
@@ -345,22 +339,27 @@ impl SyncState {
         }
     }
 
-    pub fn push(
-        &mut self,
-        src: &DebianSourcePkg,
-        bin: DebianBinPkg,
-        source: &str,
-        release: &str,
-        component: &str,
-    ) {
-        let group = self.get_mut_group(src, release, component, &bin.architecture);
+    pub fn push(&mut self, src: &DebianSourcePkg, bin: DebianBinPkg, source: &str, release: &str) {
+        let group = self.get_mut_group(src, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
-        group.artifacts.push(BinaryPackageReport {
-            name: bin.name,
-            version: bin.version,
-            architecture: bin.architecture.clone(),
-            url,
-        });
+
+        if let Some(existing) = group
+            .artifacts
+            .iter_mut()
+            .find(|artifact| artifact.name == bin.name && artifact.version == bin.version)
+        {
+            // Artifact is already known, just mark it as present in this release (if needed)
+            existing.releases.insert(release.to_string());
+        } else {
+            // Artifact is not known yet, add it as build output
+            group.artifacts.push(BinaryPackageReport {
+                name: bin.name,
+                version: bin.version,
+                architecture: bin.architecture.clone(),
+                url,
+                releases: BTreeSet::from([release.to_string()]),
+            });
+        }
     }
 
     pub fn to_vec(self) -> Vec<PackageReport> {
@@ -372,7 +371,6 @@ impl SyncState {
         pkg: DebianBinPkg,
         source_pkgs: &SourcePkgBucket,
         release: &SyncRelease,
-        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
         // Debian combines arch:all and arch:any packages.
@@ -391,7 +389,7 @@ impl SyncState {
                 );
 
                 let source = release.source(&sync.source);
-                self.push(&source_pkg, pkg, source, release.name(), component);
+                self.push(&source_pkg, pkg, source, release.name());
             }
             Err(e) => {
                 warn!("{}, skipping", e)
@@ -403,9 +401,9 @@ impl SyncState {
     /// Ensure all release groups are created, even if we never assign any packages to it.
     /// If a release group doesn't have any packages, we still want to notify rebuilderd that
     /// it's empty.
-    fn create_all_release_groups(&mut self, release: &str, component: &str, sync: &PkgsSync) {
+    fn create_all_release_groups(&mut self, sync: &PkgsSync) {
         for arch in &sync.architectures {
-            self.create_release_group(release, component, arch);
+            self.create_release_group(arch);
         }
     }
 
@@ -414,12 +412,11 @@ impl SyncState {
         bytes: &[u8],
         source_pkgs: &SourcePkgBucket,
         release: &SyncRelease,
-        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(sync);
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
-            self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
+            self.import_binary_pkg(pkg, source_pkgs, release, sync)?;
         }
         Ok(())
     }
@@ -429,12 +426,11 @@ impl SyncState {
         bytes: &[u8],
         source_pkgs: &SourcePkgBucket,
         release: &SyncRelease,
-        component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(sync);
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
-            self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
+            self.import_binary_pkg(pkg, source_pkgs, release, sync)?;
         }
         Ok(())
     }
@@ -470,7 +466,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                             &bytes,
                             &source_pkgs,
                             release,
-                            component,
                             sync,
                         )?;
                     }
@@ -499,7 +494,6 @@ mod tests {
                 b"",
                 &SourcePkgBucket::new(),
                 &SyncRelease::new("trixie-proposed-updates"),
-                "main",
                 &PkgsSync {
                     distro: "debian".to_string(),
                     components: vec!["main".to_string()],
@@ -518,8 +512,10 @@ mod tests {
             state.to_vec(),
             vec![PackageReport {
                 distribution: "debian".to_string(),
+                /*
                 release: Some("trixie-proposed-updates".to_string()),
                 component: Some("main".to_string()),
+                */
                 architecture: "amd64".to_string(),
                 packages: vec![],
             }]
@@ -751,13 +747,15 @@ Section: misc
             uploaders: vec![],
         };
         let mut state = SyncState::new();
-        state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
+        state.push(&src, bin, "https://deb.debian.org/debian", "sid");
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(SyncKey { architecture: "all".to_string() }, PackageReport {
             distribution: "debian".to_string(),
+            /*
             release: Some("sid".to_string()),
             component: Some("main".to_string()),
+            */
             architecture: "all".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -770,6 +768,7 @@ Section: misc
                             version: "1:10.5.12-1".to_string(),
                             architecture: "all".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         }
                     ],
                 },
@@ -861,7 +860,6 @@ Section: misc
                 bin,
                 "https://deb.debian.org/debian",
                 "sid",
-                "main",
             );
         }
 
@@ -2004,8 +2002,10 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                 },
                 PackageReport {
                     distribution: "debian".to_string(),
+                    /*
                     release: Some("trixie-debug".to_string()),
                     component: Some("main".to_string()),
+                    */
                     architecture: "amd64".to_string(),
                     packages: vec![SourcePackageReport {
                         name: "rust-sniffglue".to_string(),
