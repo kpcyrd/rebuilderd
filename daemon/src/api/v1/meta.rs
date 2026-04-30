@@ -94,29 +94,6 @@ pub async fn get_distribution_release_architectures(
     Ok(HttpResponse::Ok().json(distribution_release_architectures))
 }
 
-#[get("/distributions/{distribution}/releases/{release}/components/{component}/architectures")]
-pub async fn get_distribution_release_component_architectures(
-    pool: web::Data<Pool>,
-    path: web::Path<(String, String, String)>,
-    freshness_filter: web::Query<FreshnessFilter>,
-) -> web::Result<impl Responder> {
-    let mut connection = pool.get().map_err(Error::from)?;
-    let release = derive_release(&path.1);
-
-    let distribution_release_component_architectures = source_packages::table
-        .inner_join(build_inputs::table)
-        .filter(source_packages::distribution.is(&path.0))
-        .filter(source_packages::release.is(release))
-        .filter(source_packages::component.is(&path.2))
-        .filter(freshness_filter.into_inner().into_filter())
-        .select(build_inputs::architecture)
-        .distinct()
-        .load::<String>(connection.as_mut())
-        .map_err(Error::from)?;
-
-    Ok(HttpResponse::Ok().json(distribution_release_component_architectures))
-}
-
 #[get("/public-keys")]
 pub async fn get_public_key(
     private_key: web::Data<Arc<PrivateKey>>,

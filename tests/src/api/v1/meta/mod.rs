@@ -1,6 +1,5 @@
 mod get_distribution_architectures;
 mod get_distribution_release_architectures;
-mod get_distribution_release_component_architectures;
 mod get_distribution_releases;
 mod get_distributions;
 mod get_public_key;
