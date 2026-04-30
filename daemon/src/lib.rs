@@ -80,7 +80,6 @@ pub fn build_server(
                                     .service(api::v1::get_distribution_releases)
                                     .service(api::v1::get_distribution_architectures)
                                     .service(api::v1::get_distribution_release_architectures)
-                                    .service(api::v1::get_distribution_release_components)
                                     .service(
                                         api::v1::get_distribution_release_component_architectures,
                                     )
