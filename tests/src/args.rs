@@ -4,7 +4,7 @@ use clap::{ArgAction, Parser};
 #[command(ignore_errors = true)]
 pub struct Args {
     pub endpoint: Option<String>,
-    #[arg(short = 'b', default_value = "127.0.0.200:0")]
+    #[arg(short = 'b', default_value = "127.0.0.1:0")]
     pub bind_addr: String,
     #[arg(long)]
     pub cookie: Option<String>,

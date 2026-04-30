@@ -123,24 +123,10 @@ pub trait MetaRestApi {
     async fn get_distributions(&self) -> Result<Vec<String>>;
     async fn get_distribution_releases(&self, distribution: &str) -> Result<Vec<String>>;
     async fn get_distribution_architectures(&self, distribution: &str) -> Result<Vec<String>>;
-    async fn get_distribution_components(&self, distribution: &str) -> Result<Vec<String>>;
     async fn get_distribution_release_architectures(
         &self,
         distribution: &str,
         release: &str,
-    ) -> Result<Vec<String>>;
-
-    async fn get_distribution_release_components(
-        &self,
-        distribution: &str,
-        release: &str,
-    ) -> Result<Vec<String>>;
-
-    async fn get_distribution_release_component_architectures(
-        &self,
-        distribution: &str,
-        release: &str,
-        component: &str,
     ) -> Result<Vec<String>>;
 
     async fn get_public_keys(&self) -> Result<PublicKey>;
@@ -367,20 +353,6 @@ impl MetaRestApi for Client {
         Ok(results)
     }
 
-    async fn get_distribution_components(&self, distribution: &str) -> Result<Vec<String>> {
-        let results = self
-            .get(Cow::Owned(format!(
-                "api/v1/meta/distributions/{distribution}/components"
-            )))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(results)
-    }
-
     async fn get_distribution_release_architectures(
         &self,
         distribution: &str,
@@ -389,43 +361,6 @@ impl MetaRestApi for Client {
         let results = self
             .get(Cow::Owned(format!(
                 "api/v1/meta/distributions/{distribution}/releases/{release}/architectures"
-            )))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(results)
-    }
-
-    async fn get_distribution_release_components(
-        &self,
-        distribution: &str,
-        release: &str,
-    ) -> Result<Vec<String>> {
-        let results = self
-            .get(Cow::Owned(format!(
-                "api/v1/meta/distributions/{distribution}/releases/{release}/components"
-            )))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(results)
-    }
-
-    async fn get_distribution_release_component_architectures(
-        &self,
-        distribution: &str,
-        release: &str,
-        component: &str,
-    ) -> Result<Vec<String>> {
-        let results = self
-            .get(Cow::Owned(format!(
-                "api/v1/meta/distributions/{distribution}/releases/{release}/components/{component}/architectures"
             )))
             .send()
             .await?
