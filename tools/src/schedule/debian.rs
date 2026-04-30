@@ -855,19 +855,12 @@ Section: misc
 
         let mut state = SyncState::new();
         for bin in bin_pkgs {
-            state.push(
-                &src_pkgs[0],
-                bin,
-                "https://deb.debian.org/debian",
-                "sid",
-            );
+            state.push(&src_pkgs[0], bin, "https://deb.debian.org/debian", "sid");
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(SyncKey { architecture: "amd64".to_string() }, PackageReport {
             distribution: "debian".to_string(),
-            release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -880,12 +873,14 @@ Section: misc
                             version: "0.14.0-2".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/librust-sniffglue-dev_0.14.0-2_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "sniffglue".to_string(),
                             version: "0.14.0-2".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         }
                     ],
                 },
@@ -1190,14 +1185,12 @@ Section: mail
         let mut state = SyncState::new();
         for bin in bin_pkgs {
             let src = source_pkgs.get(&bin).unwrap();
-            state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
+            state.push(&src, bin, "https://deb.debian.org/debian", "sid");
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(SyncKey { architecture: "amd64".to_string() }, PackageReport {
             distribution: "debian".to_string(),
-            release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1210,70 +1203,78 @@ Section: mail
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-base_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-faxmail".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-faxmail_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-imap".to_string(),
                             version: "5.0.13+1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-imap_5.0.13+1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-ldap".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-ldap_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-mlm".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mlm_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-mta".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mta_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-pcp".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pcp_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-pop".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pop_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "courier-webadmin".to_string(),
                             version: "1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-webadmin_1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                         BinaryPackageReport {
                             name: "sqwebmail".to_string(),
                             version: "6.0.5+1.0.16-3+b1".to_string(),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/sqwebmail_6.0.5+1.0.16-3+b1_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         },
                     ],
                 },
             ],
         });
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(SyncKey { architecture: "all".to_string() }, PackageReport {
             distribution: "debian".to_string(),
-            release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "all".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1286,6 +1287,7 @@ Section: mail
                             version: "1.0.16-3".to_string(),
                             architecture: "all".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-doc_1.0.16-3_all.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string()]),
                         }
                     ],
                 },
@@ -1547,7 +1549,6 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                 &bytes[..],
                 &source_pkgs,
                 &SyncRelease::new("sid"),
-                "main",
                 &sync,
             )
             .unwrap();
@@ -1556,16 +1557,13 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                 &bytes[..],
                 &source_pkgs,
                 &SyncRelease::new("testing"),
-                "main",
                 &sync,
             )
             .unwrap();
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(SyncKey { architecture:  "amd64".to_string() }, PackageReport {
             distribution: "debian".to_string(),
-            release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1578,28 +1576,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                             version: "0.4.3-2".to_string(),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
-                        },
-                    ]
-                }
-            ],
-        });
-
-        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
-            distribution: "debian".to_string(),
-            release: Some("testing".to_string()),
-            component: Some("main".to_string()),
-            architecture: "amd64".to_string(),
-            packages: vec![
-                SourcePackageReport {
-                    name: "rust-repro-env".to_string(),
-                    version: "0.4.3-2".to_string(),
-                    url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-repro-env/rust-repro-env_0.4.3-2_amd64.buildinfo".to_string(),
-                    artifacts: vec![
-                        BinaryPackageReport {
-                            name: "repro-env".to_string(),
-                            version: "0.4.3-2".to_string(),
-                            architecture: "amd64".to_string(),
-                            url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["sid".to_string(), "testing".to_string()]),
                         },
                     ]
                 }
@@ -1728,7 +1705,6 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                 binary,
                 &source_pkgs,
                 &SyncRelease::new("sid"),
-                "main",
                 &sync,
             )
             .unwrap();
@@ -1808,18 +1784,15 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                 binary,
                 &source_pkgs,
                 &SyncRelease::new("testing"),
-                "main",
                 &sync,
             )
             .unwrap();
 
         let mut reports = BTreeMap::new();
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()),
+        reports.insert(SyncKey { architecture: "all".to_string() },
            PackageReport {
                distribution: "debian".to_string(),
-               release: Some("sid".to_string()),
-               component: Some("main".to_string()),
                architecture: "all".to_string(),
                packages: vec![
                    SourcePackageReport {
@@ -1832,6 +1805,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                                version: "1:1.6.0-2".to_string(),
                                architecture: "all".to_string(),
                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                               releases: BTreeSet::from(["sid".to_string()]),
                            },
                        ]
                    },
@@ -1845,63 +1819,26 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                                version: "1:1.6.0-1".to_string(),
                                architecture: "all".to_string(),
                                url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                               releases: BTreeSet::from(["sid".to_string(), "testing".to_string()]),
+                           },
+                           BinaryPackageReport {
+                               name: "novnc".to_string(),
+                               version: "1:1.6.0-1".to_string(),
+                               architecture: "all".to_string(),
+                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                               releases: BTreeSet::from(["testing".to_string()]),
                            },
                        ]
                    },
                ],
            });
 
-        reports.insert(("testing".to_string(), "main".to_string(), "all".to_string()),
-           PackageReport {
-               distribution: "debian".to_string(),
-               release: Some("testing".to_string()),
-               component: Some("main".to_string()),
-               architecture: "all".to_string(),
-               packages: vec![
-                   SourcePackageReport {
-                       name: "novnc".to_string(),
-                       version: "1:1.6.0-1".to_string(),
-                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
-                       artifacts: vec![
-                           BinaryPackageReport {
-                               name: "novnc".to_string(),
-                               version: "1:1.6.0-1".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
-                           },
-                           BinaryPackageReport {
-                               name: "python3-novnc".to_string(),
-                               version: "1:1.6.0-1".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
-                           },
-                       ]
-                   },
-               ],
-           },
-        );
-
         reports.insert(
-            ("sid".to_string(), "main".to_string(), "amd64".to_string()),
-            PackageReport {
-                distribution: "debian".to_string(),
-                release: Some("sid".to_string()),
-                component: Some("main".to_string()),
+            SyncKey {
                 architecture: "amd64".to_string(),
-                packages: vec![],
             },
-        );
-
-        reports.insert(
-            (
-                "testing".to_string(),
-                "main".to_string(),
-                "amd64".to_string(),
-            ),
             PackageReport {
                 distribution: "debian".to_string(),
-                release: Some("testing".to_string()),
-                component: Some("main".to_string()),
                 architecture: "amd64".to_string(),
                 packages: vec![],
             },
@@ -1969,13 +1906,7 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
             ),
         ] {
             state
-                .import_uncompressed_binary_package_file(
-                    bytes,
-                    &source_pkgs,
-                    &release,
-                    "main",
-                    &sync,
-                )
+                .import_uncompressed_binary_package_file(bytes, &source_pkgs, &release, &sync)
                 .unwrap();
         }
 
@@ -1985,8 +1916,6 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
             vec![
                 PackageReport {
                     distribution: "debian".to_string(),
-                    release: Some("trixie".to_string()),
-                    component: Some("main".to_string()),
                     architecture: "amd64".to_string(),
                     packages: vec![SourcePackageReport {
                         name: "rust-sniffglue".to_string(),
@@ -1997,25 +1926,14 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                             version: "0.14.0-2".to_string(),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
-                        }]
-                    }]
-                },
-                PackageReport {
-                    distribution: "debian".to_string(),
-                    /*
-                    release: Some("trixie-debug".to_string()),
-                    component: Some("main".to_string()),
-                    */
-                    architecture: "amd64".to_string(),
-                    packages: vec![SourcePackageReport {
-                        name: "rust-sniffglue".to_string(),
-                        version: "0.14.0-2".to_string(),
-                        url: "https://buildinfos.debian.net/buildinfo-pool/r/rust-sniffglue/rust-sniffglue_0.14.0-2_amd64.buildinfo".to_string(),
-                        artifacts: vec![BinaryPackageReport {
+                            releases: BTreeSet::from(["trixie".to_string()]),
+                        },
+                        BinaryPackageReport {
                             name: "sniffglue-dbgsym".to_string(),
                             version: "0.14.0-2".to_string(),
                             architecture: "amd64".to_string(),
-                            url: "http://deb.debian.org/debian-debug/pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb".to_string()
+                            url: "http://deb.debian.org/debian-debug/pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb".to_string(),
+                            releases: BTreeSet::from(["trixie-debug".to_string()]),
                         }]
                     }]
                 },

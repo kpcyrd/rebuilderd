@@ -11,8 +11,8 @@ pub const DUMMY_BINARY_PACKAGE_URL: &str = "https://placeholder.org/foo-1.tar.zs
 pub fn single_package_report() -> PackageReport {
     PackageReport {
         distribution: DUMMY_DISTRIBUTION.to_string(),
-        release: Some(DUMMY_RELEASE.to_string()),
-        component: Some(DUMMY_COMPONENT.to_string()),
+        // release: Some(DUMMY_RELEASE.to_string()),
+        // component: Some(DUMMY_COMPONENT.to_string()),
         architecture: DUMMY_ARCHITECTURE.to_string(),
         packages: vec![SourcePackageReport {
             name: DUMMY_SOURCE_PACKAGE.to_string(),
@@ -23,6 +23,7 @@ pub fn single_package_report() -> PackageReport {
                 version: DUMMY_BINARY_PACKAGE_VERSION.to_string(),
                 architecture: DUMMY_ARCHITECTURE.to_string(),
                 url: DUMMY_BINARY_PACKAGE_URL.to_string(),
+                releases: Default::default(),
             }],
         }],
     }
@@ -43,8 +44,8 @@ pub const DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_URL: &str = "https://placeholder
 pub fn single_package_with_multiple_artifacts_report() -> PackageReport {
     PackageReport {
         distribution: DUMMY_DISTRIBUTION.to_string(),
-        release: Some(DUMMY_RELEASE.to_string()),
-        component: Some(DUMMY_COMPONENT.to_string()),
+        // release: Some(DUMMY_RELEASE.to_string()),
+        // component: Some(DUMMY_COMPONENT.to_string()),
         architecture: DUMMY_ARCHITECTURE.to_string(),
         packages: vec![SourcePackageReport {
             name: DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string(),
@@ -56,12 +57,14 @@ pub fn single_package_with_multiple_artifacts_report() -> PackageReport {
                     version: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_VERSION.to_string(),
                     architecture: DUMMY_ARCHITECTURE.to_string(),
                     url: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_URL.to_string(),
+                    releases: Default::default(),
                 },
                 BinaryPackageReport {
                     name: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2.to_string(),
                     version: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_VERSION.to_string(),
                     architecture: DUMMY_ARCHITECTURE.to_string(),
                     url: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_URL.to_string(),
+                    releases: Default::default(),
                 },
             ],
         }],
@@ -77,14 +80,14 @@ pub fn single_package_report_from_different_distribution() -> PackageReport {
 
 pub fn single_package_report_from_different_release() -> PackageReport {
     PackageReport {
-        release: Some(DUMMY_OTHER_RELEASE.to_string()),
+        // release: Some(DUMMY_OTHER_RELEASE.to_string()),
         ..single_package_report()
     }
 }
 
 pub fn single_package_report_from_different_component() -> PackageReport {
     PackageReport {
-        component: Some(DUMMY_OTHER_COMPONENT.to_string()),
+        // component: Some(DUMMY_OTHER_COMPONENT.to_string()),
         ..single_package_report()
     }
 }
@@ -98,7 +101,7 @@ pub fn single_package_report_from_different_architecture() -> PackageReport {
 
 pub fn single_package_report_with_null_release() -> PackageReport {
     PackageReport {
-        release: None,
+        // release: None,
         ..single_package_report()
     }
 }
@@ -106,8 +109,8 @@ pub fn single_package_report_with_null_release() -> PackageReport {
 pub fn multiple_package_report() -> PackageReport {
     PackageReport {
         distribution: DUMMY_DISTRIBUTION.to_string(),
-        release: Some(DUMMY_RELEASE.to_string()),
-        component: Some(DUMMY_COMPONENT.to_string()),
+        // release: Some(DUMMY_RELEASE.to_string()),
+        // component: Some(DUMMY_COMPONENT.to_string()),
         architecture: DUMMY_ARCHITECTURE.to_string(),
         packages: vec![
             SourcePackageReport {
@@ -119,6 +122,7 @@ pub fn multiple_package_report() -> PackageReport {
                     version: DUMMY_BINARY_PACKAGE_VERSION.to_string(),
                     architecture: DUMMY_ARCHITECTURE.to_string(),
                     url: DUMMY_BINARY_PACKAGE_URL.to_string(),
+                    releases: Default::default(),
                 }],
             },
             SourcePackageReport {
@@ -131,12 +135,14 @@ pub fn multiple_package_report() -> PackageReport {
                         version: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_VERSION.to_string(),
                         architecture: DUMMY_ARCHITECTURE.to_string(),
                         url: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_1_URL.to_string(),
+                        releases: Default::default(),
                     },
                     BinaryPackageReport {
                         name: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2.to_string(),
                         version: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_VERSION.to_string(),
                         architecture: DUMMY_ARCHITECTURE.to_string(),
                         url: DUMMY_MULTI_ARTIFACT_BINARY_PACKAGE_2_URL.to_string(),
+                        releases: Default::default(),
                     },
                 ],
             },
