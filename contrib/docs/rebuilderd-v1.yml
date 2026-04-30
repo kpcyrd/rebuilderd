@@ -705,7 +705,7 @@ paths:
                   type: string
         "404":
           $ref: '#/components/responses/NotFound'
-  /meta/distributions/{distribution}/{release}/architectures:
+  /meta/distributions/{distribution}/releases/{release}/architectures:
     get:
       description: Gets known architectures for the given distribution and release in the database
       tags:
