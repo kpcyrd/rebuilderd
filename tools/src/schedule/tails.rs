@@ -6,19 +6,19 @@ use regex::Regex;
 use url::Url;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
-    let source = sync
-        .source
-        .parse::<Url>()
-        .context("Failed to parse source as url")?;
-
     let mut reports = Vec::new();
     for release in &sync.releases {
+        let source = release
+            .source(&sync.source)
+            .parse::<Url>()
+            .context("Failed to parse source as url")?;
+
         for architecture in &sync.architectures {
             let mut url = source.clone();
             url.path_segments_mut()
                 .map_err(|_| anyhow!("cannot be base"))?
                 .pop_if_empty()
-                .push(release);
+                .push(release.name());
 
             info!("Downloading directory list from {}", url);
             let directory_list = http
@@ -31,7 +31,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             let mut report = PackageReport {
                 distribution: "tails".to_string(),
-                release: Some(release.clone()),
+                release: Some(release.name().to_string()),
                 component: None,
                 architecture: architecture.clone(),
                 packages: Vec::new(),
@@ -59,7 +59,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     .map_err(|_| anyhow!("cannot be base"))?
                     .pop_if_empty()
                     .extend(&[
-                        release,
+                        release.name(),
                         &format!("tails-{architecture}-{version}"),
                         &filename,
                     ]);
