@@ -705,30 +705,6 @@ paths:
                   type: string
         "404":
           $ref: '#/components/responses/NotFound'
-  /meta/distributions/{distribution}/components:
-    get:
-      description: Gets known components for the given distribution in the database
-      tags:
-        - meta
-      parameters:
-        - in: path
-          name: distribution
-          description: The distribution
-          required: true
-          schema:
-            type: string
-        - $ref: '#/components/parameters/seen_only'
-      responses:
-        "200":
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
-        "404":
-          $ref: '#/components/responses/NotFound'
   /meta/distributions/{distribution}/{release}/architectures:
     get:
       description: Gets known architectures for the given distribution and release in the database

@@ -123,7 +123,6 @@ pub trait MetaRestApi {
     async fn get_distributions(&self) -> Result<Vec<String>>;
     async fn get_distribution_releases(&self, distribution: &str) -> Result<Vec<String>>;
     async fn get_distribution_architectures(&self, distribution: &str) -> Result<Vec<String>>;
-    async fn get_distribution_components(&self, distribution: &str) -> Result<Vec<String>>;
     async fn get_distribution_release_architectures(
         &self,
         distribution: &str,
@@ -357,20 +356,6 @@ impl MetaRestApi for Client {
         let results = self
             .get(Cow::Owned(format!(
                 "api/v1/meta/distributions/{distribution}/architectures"
-            )))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-
-        Ok(results)
-    }
-
-    async fn get_distribution_components(&self, distribution: &str) -> Result<Vec<String>> {
-        let results = self
-            .get(Cow::Owned(format!(
-                "api/v1/meta/distributions/{distribution}/components"
             )))
             .send()
             .await?

@@ -1,5 +1,4 @@
 mod get_distribution_architectures;
-mod get_distribution_components;
 mod get_distribution_release_architectures;
 mod get_distribution_release_component_architectures;
 mod get_distribution_release_components;

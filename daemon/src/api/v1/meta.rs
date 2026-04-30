@@ -72,25 +72,6 @@ pub async fn get_distribution_architectures(
     Ok(HttpResponse::Ok().json(distribution_architectures))
 }
 
-#[get("/distributions/{distribution}/components")]
-pub async fn get_distribution_components(
-    pool: web::Data<Pool>,
-    distribution: web::Path<String>,
-    freshness_filter: web::Query<FreshnessFilter>,
-) -> web::Result<impl Responder> {
-    let mut connection = pool.get().map_err(Error::from)?;
-
-    let distribution_components = source_packages::table
-        .filter(source_packages::distribution.is(distribution.into_inner()))
-        .filter(freshness_filter.into_inner().into_filter())
-        .select(source_packages::component)
-        .distinct()
-        .load::<Option<String>>(connection.as_mut())
-        .map_err(Error::from)?;
-
-    Ok(HttpResponse::Ok().json(distribution_components))
-}
-
 #[get("/distributions/{distribution}/releases/{release}/architectures")]
 pub async fn get_distribution_release_architectures(
     pool: web::Data<Pool>,
