@@ -3,7 +3,7 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use rebuilderd_common::api::v1::{
-    OriginFilter, PackageReport, PackageRestApi, Page, SourceIdentityFilter,
+    OriginFilter, PackageReport, PackageRestApi, Page, SearchType, SourceIdentityFilter,
 };
 use rstest::rstest;
 
@@ -232,26 +232,31 @@ pub async fn returns_result_for_matching_origin_filter(
 #[rstest]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     },
     1)]
 #[case(SourceIdentityFilter{
         name: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE.to_string()),
+        search_type: SearchType::Exact,
         version: None,
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: Some(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION.to_string()),
     },
     1)]
 #[case(SourceIdentityFilter{
         name: None,
+        search_type: SearchType::Exact,
         version: None,
     },
     2)]
@@ -283,6 +288,79 @@ pub async fn returns_result_for_matching_identity_filter(
             assert_eq!(version, package.version);
         }
     }
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn contains_search_returns_matching_source_packages(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE is "barbaz"; "arb" is a substring
+    let filter = SourceIdentityFilter {
+        name: Some("arb".to_string()),
+        search_type: SearchType::Contains,
+        version: None,
+    };
+    let results = isolated_server
+        .client
+        .get_source_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert_eq!(1, results.len());
+    assert_eq!(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE, results[0].name);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn starts_with_search_returns_matching_source_packages(
+    mut isolated_server: IsolatedServer,
+) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE is "barbaz"; "bar" is a prefix
+    let filter = SourceIdentityFilter {
+        name: Some("bar".to_string()),
+        search_type: SearchType::StartsWith,
+        version: None,
+    };
+    let results = isolated_server
+        .client
+        .get_source_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert_eq!(1, results.len());
+    assert_eq!(DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE, results[0].name);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn starts_with_search_does_not_match_suffix(mut isolated_server: IsolatedServer) {
+    setup::multiple_imported_packages(&isolated_server.client).await;
+
+    // "baz" is a suffix of "barbaz", not a prefix
+    let filter = SourceIdentityFilter {
+        name: Some("baz".to_string()),
+        search_type: SearchType::StartsWith,
+        version: None,
+    };
+    let results = isolated_server
+        .client
+        .get_source_packages(None, None, Some(&filter))
+        .await
+        .map(|p| p.records)
+        .unwrap();
+
+    assert!(results.is_empty());
 
     isolated_server.shutdown().await;
 }

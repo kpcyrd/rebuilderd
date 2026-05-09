@@ -118,6 +118,7 @@ pub async fn request_rebuild(
     let source_identity_filter = SourceIdentityFilter {
         name: queue_request.name,
         version: queue_request.version,
+        ..Default::default()
     };
 
     let mut sql = source_packages::table

@@ -114,6 +114,7 @@ async fn lookup_package(client: &Client, filter: PkgsFilter) -> Result<BinaryPac
         name: filter.name,
         version: None, // TODO: ls.filter.version
         source_name: None,
+        ..Default::default()
     };
 
     let mut results = client
@@ -230,6 +231,7 @@ async fn main() -> Result<()> {
                 name: ls.filter.name,
                 version: None, // TODO: ls.filter.version
                 source_name: None,
+                ..Default::default()
             };
 
             let mut page = Page {
@@ -439,6 +441,7 @@ async fn main() -> Result<()> {
             let source_identity_filter = SourceIdentityFilter {
                 name: Some(push.name),
                 version: push.version,
+                ..Default::default()
             };
 
             client
