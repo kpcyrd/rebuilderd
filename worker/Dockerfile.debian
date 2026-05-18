@@ -1,4 +1,4 @@
-FROM rust:bookworm
+FROM rust:trixie
 WORKDIR /usr/src/rebuilderd
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
