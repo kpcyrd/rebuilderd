@@ -341,7 +341,7 @@ fn into_pkg_group(
         version: source_package.version,
 
         distro: source_package.distribution,
-        suite: source_package.component.unwrap_or_default(),
+        suite: "".to_string(), // TODO: deprecated
         architecture,
 
         input_url,

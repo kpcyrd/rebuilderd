@@ -204,7 +204,6 @@ pub async fn submit_package_report(
                 version: package_report.version.clone(),
                 distribution: report.distribution.clone(),
                 release: report.release.clone(),
-                component: report.component.clone(),
                 last_seen: now.naive_utc(),
                 seen_in_last_sync: true,
             };
@@ -237,6 +236,7 @@ pub async fn submit_package_report(
                     build_input_id: build_input.id,
                     name: artifact_report.name.clone(),
                     version: artifact_report.version.clone(),
+                    component: report.component.clone(),
                     architecture: report.architecture.clone(),
                     artifact_url: artifact_report.url.clone(),
                 };

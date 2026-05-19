@@ -18,6 +18,7 @@ pub struct BinaryPackage {
     pub build_input_id: i32,
     pub name: String,
     pub version: String,
+    pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
 }
@@ -29,6 +30,7 @@ pub struct NewBinaryPackage {
     pub build_input_id: i32,
     pub name: String,
     pub version: String,
+    pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
 }
