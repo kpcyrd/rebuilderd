@@ -97,10 +97,19 @@ pub fn single_package_report_from_different_component() -> PackageReport {
 }
 
 pub fn single_package_report_from_different_architecture() -> PackageReport {
-    PackageReport {
+    let mut report = PackageReport {
         architecture: DUMMY_OTHER_ARCHITECTURE.to_string(),
         ..single_package_report()
-    }
+    };
+    report.packages.iter_mut().for_each(|source_package| {
+        source_package
+            .artifacts
+            .iter_mut()
+            .for_each(|binary_package| {
+                binary_package.architecture = DUMMY_OTHER_ARCHITECTURE.to_string();
+            })
+    });
+    report
 }
 
 pub fn single_package_report_with_null_release() -> PackageReport {
