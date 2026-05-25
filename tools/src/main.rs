@@ -80,10 +80,6 @@ pub async fn submit_package_report(client: &Client, sync: &PackageReport) -> Res
         identity_string.push_str(format!("/{}", release).as_str())
     }
 
-    if let Some(component) = &sync.component {
-        identity_string.push_str(format!("/{}", component).as_str())
-    }
-
     let display_string = format!(
         "{}{} ({})",
         sync.distribution, identity_string, sync.architecture

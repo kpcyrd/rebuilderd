@@ -132,7 +132,6 @@ fn mark_scoped_packages_unseen(
                             .is(&report.distribution),
                     )
                     .filter(sp.field(source_packages::release).is(&report.release))
-                    .filter(sp.field(source_packages::component).is(&report.component))
                     .filter(build_inputs::architecture.is(&report.architecture))
                     .group_by(sp.field(source_packages::id))
                     .select(sp.field(source_packages::id)),
@@ -162,7 +161,6 @@ fn drop_unseen_scoped_jobs(
                     .inner_join(source_packages::table)
                     .filter(source_packages::distribution.is(&report.distribution))
                     .filter(source_packages::release.is(&report.release))
-                    .filter(source_packages::component.is(&report.component))
                     .filter(build_inputs::architecture.is(&report.architecture))
                     .filter(source_packages::seen_in_last_sync.is(false))
                     .group_by(build_inputs::id)
@@ -236,7 +234,7 @@ pub async fn submit_package_report(
                     build_input_id: build_input.id,
                     name: artifact_report.name.clone(),
                     version: artifact_report.version.clone(),
-                    component: report.component.clone(),
+                    component: artifact_report.component.clone(),
                     architecture: artifact_report.architecture.clone(),
                     artifact_url: artifact_report.url.clone(),
                 };
@@ -299,8 +297,7 @@ fn is_new_package(
             .filter(source_packages::name.is(&source_package_report.name))
             .filter(source_packages::version.is(&source_package_report.version))
             .filter(source_packages::distribution.is(&report.distribution))
-            .filter(source_packages::release.is(&report.release))
-            .filter(source_packages::component.is(&report.component)),
+            .filter(source_packages::release.is(&report.release)),
     )))
     .get_result::<bool>(conn.as_mut())?;
 

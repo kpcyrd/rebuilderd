@@ -35,7 +35,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 let mut report = PackageReport {
                     distribution: "fedora".to_string(),
                     release: None,
-                    component: Some(component.clone()),
                     architecture: arch.clone(),
                     packages: Vec::new(),
                 };
@@ -52,6 +51,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     let artifact = BinaryPackageReport {
                         name: pkg.name,
                         version,
+                        component: Some(component.clone()),
                         architecture: pkg.arch,
                         url: url.clone(),
                     };
