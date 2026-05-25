@@ -95,7 +95,7 @@ fn binary_packages_base() -> _ {
             binary_packages::version,
             source_packages::distribution,
             source_packages::release,
-            source_packages::component,
+            binary_packages::component,
             binary_packages::architecture,
             binary_packages::artifact_url,
             rebuild_artifacts::status.nullable(),
