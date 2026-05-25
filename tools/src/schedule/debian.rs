@@ -288,7 +288,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    reports: BTreeMap<(String, String, String), PackageReport>,
+    reports: BTreeMap<(String, String), PackageReport>,
 }
 
 impl SyncState {
@@ -296,17 +296,8 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn create_release_group(
-        &mut self,
-        release: &str,
-        component: &str,
-        architecture: &str,
-    ) -> &mut PackageReport {
-        let key = (
-            release.to_string(),
-            component.to_string(),
-            architecture.to_string(),
-        );
+    fn create_release_group(&mut self, release: &str, architecture: &str) -> &mut PackageReport {
+        let key = (release.to_string(), architecture.to_string());
         self.reports.entry(key).or_insert_with(|| PackageReport {
             distribution: "debian".to_string(),
             release: Some(release.to_string()),
@@ -319,10 +310,9 @@ impl SyncState {
         &mut self,
         src: &DebianSourcePkg,
         release: &str,
-        component: &str,
         architecture: &str,
     ) -> &mut SourcePackageReport {
-        let report = self.create_release_group(release, component, architecture);
+        let report = self.create_release_group(release, architecture);
 
         match report
             .packages
@@ -352,7 +342,7 @@ impl SyncState {
         release: &str,
         component: &str,
     ) {
-        let group = self.get_mut_group(src, release, component, &bin.architecture);
+        let group = self.get_mut_group(src, release, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
         group.artifacts.push(BinaryPackageReport {
             name: bin.name,
@@ -403,9 +393,9 @@ impl SyncState {
     /// Ensure all release groups are created, even if we never assign any packages to it.
     /// If a release group doesn't have any packages, we still want to notify rebuilderd that
     /// it's empty.
-    fn create_all_release_groups(&mut self, release: &str, component: &str, sync: &PkgsSync) {
+    fn create_all_release_groups(&mut self, release: &str, sync: &PkgsSync) {
         for arch in &sync.architectures {
-            self.create_release_group(release, component, arch);
+            self.create_release_group(release, arch);
         }
     }
 
@@ -417,7 +407,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(release.name(), sync);
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
             self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
@@ -432,7 +422,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(release.name(), sync);
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
             self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
@@ -753,7 +743,7 @@ Section: misc
         state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             architecture: "all".to_string(),
@@ -865,7 +855,7 @@ Section: misc
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             architecture: "amd64".to_string(),
@@ -1196,7 +1186,7 @@ Section: mail
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             architecture: "amd64".to_string(),
@@ -1281,7 +1271,7 @@ Section: mail
             ],
         });
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             architecture: "all".to_string(),
@@ -1573,7 +1563,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             .unwrap();
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
             architecture: "amd64".to_string(),
@@ -1595,7 +1585,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             ],
         });
 
-        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("testing".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("testing".to_string()),
             architecture: "amd64".to_string(),
@@ -1826,7 +1816,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
         let mut reports = BTreeMap::new();
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()),
+        reports.insert(("sid".to_string(), "all".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("sid".to_string()),
@@ -1863,7 +1853,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
                ],
            });
 
-        reports.insert(("testing".to_string(), "main".to_string(), "all".to_string()),
+        reports.insert(("testing".to_string(), "all".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("testing".to_string()),
@@ -1895,7 +1885,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
         );
 
         reports.insert(
-            ("sid".to_string(), "main".to_string(), "amd64".to_string()),
+            ("sid".to_string(), "amd64".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("sid".to_string()),
@@ -1905,11 +1895,7 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
         );
 
         reports.insert(
-            (
-                "testing".to_string(),
-                "main".to_string(),
-                "amd64".to_string(),
-            ),
+            ("testing".to_string(), "amd64".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("testing".to_string()),
