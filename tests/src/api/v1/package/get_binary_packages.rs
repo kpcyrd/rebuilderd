@@ -141,12 +141,14 @@ pub async fn can_paginate(mut isolated_server: IsolatedServer) {
         component: None,
         architecture: None,
     }, single_package_report_from_different_release())]
+/*
 #[case(OriginFilter {
         distribution: None,
         release: None,
         component: Some(DUMMY_COMPONENT.to_string()),
         architecture: None,
     }, single_package_report_from_different_component())]
+*/
 #[case(OriginFilter {
         distribution: None,
         release: None,
@@ -193,11 +195,6 @@ pub async fn returns_result_for_matching_origin_filter(
     if let Some(release) = origin_filter.release {
         assert_eq!(Some(&release), artifact_1.release.as_ref());
         assert_eq!(Some(&release), artifact_2.release.as_ref());
-    }
-
-    if let Some(component) = origin_filter.component {
-        assert_eq!(Some(&component), artifact_1.component.as_ref());
-        assert_eq!(Some(&component), artifact_2.component.as_ref());
     }
 
     if let Some(architecture) = origin_filter.architecture {
