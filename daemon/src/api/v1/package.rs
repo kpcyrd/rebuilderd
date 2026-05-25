@@ -237,7 +237,7 @@ pub async fn submit_package_report(
                     name: artifact_report.name.clone(),
                     version: artifact_report.version.clone(),
                     component: report.component.clone(),
-                    architecture: report.architecture.clone(),
+                    architecture: artifact_report.architecture.clone(),
                     artifact_url: artifact_report.url.clone(),
                 };
 
