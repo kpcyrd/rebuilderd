@@ -328,7 +328,7 @@ async fn main() -> Result<()> {
                 bail!("Package has not been built yet");
             }
 
-            let attestation = client
+            let mut attestation = client
                 .get_build_artifact_attestation(
                     package.build_id.unwrap(),
                     package.artifact_id.unwrap(),
@@ -336,8 +336,10 @@ async fn main() -> Result<()> {
                 .await
                 .context("Failed to fetch attestation")?;
 
-            io::stdout().write_all(attestation.as_bytes())?;
-            io::stdout().write_all(b"\n")?;
+            // Add newline so it's easier to read in the terminal
+            attestation.push(b'\n');
+
+            io::stdout().write_all(&attestation)?;
         }
         SubCommand::Queue(Queue::Ls(ls)) => {
             let mut page = Page {
