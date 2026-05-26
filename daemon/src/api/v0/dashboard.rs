@@ -42,6 +42,8 @@ impl DashboardState {
     }
 
     pub fn update(&mut self, connection: &mut diesel::SqliteConnection) -> Result<()> {
+        // TODO: update this code to use `component` from binary packages
+        /*
         let queue = queue::table
             .filter(queue::started_at.is_not_null())
             .load::<Queued>(connection)?;
@@ -100,6 +102,7 @@ impl DashboardState {
             queue_length,
             now,
         });
+        */
         self.last_update = Instant::now();
         Ok(())
     }

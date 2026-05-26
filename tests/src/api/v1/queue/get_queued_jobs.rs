@@ -210,12 +210,6 @@ pub async fn returns_result_for_matching_origin_filter(
         }
     }
 
-    if let Some(component) = origin_filter.component {
-        for result in &results {
-            assert_eq!(Some(&component), result.component.as_ref());
-        }
-    }
-
     isolated_server.shutdown().await;
 }
 

@@ -58,7 +58,6 @@ fn source_packages_base() -> _ {
             source_packages::version,
             source_packages::distribution,
             source_packages::release.nullable(),
-            source_packages::component.nullable(),
             r1.field(rebuilds::status).nullable(),
             r1.field(rebuilds::id).nullable(),
             source_packages::last_seen,

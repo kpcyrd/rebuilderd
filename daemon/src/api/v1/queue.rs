@@ -31,7 +31,6 @@ fn queue_base() -> _ {
             source_packages::version,
             source_packages::distribution,
             source_packages::release,
-            source_packages::component,
             build_inputs::architecture,
             build_inputs::backend,
             build_inputs::url,

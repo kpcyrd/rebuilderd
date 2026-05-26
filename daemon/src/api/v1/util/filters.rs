@@ -196,7 +196,7 @@ impl<T: 'static> IntoOriginFilter<T, Sqlite> for OriginFilter
 where
     source_packages::distribution: SelectableExpression<T>,
     source_packages::release: SelectableExpression<T>,
-    source_packages::component: SelectableExpression<T>,
+    // source_packages::component: SelectableExpression<T>,
 {
     type SqlType = Bool;
 
@@ -226,10 +226,12 @@ where
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         };
 
+        /*
         let component_is: Self::Output = match self.component {
             Some(component) => Box::new(source_packages::component.is(component)),
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         };
+        */
 
         let architecture_is: Self::Output = match self.architecture {
             Some(architecture) => Box::new(architecture_column.is(architecture)),
@@ -239,7 +241,7 @@ where
         Box::new(
             distribution_is
                 .and(release_is)
-                .and(component_is)
+                // .and(component_is)
                 .and(architecture_is),
         )
     }

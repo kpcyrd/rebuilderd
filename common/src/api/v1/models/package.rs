@@ -38,7 +38,6 @@ pub struct SourcePackage {
     pub version: String,
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub status: Option<BuildStatus>,
     pub build_id: Option<i32>,
     pub last_seen: NaiveDateTime,

@@ -6,7 +6,6 @@ use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use glob::Pattern;
-use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryIdentityFilter, BinaryPackage, BuildRestApi, OriginFilter, PackageReport,
@@ -388,7 +387,7 @@ async fn main() -> Result<()> {
                         // Print the queue item
                         if writeln!(
                             stdout,
-                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?} {:?}",
+                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?}",
                             job.queued_at
                                 .format("%Y-%m-%d %H:%M:%S")
                                 .to_string()
@@ -398,7 +397,6 @@ async fn main() -> Result<()> {
                             started_at,
                             job.distribution,
                             job.release,
-                            job.component,
                             job.architecture,
                         )
                         .is_err()
