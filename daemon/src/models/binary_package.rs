@@ -46,6 +46,7 @@ impl NewBinaryPackage {
                 build_input_id,
                 name,
                 version,
+                component,
                 architecture,
             ))
             .do_update()
@@ -54,6 +55,7 @@ impl NewBinaryPackage {
                 build_input_id.eq(excluded(build_input_id)),
                 name.eq(excluded(name)),
                 version.eq(excluded(version)),
+                component.eq(excluded(component)),
                 architecture.eq(excluded(architecture)),
             ))
             .returning(BinaryPackage::as_select())
