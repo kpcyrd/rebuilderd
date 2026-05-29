@@ -57,6 +57,7 @@ impl NewBinaryPackage {
                 version.eq(excluded(version)),
                 component.eq(excluded(component)),
                 architecture.eq(excluded(architecture)),
+                artifact_url.eq(excluded(artifact_url)),
             ))
             .returning(BinaryPackage::as_select())
             .get_result::<BinaryPackage>(connection)?;
