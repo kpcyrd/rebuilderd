@@ -5,7 +5,7 @@ use nom::bytes::complete::take_till;
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use tar::{Archive, EntryType};
@@ -160,18 +160,18 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
     let mut reports = Vec::new();
     for arch in &sync.architectures {
+        let mut report = PackageReport {
+            distribution: "archlinux".to_string(),
+            release: None,
+            architecture: arch.clone(),
+            packages: Vec::new(),
+        };
+
+        let mut bases: BTreeMap<_, SourcePackageReport> = BTreeMap::new();
+
         for component in &sync.components {
             let db = mirror_to_url(source, component, arch, &format!("{}.db", component))?;
             let bytes = fetch_url_or_path(http, &db).await?;
-
-            let mut report = PackageReport {
-                distribution: "archlinux".to_string(),
-                release: None,
-                architecture: arch.clone(),
-                packages: Vec::new(),
-            };
-
-            let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
 
             info!("Parsing index ({} bytes)...", bytes.len());
             for pkg in extract_pkgs(&bytes)? {
@@ -203,10 +203,10 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     bases.insert(pkg.base, group);
                 }
             }
-
-            report.packages = bases.into_values().collect();
-            reports.push(report);
         }
+
+        report.packages = bases.into_values().collect();
+        reports.push(report);
     }
 
     Ok(reports)
