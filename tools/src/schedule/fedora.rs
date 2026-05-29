@@ -5,15 +5,24 @@ use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePacka
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Read;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
     let mut reports = Vec::new();
 
     for release in &sync.releases {
-        for component in &sync.components {
-            for arch in &sync.architectures {
+        for arch in &sync.architectures {
+            let mut report = PackageReport {
+                distribution: "fedora".to_string(),
+                release: None,
+                architecture: arch.clone(),
+                packages: Vec::new(),
+            };
+
+            let mut bases: BTreeMap<_, SourcePackageReport> = BTreeMap::new();
+
+            for component in &sync.components {
                 let base_url = format!(
                     "{}/{}/{}/{}/os",
                     release.source(&sync.source),
@@ -31,15 +40,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 let comp = decompress::detect_compression(&bytes);
                 let data = decompress::stream(comp, &bytes)?;
                 let packages = parse_package_index(data)?;
-
-                let mut report = PackageReport {
-                    distribution: "fedora".to_string(),
-                    release: None,
-                    architecture: arch.clone(),
-                    packages: Vec::new(),
-                };
-
-                let mut bases: HashMap<_, SourcePackageReport> = HashMap::new();
 
                 for pkg in packages {
                     if !pkg.matches(sync) {
@@ -70,10 +70,10 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                         bases.insert(pkg.format.sourcerpm, group);
                     }
                 }
-
-                report.packages = bases.into_values().collect();
-                reports.push(report);
             }
+
+            report.packages = bases.into_values().collect();
+            reports.push(report);
         }
     }
 
