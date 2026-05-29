@@ -18,6 +18,7 @@ pub struct BinaryPackage {
     pub build_input_id: i32,
     pub name: String,
     pub version: String,
+    pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
 }
@@ -29,6 +30,7 @@ pub struct NewBinaryPackage {
     pub build_input_id: i32,
     pub name: String,
     pub version: String,
+    pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
 }
@@ -44,6 +46,7 @@ impl NewBinaryPackage {
                 build_input_id,
                 name,
                 version,
+                component,
                 architecture,
             ))
             .do_update()
@@ -52,7 +55,9 @@ impl NewBinaryPackage {
                 build_input_id.eq(excluded(build_input_id)),
                 name.eq(excluded(name)),
                 version.eq(excluded(version)),
+                component.eq(excluded(component)),
                 architecture.eq(excluded(architecture)),
+                artifact_url.eq(excluded(artifact_url)),
             ))
             .returning(BinaryPackage::as_select())
             .get_result::<BinaryPackage>(connection)?;

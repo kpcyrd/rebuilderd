@@ -11,7 +11,6 @@ pub fn assert_job_matches_package(
     assert_eq!(package.version, job.version);
     assert_eq!(package_report.distribution, job.distribution);
     assert_eq!(package_report.release, job.release);
-    assert_eq!(package_report.component, job.component);
     assert_eq!(package_report.architecture, job.architecture);
     assert_eq!(package_report.distribution, job.backend);
     assert_eq!(package.url, job.url);
@@ -23,7 +22,6 @@ pub fn assert_source_package_is_in_report(
 ) {
     assert_eq!(source_package.distribution, package_report.distribution);
     assert_eq!(source_package.release, package_report.release);
-    assert_eq!(source_package.component, package_report.component);
 
     let found_package = package_report
         .packages
@@ -39,7 +37,6 @@ pub fn assert_binary_package_is_in_report(
 ) {
     assert_eq!(binary_package.distribution, package_report.distribution);
     assert_eq!(binary_package.release, package_report.release);
-    assert_eq!(binary_package.component, package_report.component);
 
     let found_package = package_report
         .packages

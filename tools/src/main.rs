@@ -6,7 +6,6 @@ use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use glob::Pattern;
-use nom::AsBytes;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryIdentityFilter, BinaryPackage, BuildRestApi, OriginFilter, PackageReport,
@@ -78,10 +77,6 @@ pub async fn submit_package_report(client: &Client, sync: &PackageReport) -> Res
     let mut identity_string = "".to_owned();
     if let Some(release) = &sync.release {
         identity_string.push_str(format!("/{}", release).as_str())
-    }
-
-    if let Some(component) = &sync.component {
-        identity_string.push_str(format!("/{}", component).as_str())
     }
 
     let display_string = format!(
@@ -333,7 +328,7 @@ async fn main() -> Result<()> {
                 bail!("Package has not been built yet");
             }
 
-            let attestation = client
+            let mut attestation = client
                 .get_build_artifact_attestation(
                     package.build_id.unwrap(),
                     package.artifact_id.unwrap(),
@@ -341,8 +336,10 @@ async fn main() -> Result<()> {
                 .await
                 .context("Failed to fetch attestation")?;
 
-            io::stdout().write_all(attestation.as_bytes())?;
-            io::stdout().write_all(b"\n")?;
+            // Add newline so it's easier to read in the terminal
+            attestation.push(b'\n');
+
+            io::stdout().write_all(&attestation)?;
         }
         SubCommand::Queue(Queue::Ls(ls)) => {
             let mut page = Page {
@@ -392,7 +389,7 @@ async fn main() -> Result<()> {
                         // Print the queue item
                         if writeln!(
                             stdout,
-                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?} {:?}",
+                            "{} {:-60} {:>11} {:19} {:?} {:?} {:?}",
                             job.queued_at
                                 .format("%Y-%m-%d %H:%M:%S")
                                 .to_string()
@@ -402,7 +399,6 @@ async fn main() -> Result<()> {
                             started_at,
                             job.distribution,
                             job.release,
-                            job.component,
                             job.architecture,
                         )
                         .is_err()

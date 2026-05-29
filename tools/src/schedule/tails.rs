@@ -32,7 +32,6 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             let mut report = PackageReport {
                 distribution: "tails".to_string(),
                 release: Some(release.name().to_string()),
-                component: None,
                 architecture: architecture.clone(),
                 packages: Vec::new(),
             };
@@ -70,6 +69,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 let artifact = BinaryPackageReport {
                     name: filename,
                     version: version.to_string(),
+                    component: None,
                     architecture: architecture.clone(),
                     url: url.clone(),
                 };

@@ -288,7 +288,7 @@ pub fn extract_pkgs_uncompressed<T: AnyhowTryFrom<NewPkg>, R: BufRead>(r: R) -> 
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    reports: BTreeMap<(String, String, String), PackageReport>,
+    reports: BTreeMap<(String, String), PackageReport>,
 }
 
 impl SyncState {
@@ -296,21 +296,11 @@ impl SyncState {
         SyncState::default()
     }
 
-    fn create_release_group(
-        &mut self,
-        release: &str,
-        component: &str,
-        architecture: &str,
-    ) -> &mut PackageReport {
-        let key = (
-            release.to_string(),
-            component.to_string(),
-            architecture.to_string(),
-        );
+    fn create_release_group(&mut self, release: &str, architecture: &str) -> &mut PackageReport {
+        let key = (release.to_string(), architecture.to_string());
         self.reports.entry(key).or_insert_with(|| PackageReport {
             distribution: "debian".to_string(),
             release: Some(release.to_string()),
-            component: Some(component.to_string()),
             architecture: architecture.to_string(),
             packages: Vec::new(),
         })
@@ -320,10 +310,9 @@ impl SyncState {
         &mut self,
         src: &DebianSourcePkg,
         release: &str,
-        component: &str,
         architecture: &str,
     ) -> &mut SourcePackageReport {
-        let report = self.create_release_group(release, component, architecture);
+        let report = self.create_release_group(release, architecture);
 
         match report
             .packages
@@ -353,11 +342,12 @@ impl SyncState {
         release: &str,
         component: &str,
     ) {
-        let group = self.get_mut_group(src, release, component, &bin.architecture);
+        let group = self.get_mut_group(src, release, &bin.architecture);
         let url = format!("{}/{}", source, bin.filename);
         group.artifacts.push(BinaryPackageReport {
             name: bin.name,
             version: bin.version,
+            component: Some(component.to_string()),
             architecture: bin.architecture.clone(),
             url,
         });
@@ -403,9 +393,9 @@ impl SyncState {
     /// Ensure all release groups are created, even if we never assign any packages to it.
     /// If a release group doesn't have any packages, we still want to notify rebuilderd that
     /// it's empty.
-    fn create_all_release_groups(&mut self, release: &str, component: &str, sync: &PkgsSync) {
+    fn create_all_release_groups(&mut self, release: &str, sync: &PkgsSync) {
         for arch in &sync.architectures {
-            self.create_release_group(release, component, arch);
+            self.create_release_group(release, arch);
         }
     }
 
@@ -417,7 +407,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(release.name(), sync);
         for pkg in extract_pkgs_compressed::<DebianBinPkg>(bytes)? {
             self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
@@ -432,7 +422,7 @@ impl SyncState {
         component: &str,
         sync: &PkgsSync,
     ) -> Result<()> {
-        self.create_all_release_groups(release.name(), component, sync);
+        self.create_all_release_groups(release.name(), sync);
         for pkg in extract_pkgs_uncompressed::<DebianBinPkg, _>(bytes)? {
             self.import_binary_pkg(pkg, source_pkgs, release, component, sync)?;
         }
@@ -519,7 +509,6 @@ mod tests {
             vec![PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("trixie-proposed-updates".to_string()),
-                component: Some("main".to_string()),
                 architecture: "amd64".to_string(),
                 packages: vec![],
             }]
@@ -754,10 +743,9 @@ Section: misc
         state.push(&src, bin, "https://deb.debian.org/debian", "sid", "main");
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "all".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -768,6 +756,7 @@ Section: misc
                         BinaryPackageReport {
                             name: "mariadb-server".to_string(),
                             version: "1:10.5.12-1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "all".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/m/mariadb-10.5/mariadb-server_10.5.12-1_all.deb".to_string(),
                         }
@@ -866,10 +855,9 @@ Section: misc
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -880,12 +868,14 @@ Section: misc
                         BinaryPackageReport {
                             name: "librust-sniffglue-dev".to_string(),
                             version: "0.14.0-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/librust-sniffglue-dev_0.14.0-2_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "sniffglue".to_string(),
                             version: "0.14.0-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
                         }
@@ -1196,10 +1186,9 @@ Section: mail
         }
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1210,60 +1199,70 @@ Section: mail
                         BinaryPackageReport {
                             name: "courier-base".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-base_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-faxmail".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-faxmail_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-imap".to_string(),
                             version: "5.0.13+1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-imap_5.0.13+1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-ldap".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-ldap_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-mlm".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mlm_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-mta".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-mta_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-pcp".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pcp_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-pop".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-pop_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "courier-webadmin".to_string(),
                             version: "1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-webadmin_1.0.16-3+b1_amd64.deb".to_string(),
                         },
                         BinaryPackageReport {
                             name: "sqwebmail".to_string(),
                             version: "6.0.5+1.0.16-3+b1".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/sqwebmail_6.0.5+1.0.16-3+b1_amd64.deb".to_string(),
                         },
@@ -1272,10 +1271,9 @@ Section: mail
             ],
         });
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "all".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "all".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1286,6 +1284,7 @@ Section: mail
                         BinaryPackageReport {
                             name: "courier-doc".to_string(),
                             version: "1.0.16-3".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "all".to_string(),
                             url: "https://deb.debian.org/debian/pool/main/c/courier/courier-doc_1.0.16-3_all.deb".to_string(),
                         }
@@ -1564,10 +1563,9 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             .unwrap();
 
         let mut reports = BTreeMap::new();
-        reports.insert(("sid".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("sid".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("sid".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1578,6 +1576,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                         BinaryPackageReport {
                             name: "repro-env".to_string(),
                             version: "0.4.3-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
                         },
@@ -1586,10 +1585,9 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             ],
         });
 
-        reports.insert(("testing".to_string(), "main".to_string(), "amd64".to_string()), PackageReport {
+        reports.insert(("testing".to_string(), "amd64".to_string()), PackageReport {
             distribution: "debian".to_string(),
             release: Some("testing".to_string()),
-            component: Some("main".to_string()),
             architecture: "amd64".to_string(),
             packages: vec![
                 SourcePackageReport {
@@ -1600,6 +1598,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
                         BinaryPackageReport {
                             name: "repro-env".to_string(),
                             version: "0.4.3-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian/pool/main/r/rust-repro-env/repro-env_0.4.3-2_amd64.deb".to_string(),
                         },
@@ -1817,93 +1816,89 @@ SHA256: 89c378d37058ea2a6c5d4bb2c1d47c4810f7504bde9e4d8142ac9781ce9df002
 
         let mut reports = BTreeMap::new();
 
-        reports.insert(("sid".to_string(), "main".to_string(), "all".to_string()),
-           PackageReport {
-               distribution: "debian".to_string(),
-               release: Some("sid".to_string()),
-               component: Some("main".to_string()),
-               architecture: "all".to_string(),
-               packages: vec![
-                   SourcePackageReport {
-                       name: "novnc".to_string(),
-                       version: "1:1.6.0-2".to_string(),
-                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string(),
-                       artifacts: vec![
-                           BinaryPackageReport {
-                               name: "novnc".to_string(),
-                               version: "1:1.6.0-2".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
-                           },
-                       ]
-                   },
-                   SourcePackageReport {
-                       name: "novnc".to_string(),
-                       version: "1:1.6.0-1".to_string(),
-                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
-                       artifacts: vec![
-                           BinaryPackageReport {
-                               name: "python3-novnc".to_string(),
-                               version: "1:1.6.0-1".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
-                           },
-                       ]
-                   },
-               ],
-           });
-
-        reports.insert(("testing".to_string(), "main".to_string(), "all".to_string()),
-           PackageReport {
-               distribution: "debian".to_string(),
-               release: Some("testing".to_string()),
-               component: Some("main".to_string()),
-               architecture: "all".to_string(),
-               packages: vec![
-                   SourcePackageReport {
-                       name: "novnc".to_string(),
-                       version: "1:1.6.0-1".to_string(),
-                       url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
-                       artifacts: vec![
-                           BinaryPackageReport {
-                               name: "novnc".to_string(),
-                               version: "1:1.6.0-1".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
-                           },
-                           BinaryPackageReport {
-                               name: "python3-novnc".to_string(),
-                               version: "1:1.6.0-1".to_string(),
-                               architecture: "all".to_string(),
-                               url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
-                           },
-                       ]
-                   },
-               ],
-           },
-        );
-
-        reports.insert(
-            ("sid".to_string(), "main".to_string(), "amd64".to_string()),
+        reports.insert(("sid".to_string(), "all".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("sid".to_string()),
-                component: Some("main".to_string()),
+                architecture: "all".to_string(),
+                packages: vec![
+                    SourcePackageReport {
+                        name: "novnc".to_string(),
+                        version: "1:1.6.0-2".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-2_all.buildinfo".to_string(),
+                        artifacts: vec![
+                            BinaryPackageReport {
+                                name: "novnc".to_string(),
+                                version: "1:1.6.0-2".to_string(),
+                                component: Some("main".to_string()),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-2_all.deb".to_string(),
+                            },
+                        ]
+                   },
+                   SourcePackageReport {
+                        name: "novnc".to_string(),
+                        version: "1:1.6.0-1".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
+                        artifacts: vec![
+                            BinaryPackageReport {
+                                name: "python3-novnc".to_string(),
+                                version: "1:1.6.0-1".to_string(),
+                                component: Some("main".to_string()),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                            },
+                        ]
+                    },
+               ],
+           });
+
+        reports.insert(("testing".to_string(), "all".to_string()),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("testing".to_string()),
+                architecture: "all".to_string(),
+                packages: vec![
+                    SourcePackageReport {
+                        name: "novnc".to_string(),
+                        version: "1:1.6.0-1".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/n/novnc/novnc_1.6.0-1_all.buildinfo".to_string(),
+                        artifacts: vec![
+                            BinaryPackageReport {
+                                name: "novnc".to_string(),
+                                version: "1:1.6.0-1".to_string(),
+                                component: Some("main".to_string()),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/novnc_1.6.0-1_all.deb".to_string(),
+                            },
+                            BinaryPackageReport {
+                                name: "python3-novnc".to_string(),
+                                version: "1:1.6.0-1".to_string(),
+                                component: Some("main".to_string()),
+                                architecture: "all".to_string(),
+                                url: "http://deb.debian.org/debian/pool/main/n/novnc/python3-novnc_1.6.0-1_all.deb".to_string(),
+                            },
+                        ]
+                    },
+                ],
+            },
+        );
+
+        reports.insert(
+            ("sid".to_string(), "amd64".to_string()),
+            PackageReport {
+                distribution: "debian".to_string(),
+                release: Some("sid".to_string()),
                 architecture: "amd64".to_string(),
                 packages: vec![],
             },
         );
 
         reports.insert(
-            (
-                "testing".to_string(),
-                "main".to_string(),
-                "amd64".to_string(),
-            ),
+            ("testing".to_string(), "amd64".to_string()),
             PackageReport {
                 distribution: "debian".to_string(),
                 release: Some("testing".to_string()),
-                component: Some("main".to_string()),
                 architecture: "amd64".to_string(),
                 packages: vec![],
             },
@@ -1988,7 +1983,6 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                 PackageReport {
                     distribution: "debian".to_string(),
                     release: Some("trixie".to_string()),
-                    component: Some("main".to_string()),
                     architecture: "amd64".to_string(),
                     packages: vec![SourcePackageReport {
                         name: "rust-sniffglue".to_string(),
@@ -1997,6 +1991,7 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                         artifacts: vec![BinaryPackageReport {
                             name: "sniffglue".to_string(),
                             version: "0.14.0-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian/pool/main/r/rust-sniffglue/sniffglue_0.14.0-2_amd64.deb".to_string(),
                         }]
@@ -2005,7 +2000,6 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                 PackageReport {
                     distribution: "debian".to_string(),
                     release: Some("trixie-debug".to_string()),
-                    component: Some("main".to_string()),
                     architecture: "amd64".to_string(),
                     packages: vec![SourcePackageReport {
                         name: "rust-sniffglue".to_string(),
@@ -2014,10 +2008,233 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
                         artifacts: vec![BinaryPackageReport {
                             name: "sniffglue-dbgsym".to_string(),
                             version: "0.14.0-2".to_string(),
+                            component: Some("main".to_string()),
                             architecture: "amd64".to_string(),
                             url: "http://deb.debian.org/debian-debug/pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb".to_string()
                         }]
                     }]
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_acl_deb_and_udeb() {
+        let sources_bytes = b"Package: acl
+Binary: acl, libacl1-dev, libacl1, acl-udeb, libacl1-udeb
+Version: 2.3.2-2
+Maintainer: Guillem Jover <guillem@debian.org>
+Build-Depends: debhelper-compat (= 13), debhelper (>= 13.10), autoconf, automake, gettext, libtool, libattr1-dev (>= 1:2.4.46-8)
+Architecture: any
+Standards-Version: 4.6.2
+Format: 3.0 (quilt)
+Files:
+ 93037e15cbb9d10f31ab7e6cc1a9212b 2604 acl_2.3.2-2.dsc
+ 590765dee95907dbc3c856f7255bd669 371680 acl_2.3.2.orig.tar.xz
+ ea6ee7f69d122317eabf7641aeb083ff 833 acl_2.3.2.orig.tar.xz.asc
+ c4b10acfc329b6121017873998c872bb 24296 acl_2.3.2-2.debian.tar.xz
+Vcs-Browser: https://git.hadrons.org/cgit/debian/pkgs/acl.git
+Vcs-Git: https://git.hadrons.org/git/debian/pkgs/acl.git
+Checksums-Sha256:
+ 1f42130ccb5442fe2db2aee1dcc03c51a31512dd2519a38e8fc9270c5abbc807 2604 acl_2.3.2-2.dsc
+ 97203a72cae99ab89a067fe2210c1cbf052bc492b479eca7d226d9830883b0bd 371680 acl_2.3.2.orig.tar.xz
+ 184c6a903490885a096095db67b433a04542c6569f167cbe8115268c0f227273 833 acl_2.3.2.orig.tar.xz.asc
+ e27b6e194c0a7554595d76f96acdceb800631bdc46c36457b73bc7e4a0c5f2ee 24296 acl_2.3.2-2.debian.tar.xz
+Homepage: https://savannah.nongnu.org/projects/acl/
+Package-List: 
+ acl deb utils optional arch=any
+ acl-udeb udeb debian-installer optional arch=any profile=!noudeb
+ libacl1 deb libs optional arch=any
+ libacl1-dev deb libdevel optional arch=any
+ libacl1-udeb udeb debian-installer optional arch=any profile=!noudeb
+Testsuite: autopkgtest
+Testsuite-Triggers: autoconf, automake, autopoint, build-essential, libattr1-dev, libtool, pkgconf
+Directory: pool/main/a/acl
+Priority: source
+Section: utils
+
+";
+
+        let pkg_bytes = b"Package: acl
+Source: acl (2.3.2-2)
+Version: 2.3.2-2+b1
+Installed-Size: 231
+Maintainer: Guillem Jover <guillem@debian.org>
+Architecture: amd64
+Depends: libacl1 (= 2.3.2-2+b1), libc6 (>= 2.38)
+Description: access control list - utilities
+Multi-Arch: foreign
+Homepage: https://savannah.nongnu.org/projects/acl/
+Description-md5: b83fc53f6059dbeb88f11752e70968e7
+Tag: admin::user-management, implemented-in::c, interface::commandline,
+ role::program, scope::utility, use::configuring, works-with::file
+Section: utils
+Priority: optional
+Filename: pool/main/a/acl/acl_2.3.2-2+b1_amd64.deb
+Size: 64412
+MD5sum: 749994ef354b6b48da46ea53e98461ed
+SHA256: fa89b05576c590211c8e8965761fc76b830e3eeb3dd100ac59c8440f11ea18fd
+
+Package: libacl1
+Source: acl (2.3.2-2)
+Version: 2.3.2-2+b1
+Installed-Size: 74
+Maintainer: Guillem Jover <guillem@debian.org>
+Architecture: amd64
+Depends: libc6 (>= 2.38)
+Description: access control list - shared library
+Multi-Arch: same
+Homepage: https://savannah.nongnu.org/projects/acl/
+Description-md5: 819a4a0833dcbd5db23e4a5fd341c3aa
+Tag: role::shared-lib
+Section: libs
+Priority: optional
+Filename: pool/main/a/acl/libacl1_2.3.2-2+b1_amd64.deb
+Size: 32860
+MD5sum: e9a3f4f9c1e4b225066d5102567f2fe6
+SHA256: 08074f01e384bc07c0c2d79a58cf4a6523f71cf75d1808101c79617656c9a39d
+
+Package: libacl1-dev
+Source: acl (2.3.2-2)
+Version: 2.3.2-2+b1
+Installed-Size: 234
+Maintainer: Guillem Jover <guillem@debian.org>
+Architecture: amd64
+Replaces: acl-dev
+Provides: acl-dev
+Depends: libc6-dev | libc-dev, libacl1 (= 2.3.2-2+b1), libattr1-dev (>= 1:2.4.46-8)
+Conflicts: acl-dev
+Description: access control list - static libraries and headers
+Multi-Arch: same
+Homepage: https://savannah.nongnu.org/projects/acl/
+Description-md5: a045d1c523a69128d4ab4cdf4765ed94
+Tag: admin::user-management, devel::lang:c, devel::library,
+ implemented-in::c, role::devel-lib, role::program
+Section: libdevel
+Priority: optional
+Filename: pool/main/a/acl/libacl1-dev_2.3.2-2+b1_amd64.deb
+Size: 94072
+MD5sum: d257e9c35755e143fea4a8c0aa4441a1
+SHA256: 806c81d9a1d0149419a7c0f5e7dccd89bfd8ef242d29aa838cc4cf711042b31e
+
+";
+
+        let udeb_pkg_bytes = b"Package: acl-udeb
+Source: acl (2.3.2-2)
+Version: 2.3.2-2+b1
+Installed-Size: 88
+Maintainer: Guillem Jover <guillem@debian.org>
+Architecture: amd64
+Depends: libacl1-udeb (= 2.3.2-2+b1), libc6-udeb (>= 2.40)
+Description: access control list - udeb utilities
+Description-md5: adab5b8212fbb7be37845c587080f63b
+Section: debian-installer
+Priority: optional
+Filename: pool/main/a/acl/acl-udeb_2.3.2-2+b1_amd64.udeb
+Size: 22064
+MD5sum: 6d198550904ddc7ac225d480bfb5e1c2
+SHA256: b74330955fd3baa1e9557a5b3c38fd0413dae7bcca6b2b14081e0f2d462d46e3
+
+Package: libacl1-udeb
+Source: acl (2.3.2-2)
+Version: 2.3.2-2+b1
+Installed-Size: 44
+Maintainer: Guillem Jover <guillem@debian.org>
+Architecture: amd64
+Depends: libc6-udeb (>= 2.40)
+Description: access control list - udeb shared library
+Description-md5: 8fe5aaac90a010ea18f71aaabf521295
+Section: debian-installer
+Priority: optional
+Filename: pool/main/a/acl/libacl1-udeb_2.3.2-2+b1_amd64.udeb
+Size: 14340
+MD5sum: 8d4b1be0316bd5953419969840233248
+SHA256: b5b0a2543abcf5c6f07fb30a574bd7f5ac0b6a831f82e11137f71e3738fefb91
+
+";
+
+        let mut source_pkgs = SourcePkgBucket::new();
+        let mut state = SyncState::new();
+
+        let sync = PkgsSync {
+            distro: "debian".to_string(),
+            components: vec!["main".to_string()],
+            source: "http://deb.debian.org/debian".to_string(),
+            architectures: vec!["amd64".to_string()],
+            print_json: true,
+            maintainers: vec![],
+            releases: vec![/* this is not used during this test */],
+            pkgs: vec![],
+            excludes: vec![],
+            sync_method: None,
+        };
+
+        for pkg_bytes in [&pkg_bytes[..], &udeb_pkg_bytes[..]] {
+            // They share the same source package index, so it's imported twice
+            source_pkgs
+                .import_uncompressed_source_package_file(&sources_bytes[..])
+                .unwrap();
+
+            // The binary package index is applied afterwards
+            state
+                .import_uncompressed_binary_package_file(
+                    pkg_bytes,
+                    &source_pkgs,
+                    &SyncRelease::new("trixie"),
+                    "main",
+                    &sync,
+                )
+                .unwrap();
+        }
+
+        let reports = state.to_vec();
+        assert_eq!(
+            reports,
+            vec![
+                PackageReport {
+                    distribution: "debian".to_string(),
+                    release: Some("trixie".to_string()),
+                    architecture: "amd64".to_string(),
+                    packages: vec![SourcePackageReport {
+                        name: "acl".to_string(),
+                        version: "2.3.2-2+b1".to_string(),
+                        url: "https://buildinfos.debian.net/buildinfo-pool/a/acl/acl_2.3.2-2+b1_amd64.buildinfo".to_string(),
+                        artifacts: vec![BinaryPackageReport {
+                            name: "acl".to_string(),
+                            version: "2.3.2-2+b1".to_string(),
+                            component: Some("main".to_string()),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/a/acl/acl_2.3.2-2+b1_amd64.deb".to_string()
+                        },
+                        BinaryPackageReport {
+                            name: "libacl1".to_string(),
+                            version: "2.3.2-2+b1".to_string(),
+                            component: Some("main".to_string()),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/a/acl/libacl1_2.3.2-2+b1_amd64.deb".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "libacl1-dev".to_string(),
+                            version: "2.3.2-2+b1".to_string(),
+                            component: Some("main".to_string()),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/a/acl/libacl1-dev_2.3.2-2+b1_amd64.deb".to_string()
+                        },
+                        BinaryPackageReport {
+                            name: "acl-udeb".to_string(),
+                            version: "2.3.2-2+b1".to_string(),
+                            component: Some("main".to_string()),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/a/acl/acl-udeb_2.3.2-2+b1_amd64.udeb".to_string()
+                        },
+                        BinaryPackageReport {
+                            name: "libacl1-udeb".to_string(),
+                            version: "2.3.2-2+b1".to_string(),
+                            component: Some("main".to_string()),
+                            architecture: "amd64".to_string(),
+                            url: "http://deb.debian.org/debian/pool/main/a/acl/libacl1-udeb_2.3.2-2+b1_amd64.udeb".to_string()
+                        },
+                    ]}]
                 },
             ]
         );

@@ -220,10 +220,6 @@ pub async fn returns_result_for_matching_origin_filter(
         assert_eq!(Some(&release), build.release.as_ref());
     }
 
-    if let Some(component) = origin_filter.component {
-        assert_eq!(Some(&component), build.component.as_ref());
-    }
-
     if let Some(architecture) = origin_filter.architecture {
         assert_eq!(architecture, build.architecture);
     }

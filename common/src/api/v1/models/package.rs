@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct PackageReport {
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub architecture: String,
     pub packages: Vec<SourcePackageReport>,
 }
@@ -25,6 +24,7 @@ pub struct SourcePackageReport {
 pub struct BinaryPackageReport {
     pub name: String,
     pub version: String,
+    pub component: Option<String>,
     pub architecture: String,
     pub url: String,
 }
@@ -38,7 +38,6 @@ pub struct SourcePackage {
     pub version: String,
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub status: Option<BuildStatus>,
     pub build_id: Option<i32>,
     pub last_seen: NaiveDateTime,

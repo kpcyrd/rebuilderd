@@ -14,6 +14,7 @@ diesel::table! {
         build_input_id -> Integer,
         name -> Text,
         version -> Text,
+        component -> Nullable<Text>,
         architecture -> Text,
         artifact_url -> Text,
     }
@@ -86,9 +87,8 @@ diesel::table! {
         version -> Text,
         distribution -> Text,
         release -> Nullable<Text>,
-        component -> Nullable<Text>,
         last_seen -> Timestamp,
-        seen_in_last_sync -> Bool
+        seen_in_last_sync -> Bool,
     }
 }
 

@@ -32,7 +32,6 @@ pub struct QueuedJob {
     pub version: String,
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub architecture: String,
     pub backend: String,
     pub url: String,

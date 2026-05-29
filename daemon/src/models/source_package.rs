@@ -14,7 +14,6 @@ pub struct SourcePackage {
     pub version: String,
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub last_seen: NaiveDateTime,
     pub seen_in_last_sync: bool,
 }
@@ -29,7 +28,6 @@ pub struct NewSourcePackage {
     pub version: String,
     pub distribution: String,
     pub release: Option<String>,
-    pub component: Option<String>,
     pub last_seen: NaiveDateTime,
     pub seen_in_last_sync: bool,
 }

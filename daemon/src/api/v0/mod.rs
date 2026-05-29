@@ -149,7 +149,7 @@ fn filter_binary_packages_by<'a>(
     }
 
     if let Some(component) = component {
-        query = query.filter(source_packages::component.eq(component));
+        query = query.filter(binary_packages::component.eq(component));
     }
 
     if let Some(architecture) = architecture {
@@ -212,7 +212,7 @@ pub async fn list_pkgs(
         binary_packages::architecture,
         binary_packages::version,
         rebuild_artifacts::status.nullable(),
-        source_packages::component,
+        binary_packages::component,
         binary_packages::artifact_url,
         r1.field(rebuilds::id).nullable(),
         r1.field(rebuilds::built_at).nullable(),
@@ -341,7 +341,7 @@ fn into_pkg_group(
         version: source_package.version,
 
         distro: source_package.distribution,
-        suite: source_package.component.unwrap_or_default(),
+        suite: "".to_string(), // This is only used in the build queue
         architecture,
 
         input_url,
