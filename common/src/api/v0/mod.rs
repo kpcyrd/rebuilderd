@@ -3,7 +3,7 @@ use anyhow::bail;
 use chrono::NaiveDateTime;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -234,7 +234,7 @@ pub struct BuildReport {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DashboardResponse {
-    pub suites: HashMap<String, SuiteStats>,
+    pub suites: BTreeMap<String, SuiteStats>,
     pub active_builds: Vec<QueueItem>,
     pub queue_length: usize,
     pub now: NaiveDateTime,

@@ -341,7 +341,7 @@ fn into_pkg_group(
         version: source_package.version,
 
         distro: source_package.distribution,
-        suite: "".to_string(), // TODO: deprecated
+        suite: "".to_string(), // This is only used in the build queue
         architecture,
 
         input_url,
