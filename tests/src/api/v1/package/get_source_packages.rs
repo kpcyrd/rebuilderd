@@ -163,7 +163,6 @@ pub async fn can_paginate(mut isolated_server: IsolatedServer) {
         architecture: None,
     }, single_package_report_from_different_release(),
     1)]
-/*
 #[case(OriginFilter {
         distribution: None,
         release: None,
@@ -171,7 +170,6 @@ pub async fn can_paginate(mut isolated_server: IsolatedServer) {
         architecture: None,
     }, single_package_report_from_different_component(),
     1)]
-*/
 #[case(OriginFilter {
         distribution: None,
         release: None,

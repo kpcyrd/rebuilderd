@@ -1,5 +1,6 @@
 use crate::schema::source_packages;
 use diesel::backend::Backend;
+use diesel::dsl::sql;
 use diesel::expression::is_aggregate::No;
 use diesel::expression::{AsExpression, ValidGrouping};
 use diesel::query_builder::QueryFragment;
@@ -194,9 +195,9 @@ where
 
 impl<T: 'static> IntoOriginFilter<T, Sqlite> for OriginFilter
 where
+    source_packages::id: SelectableExpression<T>,
     source_packages::distribution: SelectableExpression<T>,
     source_packages::release: SelectableExpression<T>,
-    // source_packages::component: SelectableExpression<T>,
 {
     type SqlType = Bool;
 
@@ -226,12 +227,20 @@ where
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         };
 
-        /*
+        // This is only correct when using OriginFilter for source packages,
+        // when filtering for binary packages, this gives you unexpected results
         let component_is: Self::Output = match self.component {
-            Some(component) => Box::new(source_packages::component.is(component)),
+            Some(component) => Box::new(
+                sql::<Bool>(
+                    "EXISTS (SELECT 1 FROM binary_packages \
+                     WHERE binary_packages.source_package_id = source_packages.id \
+                     AND binary_packages.component = ",
+                )
+                .bind::<Text, _>(component)
+                .sql(")"),
+            ),
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         };
-        */
 
         let architecture_is: Self::Output = match self.architecture {
             Some(architecture) => Box::new(architecture_column.is(architecture)),
@@ -241,7 +250,7 @@ where
         Box::new(
             distribution_is
                 .and(release_is)
-                // .and(component_is)
+                .and(component_is)
                 .and(architecture_is),
         )
     }

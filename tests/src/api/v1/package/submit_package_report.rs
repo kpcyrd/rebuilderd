@@ -499,14 +499,12 @@ pub async fn friend_binary_packages_are_imported_independently(
         component: None,
         architecture: None,
     }, single_package_report_from_different_release())]
-/*
 #[case(OriginFilter {
         distribution: None,
         release: None,
         component: Some(DUMMY_OTHER_COMPONENT.to_string()),
         architecture: None,
     }, single_package_report_from_different_component())]
-*/
 #[tokio::test]
 pub async fn existing_rebuilds_are_copied_from_friends(
     mut isolated_server: IsolatedServer,
@@ -648,14 +646,6 @@ pub async fn next_retry_is_unchanged_for_reimports(mut isolated_server: Isolated
         component: None,
         architecture: None,
     }, single_package_report_from_different_release())]
-/*
-#[case(OriginFilter {
-        distribution: None,
-        release: None,
-        component: Some(DUMMY_OTHER_COMPONENT.to_string()),
-        architecture: None,
-    }, single_package_report_from_different_component())]
-*/
 #[tokio::test]
 pub async fn retry_count_is_independent_of_friends(
     mut isolated_server: IsolatedServer,
@@ -726,14 +716,6 @@ pub async fn package_is_not_queued_if_any_friend_is_marked_good(
         component: None,
         architecture: None,
     }, single_package_report_from_different_release())]
-/*
-#[case(OriginFilter {
-        distribution: None,
-        release: None,
-        component: Some(DUMMY_OTHER_COMPONENT.to_string()),
-        architecture: None,
-    }, single_package_report_from_different_component())]
-*/
 #[tokio::test]
 pub async fn package_is_not_queued_if_any_friend_is_already_queued(
     mut isolated_server: IsolatedServer,
