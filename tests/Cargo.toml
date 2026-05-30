@@ -1,6 +1,6 @@
 [package]
 name = "rebuilderd-tests"
-version = "0.26.0"
+version = "0.27.0"
 authors = ["kpcyrd <git@rxv.cc>"]
 edition = "2024"
 publish = false
