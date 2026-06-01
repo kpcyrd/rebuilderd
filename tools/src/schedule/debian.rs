@@ -1,5 +1,6 @@
 use crate::args::PkgsSync;
 use crate::config::SyncRelease;
+use crate::rules;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
@@ -128,14 +129,16 @@ pub struct DebianBinPkg {
 }
 
 impl Pkg for DebianBinPkg {
-    fn pkg_name(&self) -> &str {
+    fn binary_pkg_name(&self) -> &str {
         &self.name
     }
 
-    fn by_maintainer(&self, maintainers: &[String]) -> bool {
-        self.uploaders
-            .iter()
-            .any(|uploader| maintainers.iter().any(|m| uploader.starts_with(m)))
+    fn source_pkg_name(&self) -> Option<&str> {
+        Some(&self.source.0)
+    }
+
+    fn maintainers(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(self.uploaders.iter().map(|u| u.as_str()))
     }
 }
 
@@ -367,7 +370,8 @@ impl SyncState {
     ) -> Result<()> {
         // Debian combines arch:all and arch:any packages.
         // Import only what was actually specified.
-        if !pkg.matches(sync) || !sync.architectures.contains(&pkg.architecture) {
+        if !rules::matches(sync, &pkg, component) || !sync.architectures.contains(&pkg.architecture)
+        {
             return Ok(());
         }
 
@@ -496,6 +500,7 @@ mod tests {
                     source: "http://deb.debian.org/debian".to_string(),
                     architectures: vec!["amd64".to_string()],
                     print_json: true,
+                    include: vec![],
                     maintainers: vec![],
                     releases: vec![],
                     pkgs: vec![],
@@ -1535,6 +1540,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string()],
             print_json: true,
+            include: vec![],
             maintainers: vec![],
             releases: vec![SyncRelease::new("sid"), SyncRelease::new("testing")],
             pkgs: vec![],
@@ -1620,6 +1626,7 @@ SHA256: cc2081a6b2f6dcb82039b5097405b5836017a7bfc54a78eba36b656549e17c92
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string(), "all".to_string()],
             print_json: true,
+            include: vec![],
             maintainers: vec![],
             releases: vec![SyncRelease::new("sid"), SyncRelease::new("testing")],
             pkgs: vec![],
@@ -1948,6 +1955,7 @@ Filename: pool/main/r/rust-sniffglue/sniffglue-dbgsym_0.14.0-2_amd64.deb
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string()],
             print_json: true,
+            include: vec![],
             maintainers: vec![],
             releases: vec![/* this is not used during this test */],
             pkgs: vec![],
@@ -2162,6 +2170,7 @@ SHA256: b5b0a2543abcf5c6f07fb30a574bd7f5ac0b6a831f82e11137f71e3738fefb91
             source: "http://deb.debian.org/debian".to_string(),
             architectures: vec!["amd64".to_string()],
             print_json: true,
+            include: vec![],
             maintainers: vec![],
             releases: vec![/* this is not used during this test */],
             pkgs: vec![],

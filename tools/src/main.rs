@@ -25,6 +25,7 @@ pub mod config;
 pub mod decompress;
 pub mod fancy;
 pub mod pager;
+pub mod rules;
 pub mod schedule;
 
 fn patterns_from(patterns: &[String]) -> Result<Vec<Pattern>> {
@@ -178,6 +179,7 @@ async fn main() -> Result<()> {
                     source: profile.source,
 
                     print_json: args.print_json,
+                    include: profile.include,
                     maintainers: profile.maintainers,
                     pkgs: patterns_from(&profile.pkgs)?,
                     excludes: patterns_from(&profile.excludes)?,

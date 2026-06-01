@@ -1,3 +1,4 @@
+use crate::rules;
 use rebuilderd_common::errors::*;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -38,11 +39,17 @@ pub struct SyncProfile {
     pub source: String,
 
     #[serde(default)]
+    pub include: Vec<rules::IncludeRule>,
+
+    // NOTE: Eventually to be deprecated in favor of `include` rules
+    #[serde(default)]
     pub maintainers: Vec<String>,
 
+    // NOTE: Eventually to be deprecated in favor of `include` rules
     #[serde(default)]
     pub pkgs: Vec<String>,
 
+    // NOTE: Eventually to be deprecated in favor of `include` rules
     #[serde(default)]
     pub excludes: Vec<String>,
 }
@@ -115,6 +122,7 @@ source = "http://deb.debian.org/debian"
                         releases: vec![SyncRelease::new("trixie-backports")],
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
+                        include: vec![],
                         maintainers: vec![],
                         pkgs: vec!["telegram-desktop*".to_string()],
                         excludes: vec![],
@@ -156,6 +164,7 @@ source = "http://deb.debian.org/debian"
                         ],
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
+                        include: vec![],
                         maintainers: vec![],
                         pkgs: vec!["telegram-desktop*".to_string()],
                         excludes: vec![],
