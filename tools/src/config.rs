@@ -26,17 +26,11 @@ pub struct SyncProfile {
 
     pub sync_method: Option<String>,
 
-    #[deprecated]
-    pub suite: Option<String>,
-
     #[serde(default)]
     pub components: Vec<String>,
 
     #[serde(default)]
     pub releases: Vec<SyncRelease>,
-
-    #[deprecated]
-    pub architecture: Option<String>,
 
     #[serde(default)]
     pub architectures: Vec<String>,
@@ -117,10 +111,8 @@ source = "http://deb.debian.org/debian"
                     SyncProfile {
                         distro: "debian".to_string(),
                         sync_method: None,
-                        suite: None,
                         components: vec!["main".to_string()],
                         releases: vec![SyncRelease::new("trixie-backports")],
-                        architecture: None,
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
                         maintainers: vec![],
@@ -154,7 +146,6 @@ source = "http://deb.debian.org/debian"
                     SyncProfile {
                         distro: "debian".to_string(),
                         sync_method: None,
-                        suite: None,
                         components: vec!["main".to_string()],
                         releases: vec![
                             SyncRelease::new("trixie-backports"),
@@ -163,7 +154,6 @@ source = "http://deb.debian.org/debian"
                                 source: Some("http://deb.debian.org/debian-debug".to_string()),
                             }
                         ],
-                        architecture: None,
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
                         maintainers: vec![],
