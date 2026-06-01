@@ -44,10 +44,10 @@ impl IncludeRule {
             }
         }
 
-        if let Some(maintainer) = &self.maintainer {
-            if !matches_maintainer(pkg, maintainer) {
-                return false;
-            }
+        if let Some(maintainer) = &self.maintainer
+            && !matches_maintainer(pkg, maintainer)
+        {
+            return false;
         }
 
         true
@@ -88,4 +88,288 @@ fn matches_maintainer(pkg: &dyn Pkg, filter: &str) -> bool {
 /// Match if any of the patterns matches the name
 fn matches_name(name: &str, patterns: &[glob::Pattern]) -> bool {
     patterns.iter().any(|p| p.matches(name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::args::PkgsSync;
+    use crate::schedule::archlinux::ArchPkg;
+    use glob::Pattern;
+
+    struct Filter {
+        maintainers: Vec<String>,
+        pkgs: Vec<String>,
+        excludes: Vec<String>,
+    }
+
+    fn to_patterns(patterns: Vec<String>) -> Vec<Pattern> {
+        patterns.iter().map(|f| Pattern::new(f).unwrap()).collect()
+    }
+
+    fn gen_filter(f: Filter) -> PkgsSync {
+        PkgsSync {
+            distro: "archlinux".to_string(),
+            sync_method: None,
+            components: vec!["community".to_string()],
+            architectures: vec!["x86_64".to_string()],
+            source: "https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch".to_string(),
+            releases: Vec::new(),
+
+            print_json: false,
+            include: vec![],
+            maintainers: f.maintainers,
+            pkgs: to_patterns(f.pkgs),
+            excludes: to_patterns(f.excludes),
+        }
+    }
+
+    fn gen_pkg() -> ArchPkg {
+        ArchPkg {
+            name: "rebuilderd".to_string(),
+            base: "rebuilderd".to_string(),
+            filename: "rebuilderd-0.2.1-1-x86_64.pkg.tar.zst".to_string(),
+            version: "0.2.1-1".to_string(),
+            architecture: "x86_64".to_string(),
+            packager: "kpcyrd <kpcyrd@archlinux.org>".to_string(),
+        }
+    }
+
+    #[test]
+    fn no_filter_always_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn maintainer_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn maintainer_does_not_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["Levente Polyak <anthraxx@archlinux.org>".to_string()],
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn pkg_name_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["rebuilderd".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pkg_name_does_not_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["asdf".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn pkg_name_and_maintainer_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
+                pkgs: vec!["rebuilderd".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pkg_name_and_maintainer_does_not_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["Levente Polyak <anthraxx@archlinux.org>".to_string()],
+                pkgs: vec!["linux-hardened".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn no_filter_but_excludes_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: vec!["rebuilderd".to_string()],
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn no_filter_and_no_excludes_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: vec!["asdf".to_string()],
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pkg_name_and_maintainer_match_and_no_excludes_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
+                pkgs: vec!["rebuilderd".to_string()],
+                excludes: vec!["asdf".to_string()],
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pkg_name_and_maintainer_match_but_excludes_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
+                pkgs: vec!["rebuilderd".to_string()],
+                excludes: vec!["rebuilderd".to_string()],
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn regular_string_matches_exact() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["rebuilderd".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn regular_string_matches_only_exact() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["build".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn pattern_matches_prefix() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["*builderd".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pattern_matches_suffix() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["rebuild*".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pattern_matches_prefix_and_suffix() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["*build*".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn pattern_matches_empty_string() {
+        let m = matches(
+            &gen_filter(Filter {
+                maintainers: Vec::new(),
+                pkgs: vec!["rebuilderd*".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
 }
