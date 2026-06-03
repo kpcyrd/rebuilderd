@@ -1,3 +1,4 @@
+use crate::rules;
 use rebuilderd_common::errors::*;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -26,17 +27,11 @@ pub struct SyncProfile {
 
     pub sync_method: Option<String>,
 
-    #[deprecated]
-    pub suite: Option<String>,
-
     #[serde(default)]
     pub components: Vec<String>,
 
     #[serde(default)]
     pub releases: Vec<SyncRelease>,
-
-    #[deprecated]
-    pub architecture: Option<String>,
 
     #[serde(default)]
     pub architectures: Vec<String>,
@@ -44,11 +39,17 @@ pub struct SyncProfile {
     pub source: String,
 
     #[serde(default)]
+    pub include: Vec<rules::IncludeRule>,
+
+    // NOTE: Eventually to be deprecated in favor of `include` rules
+    #[serde(default)]
     pub maintainers: Vec<String>,
 
+    // NOTE: Eventually to be deprecated in favor of `include` rules
     #[serde(default)]
     pub pkgs: Vec<String>,
 
+    // NOTE: Eventually to be deprecated in favor of `include` rules
     #[serde(default)]
     pub excludes: Vec<String>,
 }
@@ -117,12 +118,11 @@ source = "http://deb.debian.org/debian"
                     SyncProfile {
                         distro: "debian".to_string(),
                         sync_method: None,
-                        suite: None,
                         components: vec!["main".to_string()],
                         releases: vec![SyncRelease::new("trixie-backports")],
-                        architecture: None,
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
+                        include: vec![],
                         maintainers: vec![],
                         pkgs: vec!["telegram-desktop*".to_string()],
                         excludes: vec![],
@@ -154,7 +154,6 @@ source = "http://deb.debian.org/debian"
                     SyncProfile {
                         distro: "debian".to_string(),
                         sync_method: None,
-                        suite: None,
                         components: vec!["main".to_string()],
                         releases: vec![
                             SyncRelease::new("trixie-backports"),
@@ -163,9 +162,9 @@ source = "http://deb.debian.org/debian"
                                 source: Some("http://deb.debian.org/debian-debug".to_string()),
                             }
                         ],
-                        architecture: None,
                         architectures: vec!["amd64".to_string()],
                         source: "http://deb.debian.org/debian".to_string(),
+                        include: vec![],
                         maintainers: vec![],
                         pkgs: vec!["telegram-desktop*".to_string()],
                         excludes: vec![],

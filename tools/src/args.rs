@@ -1,4 +1,5 @@
 use crate::config::SyncRelease;
+use crate::rules;
 use clap::{ArgAction, CommandFactory, Parser};
 use clap_complete::Shell;
 use glob::Pattern;
@@ -84,6 +85,10 @@ pub struct PkgsSync {
 
     #[arg(long)]
     pub print_json: bool,
+
+    // In the future we should not parse the config into the Args struct
+    #[arg(skip)]
+    pub include: Vec<rules::IncludeRule>,
 
     #[arg(long = "maintainer")]
     pub maintainers: Vec<String>,

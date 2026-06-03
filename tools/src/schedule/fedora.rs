@@ -1,5 +1,6 @@
 use crate::args::PkgsSync;
 use crate::decompress;
+use crate::rules;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
 use rebuilderd_common::errors::*;
@@ -7,6 +8,7 @@ use rebuilderd_common::http;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Read;
+use std::iter;
 
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
     let mut reports = Vec::new();
@@ -42,7 +44,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                 let packages = parse_package_index(data)?;
 
                 for pkg in packages {
-                    if !pkg.matches(sync) {
+                    if !rules::matches(sync, &pkg, component) {
                         continue;
                     }
 
@@ -134,12 +136,16 @@ pub struct PackagesXmlItem {
 }
 
 impl Pkg for PackagesXmlItem {
-    fn pkg_name(&self) -> &str {
+    fn binary_pkg_name(&self) -> &str {
         &self.name
     }
 
-    fn by_maintainer(&self, maintainers: &[String]) -> bool {
-        maintainers.iter().any(|m| self.packager.starts_with(m))
+    fn source_pkg_name(&self) -> Option<&str> {
+        None
+    }
+
+    fn maintainers(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(iter::once(self.packager.as_str()))
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::args::PkgsSync;
 use crate::decompress;
+use crate::rules;
 use crate::schedule::{Pkg, fetch_url_or_path};
 use nom::bytes::complete::take_till;
 use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePackageReport};
@@ -8,6 +9,7 @@ use rebuilderd_common::http;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::io::prelude::*;
+use std::iter;
 use tar::{Archive, EntryType};
 
 fn mirror_to_url(mut mirror: &str, repo: &str, arch: &str, file: &str) -> Result<String> {
@@ -47,12 +49,16 @@ pub struct ArchPkg {
 }
 
 impl Pkg for ArchPkg {
-    fn pkg_name(&self) -> &str {
+    fn binary_pkg_name(&self) -> &str {
         &self.name
     }
 
-    fn by_maintainer(&self, maintainers: &[String]) -> bool {
-        maintainers.iter().any(|m| self.packager.starts_with(m))
+    fn source_pkg_name(&self) -> Option<&str> {
+        Some(&self.base)
+    }
+
+    fn maintainers(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(iter::once(self.packager.as_str()))
     }
 }
 
@@ -175,7 +181,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
 
             info!("Parsing index ({} bytes)...", bytes.len());
             for pkg in extract_pkgs(&bytes)? {
-                if !pkg.matches(sync) {
+                if !rules::matches(sync, &pkg, component) {
                     continue;
                 }
 
