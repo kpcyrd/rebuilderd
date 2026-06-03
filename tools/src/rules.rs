@@ -98,6 +98,7 @@ mod tests {
     use glob::Pattern;
 
     struct Filter {
+        include: Vec<IncludeRule>,
         maintainers: Vec<String>,
         pkgs: Vec<String>,
         excludes: Vec<String>,
@@ -117,7 +118,7 @@ mod tests {
             releases: Vec::new(),
 
             print_json: false,
-            include: vec![],
+            include: f.include,
             maintainers: f.maintainers,
             pkgs: to_patterns(f.pkgs),
             excludes: to_patterns(f.excludes),
@@ -139,6 +140,7 @@ mod tests {
     fn no_filter_always_matches() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: Vec::new(),
                 excludes: Vec::new(),
@@ -153,6 +155,7 @@ mod tests {
     fn maintainer_matches() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
                 pkgs: Vec::new(),
                 excludes: Vec::new(),
@@ -167,6 +170,7 @@ mod tests {
     fn maintainer_does_not_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["Levente Polyak <anthraxx@archlinux.org>".to_string()],
                 pkgs: Vec::new(),
                 excludes: Vec::new(),
@@ -181,6 +185,7 @@ mod tests {
     fn pkg_name_matches() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["rebuilderd".to_string()],
                 excludes: Vec::new(),
@@ -195,6 +200,7 @@ mod tests {
     fn pkg_name_does_not_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["asdf".to_string()],
                 excludes: Vec::new(),
@@ -209,6 +215,7 @@ mod tests {
     fn pkg_name_and_maintainer_matches() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
                 pkgs: vec!["rebuilderd".to_string()],
                 excludes: Vec::new(),
@@ -223,6 +230,7 @@ mod tests {
     fn pkg_name_and_maintainer_does_not_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["Levente Polyak <anthraxx@archlinux.org>".to_string()],
                 pkgs: vec!["linux-hardened".to_string()],
                 excludes: Vec::new(),
@@ -237,6 +245,7 @@ mod tests {
     fn no_filter_but_excludes_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: Vec::new(),
                 excludes: vec!["rebuilderd".to_string()],
@@ -251,6 +260,7 @@ mod tests {
     fn no_filter_and_no_excludes_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: Vec::new(),
                 excludes: vec!["asdf".to_string()],
@@ -265,6 +275,7 @@ mod tests {
     fn pkg_name_and_maintainer_match_and_no_excludes_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
                 pkgs: vec!["rebuilderd".to_string()],
                 excludes: vec!["asdf".to_string()],
@@ -279,6 +290,7 @@ mod tests {
     fn pkg_name_and_maintainer_match_but_excludes_match() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
                 pkgs: vec!["rebuilderd".to_string()],
                 excludes: vec!["rebuilderd".to_string()],
@@ -293,6 +305,7 @@ mod tests {
     fn regular_string_matches_exact() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["rebuilderd".to_string()],
                 excludes: Vec::new(),
@@ -307,6 +320,7 @@ mod tests {
     fn regular_string_matches_only_exact() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["build".to_string()],
                 excludes: Vec::new(),
@@ -321,6 +335,7 @@ mod tests {
     fn pattern_matches_prefix() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["*builderd".to_string()],
                 excludes: Vec::new(),
@@ -335,6 +350,7 @@ mod tests {
     fn pattern_matches_suffix() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["rebuild*".to_string()],
                 excludes: Vec::new(),
@@ -349,6 +365,7 @@ mod tests {
     fn pattern_matches_prefix_and_suffix() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["*build*".to_string()],
                 excludes: Vec::new(),
@@ -363,8 +380,230 @@ mod tests {
     fn pattern_matches_empty_string() {
         let m = matches(
             &gen_filter(Filter {
+                include: Vec::new(),
                 maintainers: Vec::new(),
                 pkgs: vec!["rebuilderd*".to_string()],
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rule_matches_all_fields() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: Some("extra".to_string()),
+                    binary_pkgs: to_patterns(vec!["rebuilderd".to_string()]),
+                    source_pkgs: to_patterns(vec!["rebuilderd".to_string()]),
+                    maintainer: Some("kpcyrd <kpcyrd@archlinux.org>".to_string()),
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rule_first_match_wins() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![
+                    // This is an exclude=true rule
+                    IncludeRule {
+                        exclude: true,
+                        component: None,
+                        binary_pkgs: to_patterns(vec!["rebuilderd".to_string()]),
+                        source_pkgs: Vec::new(),
+                        maintainer: None,
+                    },
+                    // This is an exclude=false rule
+                    IncludeRule {
+                        exclude: false,
+                        component: None,
+                        binary_pkgs: to_patterns(vec!["rebuilderd".to_string()]),
+                        source_pkgs: Vec::new(),
+                        maintainer: None,
+                    },
+                ],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn include_rules_default_to_deny_when_no_rule_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: Some("community".to_string()),
+                    binary_pkgs: to_patterns(vec!["linux".to_string()]),
+                    source_pkgs: Vec::new(),
+                    maintainer: None,
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn include_rules_fall_back_to_legacy_filters() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: Some("community".to_string()),
+                    binary_pkgs: to_patterns(vec!["linux".to_string()]),
+                    source_pkgs: Vec::new(),
+                    maintainer: None,
+                }],
+                maintainers: vec!["kpcyrd <kpcyrd@archlinux.org>".to_string()],
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rules_component_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: Some("core".to_string()),
+                    binary_pkgs: Vec::new(),
+                    source_pkgs: Vec::new(),
+                    maintainer: None,
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "core",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rules_component_mismatch() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: Some("core".to_string()),
+                    binary_pkgs: Vec::new(),
+                    source_pkgs: Vec::new(),
+                    maintainer: None,
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn include_rules_maintainer_matches() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: None,
+                    binary_pkgs: Vec::new(),
+                    source_pkgs: Vec::new(),
+                    maintainer: Some("kpcyrd".to_string()),
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rules_maintainer_does_not_match() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: None,
+                    binary_pkgs: Vec::new(),
+                    source_pkgs: Vec::new(),
+                    maintainer: Some("Levente Polyak".to_string()),
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(!m);
+    }
+
+    #[test]
+    fn include_rules_binary_pkg_wildcard() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: None,
+                    binary_pkgs: to_patterns(vec!["*".to_string()]),
+                    source_pkgs: Vec::new(),
+                    maintainer: None,
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
+                excludes: Vec::new(),
+            }),
+            &gen_pkg(),
+            "extra",
+        );
+        assert!(m);
+    }
+
+    #[test]
+    fn include_rules_source_pkg_wildcard() {
+        let m = matches(
+            &gen_filter(Filter {
+                include: vec![IncludeRule {
+                    exclude: false,
+                    component: None,
+                    binary_pkgs: Vec::new(),
+                    source_pkgs: to_patterns(vec!["*".to_string()]),
+                    maintainer: None,
+                }],
+                maintainers: Vec::new(),
+                pkgs: Vec::new(),
                 excludes: Vec::new(),
             }),
             &gen_pkg(),
