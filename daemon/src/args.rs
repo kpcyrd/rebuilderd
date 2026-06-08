@@ -19,6 +19,9 @@ pub struct Args {
     /// Configuration file path
     #[arg(short, long)]
     pub config: Option<PathBuf>,
+    /// Stats configuration file path (default: /etc/rebuilderd-stats.conf)
+    #[arg(long)]
+    pub stats_config: Option<PathBuf>,
     /// Long-term key used to sign attestations
     #[arg(
         long,

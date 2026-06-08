@@ -90,6 +90,7 @@ pub struct HttpConfig {
     pub post_body_size_limit: Option<usize>,
     pub transparently_sign_attestations: Option<bool>,
     pub endpoint: Option<String>,
+    pub permissive_cors: Option<bool>,
 }
 
 impl HttpConfig {

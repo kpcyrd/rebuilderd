@@ -6,6 +6,7 @@ use env_logger::Env;
 use rebuilderd::attestation;
 use rebuilderd::config;
 use rebuilderd::db;
+use rebuilderd::stats_config;
 use rebuilderd_common::errors::*;
 use std::fs;
 
@@ -46,10 +47,8 @@ async fn main() -> Result<()> {
         let privkey = attestation::load_or_create_privkey_pem(&args.signing_key)?;
         let pool = db::setup_pool("rebuilderd.db")?;
 
-        let (server, address) = rebuilderd::build_server(pool, config, privkey)?;
-
-        info!("Listening on {}", address);
-        server.await?;
+        let stats_cfg = stats_config::load_or_default(args.stats_config.as_deref())?;
+        rebuilderd::run_config(pool, config, privkey, stats_cfg).await?;
     }
     Ok(())
 }
