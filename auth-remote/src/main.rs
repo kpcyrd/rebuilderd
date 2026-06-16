@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub struct Cache {
     binary_pkgs: BTreeSet<String>,
     source_pkgs: BTreeSet<String>,
+    architectures: BTreeSet<String>,
 }
 
 #[get("/")]
@@ -26,15 +27,14 @@ async fn index(
     cache: web::Data<Arc<ArcSwap<Cache>>>,
 ) -> impl Responder {
     let cache = cache.load();
-    let binary_pkgs = &cache.binary_pkgs;
-    let source_pkgs = &cache.source_pkgs;
 
     let Ok(html) = hbs
         .render(
             "index.html",
             &json!({
-                "binary_pkgs": binary_pkgs,
-                "source_pkgs": source_pkgs,
+                "binary_pkgs": cache.binary_pkgs,
+                "source_pkgs": cache.source_pkgs,
+                "architectures": cache.architectures,
             }),
         )
         .inspect_err(|err| error!("Template error: {err:#}"))
