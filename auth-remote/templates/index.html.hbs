@@ -1,1 +1,13 @@
-ohai!
+<!DOCTYPE html>
+<h2>Binary pkgs</h2>
+<select>
+    {{#each binary_pkgs}}
+    <option>{{this}}</option>
+    {{/each}}
+</select>
+<h2>Source pkgs</h2>
+<select>
+    {{#each source_pkgs}}
+    <option>{{this}}</option>
+    {{/each}}
+</select>

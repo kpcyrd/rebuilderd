@@ -1,13 +1,42 @@
+mod args;
+mod background;
+
+use crate::args::Args;
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use arc_swap::ArcSwap;
+use clap::Parser;
 use env_logger::Env;
 use handlebars::{DirectorySourceOptions, Handlebars};
+use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::*;
 use serde::Deserialize;
+use serde_json::json;
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
+#[derive(Default)]
+pub struct Cache {
+    binary_pkgs: BTreeSet<String>,
+    source_pkgs: BTreeSet<String>,
+}
 
 #[get("/")]
-async fn index(hbs: web::Data<Handlebars<'_>>) -> impl Responder {
+async fn index(
+    hbs: web::Data<Handlebars<'_>>,
+    cache: web::Data<Arc<ArcSwap<Cache>>>,
+) -> impl Responder {
+    let cache = cache.load();
+    let binary_pkgs = &cache.binary_pkgs;
+    let source_pkgs = &cache.source_pkgs;
+
     let Ok(html) = hbs
-        .render("index.html", &())
+        .render(
+            "index.html",
+            &json!({
+                "binary_pkgs": binary_pkgs,
+                "source_pkgs": source_pkgs,
+            }),
+        )
         .inspect_err(|err| error!("Template error: {err:#}"))
     else {
         return HttpResponse::InternalServerError().body("Template error");
@@ -54,24 +83,33 @@ async fn schedule() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    let log_level = "info";
+    let args = Args::parse();
+
+    let log_level = if args.verbose { "debug" } else { "info" };
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
+
+    let client = Client::new(Default::default(), Some(args.endpoint))?;
 
     let mut handlebars = Handlebars::new();
     handlebars.register_templates_directory("templates", DirectorySourceOptions::default())?;
-
     let handlebars_ref = web::Data::new(handlebars);
 
-    HttpServer::new(move || {
+    let cache = Arc::new(ArcSwap::from_pointee(Cache::default()));
+    let cache_ref = web::Data::new(cache.clone());
+
+    let server = HttpServer::new(move || {
         App::new()
             .app_data(handlebars_ref.clone())
+            .app_data(cache_ref.clone())
             .service(index)
             .service(auth_login)
             .service(auth_callback)
             .service(schedule)
     })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await?;
-    Ok(())
+    .bind(args.bind)?;
+
+    tokio::select! {
+        res = server.run() => res.map_err(|err| err.into()),
+        res = background::run(client, cache) => Ok(res),
+    }
 }
