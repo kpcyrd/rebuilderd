@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "auth-remote",
     "common",
     "daemon",
     "tests",
@@ -9,7 +10,10 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
+actix-web = "4"
+env_logger = "0.11"
 rand = "0.10"
 rebuilderd = { version = "=0.28.0", path = "daemon" }
 rebuilderd-common = { version = "=0.28.0", path = "common" }
+serde = { version = "1", features = ["derive"] }
 toml = "1"

@@ -1,0 +1,12 @@
+[package]
+name = "rebuilderd-auth-remote"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web.workspace = true
+env_logger.workspace = true
+handlebars = { version = "6", features = ["dir_source"] }
+oauth2 = { version = "5", default-features = false }
+rebuilderd-common.workspace = true
+serde.workspace = true

@@ -22,13 +22,13 @@ async-trait = "0.1.56"
 clap = { version = "4", features = ["derive", "env"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 data-encoding = "2"
-env_logger = "0.11"
+env_logger.workspace = true
 futures = "0.3.21"
 futures-util = "0.3.21"
 in-toto = "0.4"
 nix = { version = "0.31", features = ["process", "signal"] }
 rebuilderd-common.workspace = true
-serde = { version = "1.0.137", features = ["derive"] }
+serde.workspace = true
 serde_json = "1.0.81"
 tempfile = "3.3.0"
 tokio = { version = "1.19.2", features = ["macros", "rt-multi-thread", "fs", "io-util", "process", "io-std", "time"] }
