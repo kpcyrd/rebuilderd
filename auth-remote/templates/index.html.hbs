@@ -1,43 +1,222 @@
 <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Retry reproducing package</title>
+    <style>
+        :root {
+            --surface: #ffffff;
+            --surface-2: #f8fafc;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #d1d5db;
+            --accent: #0f766e;
+            --accent-hover: #115e59;
+            --radius: 12px;
+            --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+            --space-xs: 0.5rem;
+            --space-sm: 0.75rem;
+            --space-md: 1rem;
+            --space-lg: 1.25rem;
+            --space-xl: 1.5rem;
+        }
 
-<form>
-    <fieldset>
-        <legend>Binary pkg ({{len binary_pkgs}})</legend>
+        * {
+            box-sizing: border-box;
+        }
 
-        <select>
-            {{#each binary_pkgs}}
-            <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
-            {{/each}}
-        </select>
+        body {
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            padding: var(--space-xl) var(--space-md);
+        }
 
-        <h2>Architectures</h2>
-        <select>
-            {{#each architectures}}
-            <option>{{this}}</option>
-            {{/each}}
-        </select>
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+        }
 
-        <input type="submit" value="Retry">
-    </fieldset>
-</form>
+        .stack > * + * {
+            margin-top: var(--space-md);
+        }
 
-<form>
-    <fieldset>
-        <legend>Source pkg ({{len source_pkgs}})</legend>
+        .grid {
+            display: grid;
+            gap: var(--space-md);
+            grid-template-columns: 1fr;
+        }
 
-        <select>
-            {{#each source_pkgs}}
-            <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
-            {{/each}}
-        </select>
+        @media (min-width: 860px) {
+            .grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
 
-        <h2>Architectures</h2>
-        <select>
-            {{#each architectures}}
-            <option>{{this}}</option>
-            {{/each}}
-        </select>
+        header {
+            grid-column: 1 / -1;
+        }
 
-        <input type="submit" value="Retry">
-    </fieldset>
-</form>
+        .intro {
+            margin: 0;
+            max-width: 70ch;
+            color: var(--muted);
+        }
+
+        .auth-notice {
+            grid-column: 1 / -1;
+            background: color-mix(in srgb, var(--accent) 10%, white);
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+            border-radius: var(--radius);
+            padding: var(--space-md) var(--space-lg);
+            color: var(--text);
+        }
+
+        .auth-link {
+            color: var(--accent-hover);
+            font-weight: 600;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 2px;
+        }
+
+        .auth-link:hover {
+            color: var(--accent);
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: var(--space-lg);
+        }
+
+        .legend {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: var(--space-md);
+        }
+
+        .label {
+            display: block;
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: var(--space-xs);
+        }
+
+        .label-spaced {
+            margin-top: var(--space-md);
+        }
+
+        .select {
+            width: 100%;
+            padding: var(--space-sm);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-2);
+            color: var(--text);
+            font: inherit;
+        }
+
+        .select:focus {
+            outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+            border-color: var(--accent);
+            background: var(--surface);
+        }
+
+        .button {
+            margin-top: var(--space-lg);
+            width: 100%;
+            border: 0;
+            border-radius: 10px;
+            background: var(--accent);
+            color: #ffffff;
+            font: inherit;
+            font-weight: 600;
+            padding: var(--space-sm) var(--space-md);
+            cursor: pointer;
+            transition: background-color 120ms ease, transform 80ms ease;
+        }
+
+        .button:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .button:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .button:disabled {
+            background: #94a3b8;
+            color: #e2e8f0;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <section class="grid">
+            <header>
+                <h1>Retry reproducing package</h1>
+                <p class="intro">
+                    Select a package that failed to <a href="https://reproducible-builds.org">reproduce from source code</a> to schedule a retry.
+                </p>
+            </header>
+
+            {{#if (not authed)}}
+            <div class="auth-notice">
+                Please
+                <a class="auth-link" href="/auth">login</a>
+                to schedule retries.
+            </div>
+            {{/if}}
+
+            <form method="post" action="/schedule" class="card stack">
+                <fieldset>
+                    <legend class="legend">Binary pkgs ({{len binary_pkgs}})</legend>
+
+                    <label class="label">Package</label>
+                    <select class="select">
+                        {{#each binary_pkgs}}
+                        <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
+                        {{/each}}
+                    </select>
+
+                    <label class="label label-spaced">Architecture</label>
+                    <select class="select">
+                        {{#each architectures}}
+                        <option>{{this}}</option>
+                        {{/each}}
+                    </select>
+
+                    <input class="button" type="submit" value="Retry" {{#if (not authed)}}disabled{{/if}}>
+                </fieldset>
+            </form>
+
+            <form method="post" action="/schedule" class="card stack">
+                <fieldset>
+                    <legend class="legend">Source pkgs ({{len source_pkgs}})</legend>
+
+                    <label class="label">Package</label>
+                    <select class="select">
+                        {{#each source_pkgs}}
+                        <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
+                        {{/each}}
+                    </select>
+
+                    <label class="label label-spaced">Architecture</label>
+                    <select class="select">
+                        {{#each architectures}}
+                        <option>{{this}}</option>
+                        {{/each}}
+                    </select>
+
+                    <input class="button" type="submit" value="Retry" {{#if (not authed)}}disabled{{/if}}>
+                </fieldset>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

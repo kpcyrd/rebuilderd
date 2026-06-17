@@ -53,6 +53,7 @@ async fn index(
                 "binary_pkgs": cache.binary_pkgs,
                 "source_pkgs": cache.source_pkgs,
                 "architectures": cache.architectures,
+                "authed": false, // TODO
             }),
         )
         .inspect_err(|err| error!("Template error: {err:#}"))
