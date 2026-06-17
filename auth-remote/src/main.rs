@@ -9,16 +9,34 @@ use env_logger::Env;
 use handlebars::{DirectorySourceOptions, Handlebars};
 use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::*;
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value as JsonValue, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+handlebars::handlebars_helper!(to_json: |v: JsonValue| {
+    serde_json::to_string(&v)
+        .inspect_err(|_err| error!("Failed to serialize value to JSON: {v:?}"))
+        .unwrap_or_default()
+});
+
 #[derive(Default)]
 pub struct Cache {
-    binary_pkgs: BTreeSet<String>,
-    source_pkgs: BTreeSet<String>,
+    binary_pkgs: BTreeSet<Binary>,
+    source_pkgs: BTreeSet<Source>,
     architectures: BTreeSet<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Binary {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Source {
+    pub name: String,
+    pub version: String,
 }
 
 #[get("/")]
@@ -91,6 +109,7 @@ async fn main() -> Result<()> {
     let client = Client::new(Default::default(), Some(args.endpoint))?;
 
     let mut handlebars = Handlebars::new();
+    handlebars.register_helper("to_json", Box::new(to_json));
     handlebars.register_templates_directory("templates", DirectorySourceOptions::default())?;
     let handlebars_ref = web::Data::new(handlebars);
 

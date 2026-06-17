@@ -1,19 +1,43 @@
 <!DOCTYPE html>
-<h2>Binary pkgs</h2>
-<select>
-    {{#each binary_pkgs}}
-    <option>{{this}}</option>
-    {{/each}}
-</select>
-<h2>Source pkgs</h2>
-<select>
-    {{#each source_pkgs}}
-    <option>{{this}}</option>
-    {{/each}}
-</select>
-<h2>Architectures</h2>
-<select>
-    {{#each architectures}}
-    <option>{{this}}</option>
-    {{/each}}
-</select>
+
+<form>
+    <fieldset>
+        <legend>Binary pkg ({{len binary_pkgs}})</legend>
+
+        <select>
+            {{#each binary_pkgs}}
+            <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
+            {{/each}}
+        </select>
+
+        <h2>Architectures</h2>
+        <select>
+            {{#each architectures}}
+            <option>{{this}}</option>
+            {{/each}}
+        </select>
+
+        <input type="submit" value="Retry">
+    </fieldset>
+</form>
+
+<form>
+    <fieldset>
+        <legend>Source pkg ({{len source_pkgs}})</legend>
+
+        <select>
+            {{#each source_pkgs}}
+            <option value="{{to_json this}}">{{this.name}} - {{this.version}}</option>
+            {{/each}}
+        </select>
+
+        <h2>Architectures</h2>
+        <select>
+            {{#each architectures}}
+            <option>{{this}}</option>
+            {{/each}}
+        </select>
+
+        <input type="submit" value="Retry">
+    </fieldset>
+</form>

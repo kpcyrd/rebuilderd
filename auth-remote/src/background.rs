@@ -1,8 +1,8 @@
-use crate::Cache;
+use crate::{Binary, Cache, Source};
 use arc_swap::ArcSwap;
 use rebuilderd_common::api::{
     Client,
-    v1::{PackageRestApi, Page},
+    v1::{ArtifactStatus, BuildStatus, PackageRestApi, Page},
 };
 use rebuilderd_common::errors::*;
 use std::collections::BTreeSet;
@@ -11,7 +11,7 @@ use tokio::time::{self, Duration};
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(60 * 30);
 
-async fn fetch_binary_pkgs(client: &Client) -> Result<(BTreeSet<String>, BTreeSet<String>)> {
+async fn fetch_binary_pkgs(client: &Client) -> Result<(BTreeSet<Binary>, BTreeSet<String>)> {
     let mut page = Page {
         limit: Some(1000),
         before: None,
@@ -20,8 +20,8 @@ async fn fetch_binary_pkgs(client: &Client) -> Result<(BTreeSet<String>, BTreeSe
         direction: None,
     };
 
-    let mut pkgs = BTreeSet::<String>::new();
-    let mut archs = BTreeSet::<String>::new();
+    let mut pkgs = BTreeSet::new();
+    let mut archs = BTreeSet::new();
 
     loop {
         let results = client.get_binary_packages(Some(&page), None, None).await?;
@@ -33,7 +33,14 @@ async fn fetch_binary_pkgs(client: &Client) -> Result<(BTreeSet<String>, BTreeSe
         }
 
         for result in results.records {
-            pkgs.insert(result.name);
+            if result.status == Some(ArtifactStatus::Good) || !result.seen_in_last_sync {
+                continue;
+            }
+
+            pkgs.insert(Binary {
+                name: result.name,
+                version: result.version,
+            });
             archs.insert(result.architecture);
         }
     }
@@ -41,7 +48,7 @@ async fn fetch_binary_pkgs(client: &Client) -> Result<(BTreeSet<String>, BTreeSe
     Ok((pkgs, archs))
 }
 
-async fn fetch_source_pkgs(client: &Client) -> Result<BTreeSet<String>> {
+async fn fetch_source_pkgs(client: &Client) -> Result<BTreeSet<Source>> {
     let mut page = Page {
         limit: Some(1000),
         before: None,
@@ -50,7 +57,7 @@ async fn fetch_source_pkgs(client: &Client) -> Result<BTreeSet<String>> {
         direction: None,
     };
 
-    let mut pkgs = BTreeSet::<String>::new();
+    let mut pkgs = BTreeSet::new();
 
     loop {
         let results = client.get_source_packages(Some(&page), None, None).await?;
@@ -62,7 +69,14 @@ async fn fetch_source_pkgs(client: &Client) -> Result<BTreeSet<String>> {
         }
 
         for result in results.records {
-            pkgs.insert(result.name);
+            if result.status == Some(BuildStatus::Good) || !result.seen_in_last_sync {
+                continue;
+            }
+
+            pkgs.insert(Source {
+                name: result.name,
+                version: result.version,
+            });
         }
     }
 
