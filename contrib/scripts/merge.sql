@@ -8,8 +8,8 @@ ATTACH DATABASE :OTHER_DB AS other;
 BEGIN TRANSACTION;
 
 -- source packages
-INSERT INTO source_packages (name, version, distribution, "release", component, last_seen, seen_in_last_sync)
-SELECT name, version, distribution, "release", component, last_seen, seen_in_last_sync
+INSERT INTO source_packages (name, version, distribution, "release", last_seen, seen_in_last_sync)
+SELECT name, version, distribution, "release", last_seen, seen_in_last_sync
 FROM other.source_packages
 WHERE TRUE
 ON CONFLICT DO NOTHING;
@@ -18,8 +18,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO build_inputs (source_package_id, url, backend, architecture, retries, next_retry)
 SELECT (SELECT id
         FROM source_packages
-        WHERE (name, version, distribution, "release", component) IS
-              (SELECT name, version, distribution, "release", component
+        WHERE (name, version, distribution, "release") IS
+              (SELECT name, version, distribution, "release"
                FROM other.source_packages
                WHERE id = other.build_inputs.source_package_id)),
        url,
@@ -32,23 +32,24 @@ WHERE TRUE
 ON CONFLICT DO NOTHING;
 
 -- binary packages, mapped to source packages and build inputs
-INSERT INTO binary_packages (source_package_id, build_input_id, name, version, architecture, artifact_url)
+INSERT INTO binary_packages (source_package_id, build_input_id, name, version, component, architecture, artifact_url)
 SELECT (SELECT id
         FROM source_packages
-        WHERE (name, version, distribution, "release", component) IS
-              (SELECT name, version, distribution, "release", component
+        WHERE (name, version, distribution, "release") IS
+              (SELECT name, version, distribution, "release"
                FROM other.source_packages
                WHERE id = other.binary_packages.source_package_id)),
        (SELECT id
         FROM build_inputs
         WHERE source_package_id IS (SELECT id
                                     FROM source_packages
-                                    WHERE (name, version, distribution, "release", component) IS
-                                          (SELECT name, version, distribution, "release", component
+                                    WHERE (name, version, distribution, "release") IS
+                                          (SELECT name, version, distribution, "release"
                                            FROM other.source_packages
                                            WHERE id = other.binary_packages.source_package_id))),
        name,
        version,
+       component,
        architecture,
        artifact_url
 FROM other.binary_packages
@@ -61,7 +62,7 @@ CREATE TEMPORARY TABLE _build_log_map
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     old_id INTEGER NOT NULL,
     new_id INTEGER
-)
+);
 
 INSERT INTO _build_log_map(old_id, new_id)
 SELECT id, (SELECT seq FROM main.sqlite_sequence WHERE name IS 'build_logs') + rowid
@@ -132,8 +133,8 @@ SELECT ( -- build_input_id in the merged db
            SELECT build_inputs.id
            FROM build_inputs
                     INNER JOIN source_packages ON build_inputs.source_package_id = source_packages.id
-           WHERE (name, version, distribution, "release", component) IS
-                 (SELECT name, version, distribution, "release", component
+           WHERE (name, version, distribution, "release") IS
+                 (SELECT name, version, distribution, "release"
                   FROM other.source_packages
                            INNER JOIN other.build_inputs
                                       ON other.source_packages.id IS other.build_inputs.source_package_id
