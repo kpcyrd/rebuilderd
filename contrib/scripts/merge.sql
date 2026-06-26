@@ -46,7 +46,9 @@ SELECT (SELECT id
                                     WHERE (name, version, distribution, "release") IS
                                           (SELECT name, version, distribution, "release"
                                            FROM other.source_packages
-                                           WHERE id = other.binary_packages.source_package_id))),
+                                           WHERE id = other.binary_packages.source_package_id))
+        AND architecture IS other.binary_packages.architecture
+       ),
        name,
        version,
        component,
@@ -133,8 +135,8 @@ SELECT ( -- build_input_id in the merged db
            SELECT build_inputs.id
            FROM build_inputs
                     INNER JOIN source_packages ON build_inputs.source_package_id = source_packages.id
-           WHERE (name, version, distribution, "release") IS
-                 (SELECT name, version, distribution, "release"
+           WHERE (name, version, distribution, "release", architecture) IS
+                 (SELECT name, version, distribution, "release", architecture
                   FROM other.source_packages
                            INNER JOIN other.build_inputs
                                       ON other.source_packages.id IS other.build_inputs.source_package_id
