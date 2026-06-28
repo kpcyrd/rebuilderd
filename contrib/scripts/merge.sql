@@ -71,8 +71,10 @@ SELECT id, (SELECT seq FROM main.sqlite_sequence WHERE name IS 'build_logs') + r
 FROM other.build_logs
 ORDER BY id;
 
-INSERT INTO build_logs(build_log)
-SELECT build_log
+INSERT INTO build_logs(id, build_log)
+SELECT
+(SELECT new_id FROM _build_log_map WHERE old_id IS other.build_logs.id),
+build_log
 FROM other.build_logs
 ORDER BY id;
 
@@ -91,8 +93,10 @@ SELECT id, (SELECT seq FROM main.sqlite_sequence WHERE name IS 'attestation_logs
 FROM other.attestation_logs
 ORDER BY id;
 
-INSERT INTO attestation_logs(attestation_log)
-SELECT attestation_log
+INSERT INTO attestation_logs(id, attestation_log)
+SELECT
+(SELECT new_id FROM _attestation_log_map WHERE old_id IS other.attestation_logs.id),
+attestation_log
 FROM other.attestation_logs
 ORDER BY id;
 
@@ -111,8 +115,10 @@ SELECT id, (SELECT seq FROM main.sqlite_sequence WHERE name IS 'diffoscope_logs'
 FROM other.diffoscope_logs
 ORDER BY id;
 
-INSERT INTO diffoscope_logs(diffoscope_log)
-SELECT diffoscope_log
+INSERT INTO diffoscope_logs(id, diffoscope_log)
+SELECT
+(SELECT new_id FROM _diffoscope_log_map WHERE old_id IS other.diffoscope_logs.id),
+diffoscope_log
 FROM other.diffoscope_logs
 ORDER BY id;
 
@@ -130,8 +136,10 @@ SELECT id, (SELECT seq FROM main.sqlite_sequence WHERE name IS 'rebuilds') + row
 FROM other.rebuilds
 ORDER BY id;
 
-INSERT INTO rebuilds (build_input_id, started_at, built_at, build_log_id, status)
-SELECT ( -- build_input_id in the merged db
+INSERT INTO rebuilds (id, build_input_id, started_at, built_at, build_log_id, status)
+SELECT
+       (SELECT new_id FROM _rebuilds_map WHERE old_id IS other.rebuilds.id),
+       ( -- build_input_id in the merged db
            SELECT build_inputs.id
            FROM build_inputs
                     INNER JOIN source_packages ON build_inputs.source_package_id = source_packages.id
