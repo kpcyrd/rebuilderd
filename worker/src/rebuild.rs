@@ -267,7 +267,10 @@ async fn verify(
         envs,
     };
 
-    proc::run(bin.as_ref(), &[input_path], opts, log).await?;
+    let exit_ok = proc::run(bin.as_ref(), &[input_path], opts, log).await?;
+    if !exit_ok {
+        bail!("Rebuild backend exited with a non-zero status");
+    }
 
     Ok(())
 }
