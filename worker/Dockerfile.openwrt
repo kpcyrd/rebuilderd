@@ -1,0 +1,157 @@
+# Combined image for both OpenWrt worker phases. The `base` stage holds
+# everything the two share (the debian buildworker toolchain, the patched
+# diffoscope fork, the rebuilder user, the entrypoint); the two final stages add
+# only what differs. Build a specific worker with the target:
+#   docker build --target openwrt-package -f worker/Dockerfile.openwrt .
+#   docker build --target openwrt-image   -f worker/Dockerfile.openwrt .
+# (compose: `target: openwrt-package` / `target: openwrt-image`).
+
+# ---- build the worker binary once ----
+FROM rust:trixie AS builder
+WORKDIR /usr/src/rebuilderd
+# Copy only the cargo build inputs — NOT the backend scripts / keys / docs — so
+# editing a shell script doesn't invalidate this (slow) dependency build.
+COPY Cargo.toml Cargo.lock ./
+COPY common common
+COPY daemon daemon
+COPY tests tests
+COPY tools tools
+COPY worker/Cargo.toml worker/Cargo.toml
+COPY worker/src worker/src
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/openwrt/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/openwrt/target/release/rebuilderd-worker /
+
+# ---- shared runtime base ----
+FROM debian:13 AS base
+# OpenWrt's own buildworker apt set
+# (https://github.com/openwrt/buildbot/blob/main/docker/buildworker/Dockerfile)
+# on debian:13. git/libncurses-dev modernise the git-core / libncurses5-dev names
+# dropped in trixie. Per-worker extras (host clang, gnupg, libguestfs) are added
+# by the final stages, not here.
+#
+# Ordering: everything expensive (apt/pip/setup) comes first; the file COPYs are
+# last, so editing a script only re-runs those cheap layers, not the installs.
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential ccache curl file gawk g++-multilib gcc-multilib \
+        genisoimage git gosu libdw-dev libelf-dev libncurses-dev locales pv pwgen \
+        python3 python3-venv python3-pip python3-pyelftools python3-cryptography \
+        qemu-utils rsync signify-openbsd subversion swig unzip wget zstd \
+        ca-certificates \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+ENV LANG=en_US.utf8
+
+# diffoscope with all its comparator tools + Python deps (the apt package's full
+# recommended set), then OUR patched fork (gzip "trailing garbage" exit-2 fix +
+# .apk support) in a venv placed FIRST on PATH, so `diffoscope` resolves to the
+# fork while the apt package stays for its tools + deps (--no-deps reuses them).
+RUN apt-get update \
+    && apt-get install -y --install-recommends diffoscope \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv --system-site-packages /opt/venv && chmod -R a+rwX /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --quiet --disable-pip-version-check --no-deps \
+        'git+https://salsa.debian.org/aparcar/diffoscope.git@staging' \
+    && chmod -R a+rwX /opt/venv
+
+# Both OpenWrt workers drive the openwrt-rebuilder tool as their backend (the apk
+# SDK build for packages, the from-source build for firmware). Install it from
+# its repository with uv into the venv (first on PATH) so `openwrt-rebuilder` is
+# on PATH for both final stages.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+RUN uv pip install --python /opt/venv/bin/python \
+        git+https://github.com/aparcar/openwrt-rebuilder.git \
+    && chmod -R a+rwX /opt/venv
+
+# OpenWrt refuses to build as root; build as an unprivileged user. /sdk, /dl and
+# /build are created owned by the user so named volumes mounted there inherit
+# that ownership.
+RUN groupadd rebuilder \
+    && useradd --create-home --home-dir /rebuilder --gid rebuilder \
+        --shell /bin/bash rebuilder \
+    && install -d -o rebuilder -g rebuilder /rebuilder/sdk /rebuilder/dl /rebuilder/build
+ENV HOME=/rebuilder
+
+COPY --from=builder /rebuilderd-worker /usr/local/bin/
+WORKDIR /rebuilder
+# Each final stage writes /etc/rebuilderd-worker.conf; point the worker at it
+# explicitly so it runs like the other distros' workers.
+ENV REBUILDERD_WORKER_CONFIG=/etc/rebuilderd-worker.conf
+ENTRYPOINT ["rebuilderd-worker"]
+
+# ---- apk package worker ----
+FROM base AS openwrt-package
+# The openwrt-rebuilder backend downloads + GPG-verifies the OpenWrt SDK, unpacks
+# it and compiles the package here — so add the SDK's extra host prerequisites
+# (clang/lld/llvm) and gnupg for the sha256sums.asc signature check. (The tool
+# itself is installed in the base stage.)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        clang lld llvm gnupg xz-utils bzip2 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# supported_architectures: this worker cross-builds every package arch from the
+# x86_64 SDK host, but the daemon matches jobs on the *package* arch, so each arch
+# must be advertised verbatim (aarch64_cortex-a53 has no alias).
+RUN printf '%s\n' \
+    'supported_architectures = ["x86_64", "aarch64_cortex-a53", "aarch64_cortex-a72", "aarch64_generic"]' \
+    '' \
+    '[diffoscope]' \
+    'enabled = true' \
+    '' \
+    '[backend.openwrt-package]' \
+    'path = "/usr/local/libexec/rebuilderd/rebuilder-openwrt-package.sh"' \
+    > /etc/rebuilderd-worker.conf
+
+# OpenWrt's public keys, for GPG-verifying the SDK's sha256sums.asc.
+COPY worker/openwrt-keys/*.asc /usr/local/share/rebuilderd/openwrt-keys/
+COPY --chmod=0755 worker/rebuilder-openwrt-package.sh /usr/local/libexec/rebuilderd/
+USER rebuilder
+
+# ---- firmware image worker ----
+FROM base AS openwrt-image
+# The firmware build runs from source directly here, via openwrt-rebuilder (see
+# rebuilder-openwrt-image.sh). No host clang/llvm: the BPF toolchain builds from
+# source, matching the official build. Add libguestfs so diffoscope can open the
+# combined disk images (MBR + kernel/rootfs partitions) and reach the filesystems inside;
+# its supermin appliance needs a kernel, hence linux-image-amd64.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libguestfs-tools linux-image-amd64 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+# libguestfs: run qemu directly (no libvirt in the container). The appliance is
+# built on first use and cached; mount /dev/kvm (--device /dev/kvm) for speed,
+# otherwise it falls back to slow TCG emulation.
+ENV LIBGUESTFS_BACKEND=direct
+
+# supported_architectures = ["*"]: this one x86_64 worker cross-builds every
+# target, and image jobs are matched on the *target/subtarget* (the importer uses
+# that as the job "architecture" so each target gets its own daemon sync scope —
+# see tools/src/schedule/openwrt.rs). Rather than enumerate the frequently
+# changing target list, advertise the "*" wildcard — the daemon then matches any
+# architecture, while the backend filter still scopes this worker to image jobs.
+#
+# Bound the captured build log and diffoscope output — firmware builds are long
+# and image diffs are large; one report bundles a diff PER image artifact across
+# a whole subtarget, so the diffoscope cap is kept modest (32 MiB).
+RUN printf '%s\n' \
+    'supported_architectures = ["*"]' \
+    '' \
+    '[build]' \
+    'max_bytes = 52428800' \
+    '' \
+    '[diffoscope]' \
+    'enabled = true' \
+    'max_bytes = 33554432' \
+    'timeout = 1800' \
+    > /etc/rebuilderd-worker.conf
+
+COPY --chmod=0755 \
+    worker/rebuilder-openwrt-image.sh \
+    /usr/local/libexec/rebuilderd/
+ENV REBUILDERD_WORKER_BACKEND=openwrt-image=/usr/local/libexec/rebuilderd/rebuilder-openwrt-image.sh
+USER rebuilder
