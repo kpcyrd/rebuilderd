@@ -377,24 +377,38 @@ pub async fn request_work(
 
     // see if we can dig up any available work for this worker
     let pop_request = request.into_inner();
+    // A worker advertising "*" accepts jobs of any architecture; the backend
+    // filter below still scopes it to the jobs it can build. This lets the
+    // OpenWrt image worker match every target/subtarget (which the importer puts
+    // in the architecture field) without enumerating the churning target list.
+    let accept_any_arch = pop_request
+        .supported_architectures
+        .iter()
+        .any(|arch| arch == "*");
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
 
     debug!(
-        "Trying to find work for worker {:?}... ({supported_architectures:?})",
+        "Trying to find work for worker {:?}... ({supported_architectures:?}, any={accept_any_arch})",
         worker.name
     );
 
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
-            if let Some(record) = queue_base()
+            let mut query = queue_base()
                 .filter(queue::worker.is_null())
                 .filter(
                     build_inputs::next_retry
                         .is_null()
                         .or(build_inputs::next_retry.le(diesel::dsl::now)),
                 )
-                .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
+                .into_boxed();
+
+            if !accept_any_arch {
+                query = query.filter(build_inputs::architecture.eq_any(supported_architectures));
+            }
+
+            if let Some(record) = query
                 .order_by((
                     queue::priority,
                     diesel::dsl::date(queue::queued_at),
