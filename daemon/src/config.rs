@@ -19,6 +19,7 @@ pub struct Config {
     pub real_ip_header: Option<String>,
     pub post_body_size_limit: usize,
     pub transparently_sign_attestations: bool,
+    pub permissive_cors: bool,
     pub schedule: ScheduleConfig,
 }
 
@@ -44,6 +45,7 @@ pub fn from_struct(config: ConfigFile, auth_cookie: String) -> Result<Config> {
             .http
             .transparently_sign_attestations
             .unwrap_or(true),
+        permissive_cors: config.http.permissive_cors.unwrap_or(false),
         schedule: config.schedule,
     })
 }

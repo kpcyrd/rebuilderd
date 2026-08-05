@@ -3,6 +3,7 @@ mod dashboard;
 mod meta;
 mod package;
 mod queue;
+mod stats;
 mod util;
 mod worker;
 
@@ -11,4 +12,5 @@ pub use dashboard::*;
 pub use meta::*;
 pub use package::*;
 pub use queue::*;
+pub use stats::*;
 pub use worker::*;
