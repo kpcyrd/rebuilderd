@@ -19,7 +19,7 @@ use rebuilderd_common::api::v1::{
 };
 use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[diesel::dsl::auto_type]
 fn queue_base() -> _ {
@@ -315,10 +315,14 @@ pub async fn ping_job(
 /// Standardizes architectures in the given list, expanding known aliases to other commonly-used architecture names.
 /// Rust's builtin architecture variables don't always line up with what distros use (x86_64 vs amd64, for instance), so
 /// we do some post-processing here.
-fn standardize_architectures(architectures: &Vec<String>) -> Vec<String> {
-    let mut new_architectures = HashSet::new();
+fn standardize_architectures(architectures: &[String]) -> Option<BTreeSet<String>> {
+    let mut new_architectures = BTreeSet::new();
     for architecture in architectures {
+        // Add the original, unmodified string
+        new_architectures.insert(architecture.clone());
+
         match architecture.as_str() {
+            // Add an additional, normalized architecture string
             "x86" => new_architectures.insert("i386".to_string()),
             "i386" => new_architectures.insert("x86".to_string()),
             "x86_64" => new_architectures.insert("amd64".to_string()),
@@ -327,13 +331,14 @@ fn standardize_architectures(architectures: &Vec<String>) -> Vec<String> {
             "arm64" => new_architectures.insert("aarch64".to_string()),
             "powerpc64" => new_architectures.insert("ppc64".to_string()),
             "ppc64" => new_architectures.insert("powerpc64".to_string()),
-            _ => false,
+            // Worker advertises support for all architectures
+            "*" => return None,
+            // No additional normalization for other strings
+            _ => continue,
         };
-
-        new_architectures.insert(architecture.clone());
     }
 
-    new_architectures.into_iter().collect()
+    Some(new_architectures)
 }
 
 define_sql_function! {
@@ -379,22 +384,32 @@ pub async fn request_work(
     let pop_request = request.into_inner();
     let supported_architectures = standardize_architectures(&pop_request.supported_architectures);
 
-    debug!(
-        "Trying to find work for worker {:?}... ({supported_architectures:?})",
-        worker.name
-    );
-
     if let Some(record) =
         connection.transaction::<Option<QueuedJobWithArtifacts>, _, _>(|conn| {
-            if let Some(record) = queue_base()
+            let mut query = queue_base()
                 .filter(queue::worker.is_null())
                 .filter(
                     build_inputs::next_retry
                         .is_null()
                         .or(build_inputs::next_retry.le(diesel::dsl::now)),
                 )
-                .filter(build_inputs::architecture.eq_any(supported_architectures))
                 .filter(build_inputs::backend.eq_any(pop_request.supported_backends))
+                .into_boxed();
+
+            if let Some(architectures) = supported_architectures {
+                debug!(
+                    "Trying to find work for worker {:?}... ({architectures:?})",
+                    worker.name
+                );
+                query = query.filter(build_inputs::architecture.eq_any(architectures));
+            } else {
+                debug!(
+                    "Trying to find work for worker {:?}... (any architecture)",
+                    worker.name
+                );
+            }
+
+            if let Some(record) = query
                 .order_by((
                     queue::priority,
                     diesel::dsl::date(queue::queued_at),
