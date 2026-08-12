@@ -1,13 +1,15 @@
 mod args;
 mod background;
+mod oidc;
 
 use crate::args::Args;
+use crate::oidc::Oidc;
 use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
 use arc_swap::ArcSwap;
 use clap::Parser;
 use env_logger::Env;
 use handlebars::{DirectorySourceOptions, Handlebars};
-use rebuilderd_common::api::Client;
+use rebuilderd_common::api::Client as ApiClient;
 use rebuilderd_common::errors::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
@@ -43,6 +45,7 @@ pub struct Source {
 async fn index(
     hbs: web::Data<Handlebars<'_>>,
     cache: web::Data<Arc<ArcSwap<Cache>>>,
+    oidc: web::Data<Oidc>,
 ) -> impl Responder {
     let cache = cache.load();
 
@@ -64,7 +67,7 @@ async fn index(
 }
 
 #[get("/auth")]
-async fn auth_login() -> impl Responder {
+async fn auth_login(oidc: web::Data<Oidc>) -> impl Responder {
     // Generate state
     // Build GitLab authorization URL
     // Redirect user there
@@ -81,7 +84,7 @@ struct OAuthCallback {
 }
 
 #[get("/auth/callback")]
-async fn auth_callback(query: web::Query<OAuthCallback>) -> impl Responder {
+async fn auth_callback(query: web::Query<OAuthCallback>, oidc: web::Data<Oidc>) -> impl Responder {
     // Verify state
     // Exchange code for access token
     // Fetch user info from GitLab
@@ -93,7 +96,7 @@ async fn auth_callback(query: web::Query<OAuthCallback>) -> impl Responder {
 }
 
 #[post("/schedule")]
-async fn schedule() -> impl Responder {
+async fn schedule(oidc: web::Data<Oidc>) -> impl Responder {
     // Verify user session/JWT
     // Schedule a build for the given package
 
@@ -107,7 +110,7 @@ async fn main() -> Result<()> {
     let log_level = if args.verbose { "debug" } else { "info" };
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
 
-    let client = Client::new(Default::default(), Some(args.endpoint))?;
+    let http = ApiClient::new(Default::default(), Some(args.endpoint))?;
 
     let mut handlebars = Handlebars::new();
     handlebars.register_helper("to_json", Box::new(to_json));
@@ -117,10 +120,19 @@ async fn main() -> Result<()> {
     let cache = Arc::new(ArcSwap::from_pointee(Cache::default()));
     let cache_ref = web::Data::new(cache.clone());
 
+    let oidc = oidc::client(
+        args.oidc_client_id,
+        args.oidc_client_secret,
+        args.oidc_issuer,
+        args.oidc_redirect_uri,
+    )?;
+    let oidc_ref = web::Data::new(oidc);
+
     let server = HttpServer::new(move || {
         App::new()
             .app_data(handlebars_ref.clone())
             .app_data(cache_ref.clone())
+            .app_data(oidc_ref.clone())
             .service(index)
             .service(auth_login)
             .service(auth_callback)
@@ -130,6 +142,6 @@ async fn main() -> Result<()> {
 
     tokio::select! {
         res = server.run() => res.map_err(|err| err.into()),
-        res = background::run(client, cache) => Ok(res),
+        res = background::run(http, cache) => Ok(res),
     }
 }
