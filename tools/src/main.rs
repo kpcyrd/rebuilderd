@@ -6,6 +6,7 @@ use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use glob::Pattern;
+use num_format::{Locale, ToFormattedString};
 use rebuilderd_common::api::Client;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BinaryIdentityFilter, BinaryPackage, BuildRestApi, OriginFilter, PackageReport,
@@ -394,19 +395,22 @@ async fn main() -> Result<()> {
             }
         }
         SubCommand::Queue(Queue::Push(push)) => {
-            client
+            let success = client
                 .with_auth_cookie()?
                 .request_rebuild(QueueJobRequest {
                     distribution: Some(push.distro),
                     release: None, // TODO: push.release
                     component: Some(push.component),
-                    name: Some(push.name),
+                    name: push.name,
                     version: push.version,
                     architecture: push.architecture,
                     status: None, // TODO: push.status
                     priority: Some(Priority::from(push.priority)),
                 })
                 .await?;
+
+            let affected = success.affected.to_formatted_string(&Locale::en);
+            println!("Queue operation applied to {affected} builds");
         }
         SubCommand::Queue(Queue::Delete(push)) => {
             let origin_filter = OriginFilter {

@@ -164,7 +164,7 @@ pub trait QueueRestApi {
         source_identity_filter: Option<&SourceIdentityFilter>,
     ) -> Result<ResultPage<QueuedJob>>;
 
-    async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()>;
+    async fn request_rebuild(&self, request: QueueJobRequest) -> Result<SuccessfullyQueued>;
     async fn get_queued_job(&self, id: i32) -> Result<QueuedJob>;
     async fn drop_queued_job(&self, id: i32) -> Result<()>;
     async fn drop_queued_jobs(
@@ -483,14 +483,17 @@ impl QueueRestApi for Client {
         Ok(records)
     }
 
-    async fn request_rebuild(&self, request: QueueJobRequest) -> Result<()> {
-        self.post(Cow::Borrowed("api/v1/queue"))
+    async fn request_rebuild(&self, request: QueueJobRequest) -> Result<SuccessfullyQueued> {
+        let success = self
+            .post(Cow::Borrowed("api/v1/queue"))
             .json(&request)
             .send_encoded()
             .await?
-            .error_for_status()?;
+            .error_for_status()?
+            .json()
+            .await?;
 
-        Ok(())
+        Ok(success)
     }
 
     async fn get_queued_job(&self, id: i32) -> Result<QueuedJob> {
