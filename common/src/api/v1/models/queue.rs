@@ -74,6 +74,11 @@ pub struct QueuedJobWithArtifacts {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SuccessfullyQueued {
+    pub affected: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JobAssignment {
     Nothing,
     Rebuild(Box<QueuedJobWithArtifacts>),

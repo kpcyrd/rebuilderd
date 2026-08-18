@@ -16,6 +16,7 @@ use diesel::{ExpressionMethods, SqliteExpressionMethods, define_sql_function};
 use rebuilderd_common::api::v1::{
     BuildStatus, JobAssignment, OriginFilter, Page, PopQueuedJobRequest, Priority, QueueJobRequest,
     QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage, SourceIdentityFilter,
+    SuccessfullyQueued,
 };
 use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
@@ -100,7 +101,7 @@ pub async fn request_rebuild(
     request: web::Json<QueueJobRequest>,
 ) -> web::Result<impl Responder> {
     if auth::admin(&cfg, &req).is_err() {
-        return Ok(HttpResponse::Forbidden());
+        return Ok(HttpResponse::Forbidden().finish());
     }
 
     let mut connection = pool.get().map_err(Error::from)?;
@@ -147,6 +148,8 @@ pub async fn request_rebuild(
         .get_results::<i32>(connection.as_mut())
         .map_err(Error::from)?;
 
+    let mut affected = 0u64;
+
     let now = Utc::now();
     for build_input_id in build_input_ids {
         let next_retry = (now - Duration::minutes(1)).naive_utc();
@@ -172,7 +175,6 @@ pub async fn request_rebuild(
                 .set(build_inputs::next_retry.eq(next_retry))
                 .execute(connection.as_mut())
                 .map_err(Error::from)?;
-            continue;
         } else {
             // no applicable queued item, set directly and upsert a new queued job
             diesel::update(build_inputs::table)
@@ -189,9 +191,11 @@ pub async fn request_rebuild(
 
             new_queued_job.upsert(connection.as_mut())?;
         }
+
+        affected = affected.saturating_add(1);
     }
 
-    Ok(HttpResponse::NoContent())
+    Ok(HttpResponse::Ok().json(SuccessfullyQueued { affected }))
 }
 
 #[delete("")]
