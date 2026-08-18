@@ -400,7 +400,7 @@ async fn main() -> Result<()> {
                     distribution: Some(push.distro),
                     release: None, // TODO: push.release
                     component: Some(push.component),
-                    name: Some(push.name),
+                    name: push.name,
                     version: push.version,
                     architecture: push.architecture,
                     status: None, // TODO: push.status

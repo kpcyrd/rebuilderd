@@ -189,7 +189,7 @@ pub struct QueuePush {
     pub distro: String,
     pub component: String,
 
-    pub name: String,
+    pub name: Option<String>,
     pub version: Option<String>,
 
     #[arg(long)]
