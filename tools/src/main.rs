@@ -410,7 +410,7 @@ async fn main() -> Result<()> {
                 .await?;
 
             let affected = success.affected.to_formatted_string(&Locale::en);
-            println!("Queue operation applied to {affected} source packages");
+            println!("Queue operation applied to {affected} builds");
         }
         SubCommand::Queue(Queue::Delete(push)) => {
             let origin_filter = OriginFilter {

@@ -146,12 +146,12 @@ pub async fn request_rebuild(
 
     let build_input_ids = sql
         .get_results::<i32>(connection.as_mut())
-        .map_err(Error::from)?;
-
-    let mut affected = 0u64;
+        .map_err(Error::from)?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
 
     let now = Utc::now();
-    for build_input_id in build_input_ids {
+    for build_input_id in build_input_ids.iter().copied() {
         let next_retry = (now - Duration::minutes(1)).naive_utc();
         let priority = queue_request.priority.unwrap_or(Priority::manual());
         if has_queued_friend(connection.as_mut(), build_input_id)? {
@@ -191,11 +191,11 @@ pub async fn request_rebuild(
 
             new_queued_job.upsert(connection.as_mut())?;
         }
-
-        affected = affected.saturating_add(1);
     }
 
-    Ok(HttpResponse::Ok().json(SuccessfullyQueued { affected }))
+    Ok(HttpResponse::Ok().json(SuccessfullyQueued {
+        affected: build_input_ids.len() as u64,
+    }))
 }
 
 #[delete("")]
