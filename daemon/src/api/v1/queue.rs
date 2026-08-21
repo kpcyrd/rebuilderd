@@ -117,7 +117,7 @@ pub async fn request_rebuild(
 
     let source_identity_filter = SourceIdentityFilter {
         name: queue_request.name,
-        version: queue_request.version,
+        version: queue_request.version.clone(),
     };
 
     let mut sql = source_packages::table
@@ -135,6 +135,12 @@ pub async fn request_rebuild(
         )
         .select(build_inputs::id)
         .into_boxed();
+
+    // If no version is explicitly specified, filter out packages that are
+    // currently not present in the distro anymore
+    if queue_request.version.is_none() {
+        sql = sql.filter(source_packages::seen_in_last_sync.eq(true));
+    }
 
     if let Some(status) = queue_request.status {
         if status == BuildStatus::Unknown {
