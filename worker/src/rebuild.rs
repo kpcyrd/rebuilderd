@@ -2,6 +2,7 @@ use crate::config;
 use crate::diffoscope::diffoscope;
 use crate::download::download;
 use crate::heartbeat::HeartBeat;
+use crate::log;
 use crate::proc;
 use in_toto::crypto::PrivateKey;
 use in_toto::runlib::in_toto_run;
@@ -16,7 +17,6 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use tokio::select;
 use tokio::time;
 
 pub struct Context<'a> {
@@ -97,12 +97,12 @@ pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
 
 pub async fn rebuild_with_heartbeat(
     ctx: &Context<'_>,
-    log: &mut Vec<u8>,
+    log: &mut log::Buffer,
     hb: &dyn HeartBeat,
 ) -> Result<Vec<RebuildArtifactReport>> {
     let mut rebuild = Box::pin(rebuild(ctx, log));
     loop {
-        select! {
+        tokio::select! {
             res = &mut rebuild => {
                 return res;
             },
@@ -111,7 +111,10 @@ pub async fn rebuild_with_heartbeat(
     }
 }
 
-pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<RebuildArtifactReport>> {
+pub async fn rebuild(
+    ctx: &Context<'_>,
+    log: &mut log::Buffer,
+) -> Result<Vec<RebuildArtifactReport>> {
     // setup
     let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
 
@@ -249,7 +252,7 @@ pub async fn rebuild(ctx: &Context<'_>, log: &mut Vec<u8>) -> Result<Vec<Rebuild
 
 async fn verify(
     ctx: &Context<'_>,
-    log: &mut Vec<u8>,
+    log: &mut log::Buffer,
     out_dir: &Path,
     input_path: &Path,
 ) -> Result<()> {
@@ -261,7 +264,8 @@ async fn verify(
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
-        size_limit: ctx.build.max_bytes,
+        front_size_limit: ctx.build.max_bytes,
+        tail_size_limit: None,
         kill_at_size_limit: false,
         passthrough: !ctx.build.silent,
         envs,
