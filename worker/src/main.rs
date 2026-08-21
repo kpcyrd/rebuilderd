@@ -29,6 +29,7 @@ pub mod config;
 pub mod diffoscope;
 pub mod download;
 pub mod heartbeat;
+pub mod log;
 pub mod proc;
 pub mod rebuild;
 pub mod setup;
@@ -99,7 +100,7 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                 queue_id: rb.job.id,
             };
 
-            let mut log = Vec::new();
+            let mut log = log::Buffer::new(ctx.build.max_bytes, None);
 
             let (overall_status, rebuilds) =
                 match rebuild::rebuild_with_heartbeat(&ctx, &mut log, &hb).await {
@@ -119,22 +120,17 @@ async fn rebuild(client: &Client, privkey: &PrivateKey, config: &config::ConfigF
                             err
                         );
 
-                        let msg = format!(
+                        log.extra_status_msg(format!(
                             "rebuilderd: unexpected error while rebuilding package: {:#}\n",
                             err
-                        );
+                        ));
 
-                        if !log.is_empty() {
-                            log.extend(b"\n\n");
-                        }
-
-                        log.extend(msg.as_bytes());
                         (BuildStatus::Fail, vec![]) // TODO: good or bad idea? no artifact results from failed builds
                     }
                 };
 
-            let utf8_sanitized_log = String::from_utf8_lossy(&log).into_owned();
-            let encoded_log = zstd_compress(utf8_sanitized_log.as_bytes())
+            let utf8_log_output = log.make_string();
+            let encoded_log = zstd_compress(utf8_log_output.as_bytes())
                 .await
                 .map_err(Error::from)?;
 
@@ -255,7 +251,7 @@ async fn main() -> Result<()> {
                 ..Default::default()
             };
 
-            let mut log = Vec::new();
+            let mut log = log::Buffer::new(config.build.max_bytes, None);
 
             let res = rebuild::rebuild(
                 &Context {
