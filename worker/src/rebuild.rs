@@ -261,6 +261,13 @@ async fn verify(
 
     let mut envs = HashMap::new();
     envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?);
+    // Expose the build input's URL (the already-existing ctx.input_url that
+    // download() fetched) so backends whose input isn't self-describing can
+    // recover build identity from the path — e.g. the OpenWrt apk backend
+    // derives release/arch/feed from the .apk URL.
+    if let Some(input_url) = &ctx.input_url {
+        envs.insert("REBUILDERD_INPUT_URL".into(), input_url.clone());
+    }
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
