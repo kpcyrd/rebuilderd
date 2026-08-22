@@ -17,8 +17,6 @@ const SIGKILL_DELAY: u64 = 10;
 
 pub struct Options {
     pub timeout: Duration,
-    pub front_size_limit: Option<usize>,
-    pub tail_size_limit: Option<usize>,
     pub kill_at_size_limit: bool,
     pub passthrough: bool,
     pub envs: HashMap<String, String>,
@@ -202,10 +200,15 @@ where
 mod tests {
     use super::*;
 
-    async fn script(script: &str, opts: Options) -> Result<(bool, String, Duration)> {
+    async fn script(
+        script: &str,
+        opts: Options,
+        front_size_limit: Option<usize>,
+        tail_size_limit: Option<usize>,
+    ) -> Result<(bool, String, Duration)> {
         let start = Instant::now();
         let path = Path::new("sh");
-        let mut output = log::Buffer::from_opts(&opts);
+        let mut output = log::Buffer::new(front_size_limit, tail_size_limit);
         let success = run(path, &["-c", script], opts, &mut output).await?;
         let duration = start.elapsed();
         let output = output.make_string();
@@ -218,12 +221,12 @@ mod tests {
             "/bin/echo hello world",
             Options {
                 timeout: Duration::from_secs(600),
-                front_size_limit: None,
-                tail_size_limit: None,
                 kill_at_size_limit: false,
                 passthrough: false,
                 envs: HashMap::new(),
             },
+            None,
+            None,
         )
         .await
         .unwrap();
@@ -241,12 +244,12 @@ mod tests {
         ",
             Options {
                 timeout: Duration::from_secs(600),
-                front_size_limit: Some(50),
-                tail_size_limit: Some(0),
                 kill_at_size_limit: false,
                 passthrough: false,
                 envs: HashMap::new(),
             },
+            Some(50),
+            Some(0),
         )
         .await
         .unwrap();
@@ -268,12 +271,12 @@ mod tests {
         ",
             Options {
                 timeout: Duration::from_secs(600),
-                front_size_limit: Some(50),
-                tail_size_limit: None,
                 kill_at_size_limit: true,
                 passthrough: false,
                 envs: HashMap::new(),
             },
+            Some(50),
+            None,
         )
         .await
         .unwrap();
@@ -297,12 +300,12 @@ mod tests {
         ",
             Options {
                 timeout: Duration::from_millis(1500),
-                front_size_limit: None,
-                tail_size_limit: None,
                 kill_at_size_limit: false,
                 passthrough: false,
                 envs: HashMap::new(),
             },
+            None,
+            None,
         )
         .await
         .unwrap();
@@ -326,12 +329,12 @@ mod tests {
         ",
             Options {
                 timeout: Duration::from_millis(1500),
-                front_size_limit: Some(50),
-                tail_size_limit: Some(0),
                 kill_at_size_limit: false,
                 passthrough: false,
                 envs: HashMap::new(),
             },
+            Some(50),
+            Some(0),
         )
         .await
         .unwrap();
