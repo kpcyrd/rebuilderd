@@ -264,8 +264,6 @@ async fn verify(
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
-        front_size_limit: ctx.build.max_bytes,
-        tail_size_limit: None,
         kill_at_size_limit: false,
         passthrough: !ctx.build.silent,
         envs,

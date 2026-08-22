@@ -1,4 +1,3 @@
-use crate::proc;
 use rebuilderd_common::errors::*;
 use std::collections::VecDeque;
 
@@ -29,10 +28,6 @@ impl Buffer {
             tail_size_limit: tail_size_limit.unwrap_or(TAIL_SIZE_LIMIT),
             truncated: false,
         }
-    }
-
-    pub fn from_opts(opts: &proc::Options) -> Self {
-        Self::new(opts.front_size_limit, opts.tail_size_limit)
     }
 
     /// Append data to the log buffer until the size limit is reached (if any).

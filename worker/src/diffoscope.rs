@@ -18,15 +18,13 @@ pub async fn diffoscope(a: &Path, b: &Path, settings: &config::Diffoscope) -> Re
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout + 600), // give diffoscope 10 extra minutes to finish
-        front_size_limit: settings.max_bytes,
-        tail_size_limit: Some(0),
         kill_at_size_limit: true,
         passthrough: false,
         envs: HashMap::new(),
     };
     let bin = Path::new("diffoscope");
 
-    let mut output = log::Buffer::from_opts(&opts);
+    let mut output = log::Buffer::new(settings.max_bytes, Some(0));
     proc::run(bin, &args, opts, &mut output).await?;
     let output = output.make_string();
 
