@@ -106,6 +106,7 @@ pub async fn submit_rebuild_report(
     cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     request: web::Json<RebuildReport>,
+    private_key: web::Data<Arc<PrivateKey>>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
     if auth::worker(&cfg, &req, connection.as_mut()).is_err() {
@@ -168,11 +169,24 @@ pub async fn submit_rebuild_report(
 
                     let encoded_attestation =
                         if let Some(attestation) = &artifact_report.attestation {
-                            Some(if is_zstd_compressed(attestation) {
+                            let bytes = if is_zstd_compressed(attestation) {
                                 attestation.clone()
                             } else {
                                 zstd_compress(&attestation[..]).await.map_err(Error::from)?
-                            })
+                            };
+
+                            let bytes = if cfg.transparently_sign_attestations {
+                                attestation::compressed_attestation_sign_if_necessary(
+                                    bytes,
+                                    &private_key,
+                                )
+                                .await?
+                                .0
+                            } else {
+                                bytes
+                            };
+
+                            Some(bytes)
                         } else {
                             None::<Vec<u8>>
                         };
@@ -429,7 +443,8 @@ pub async fn get_build_artifact_attestation(
                 .get_result::<i32>(connection.as_mut())
                 .map_err(Error::from)?;
 
-            // TODO: GET with side effects?
+            // TODO: Remove after migration period since signing happens now
+            // after receiving the attestation
             update(attestation_logs::table)
                 .filter(attestation_logs::id.is(attestation_id))
                 .set(attestation_logs::attestation_log.eq(bytes.clone()))
