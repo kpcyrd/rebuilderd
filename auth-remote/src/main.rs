@@ -4,7 +4,7 @@ mod oidc;
 
 use crate::args::Args;
 use crate::oidc::Oidc;
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use actix_web::{App, HttpRequest, HttpResponse, HttpServer, Responder, get, post, web};
 use arc_swap::ArcSwap;
 use clap::Parser;
 use env_logger::Env;
@@ -72,8 +72,11 @@ async fn auth_login(oidc: web::Data<Oidc>) -> impl Responder {
     // Build GitLab authorization URL
     // Redirect user there
 
+    let (auth_url, cookie) = oidc.auth_url().await;
+
     HttpResponse::Found()
-        .append_header(("Location", "https://TODO"))
+        .append_header(("Location", auth_url.as_str()))
+        .cookie(cookie)
         .finish()
 }
 
@@ -84,13 +87,23 @@ struct OAuthCallback {
 }
 
 #[get("/auth/callback")]
-async fn auth_callback(query: web::Query<OAuthCallback>, oidc: web::Data<Oidc>) -> impl Responder {
+async fn auth_callback(
+    req: HttpRequest,
+    query: web::Query<OAuthCallback>,
+    oidc: web::Data<Oidc>,
+) -> impl Responder {
     // Verify state
     // Exchange code for access token
     // Fetch user info from GitLab
     // Create session/JWT
 
-    println!("query={query:?}");
+    let Some(cookie) = req.cookie(oidc::COOKIE_NAME) else {
+        return HttpResponse::BadRequest().body("Missing cookie");
+    };
+
+    if !oidc.verify(&cookie, &query.code, &query.state).await {
+        return HttpResponse::BadRequest().body("Login failed");
+    }
 
     HttpResponse::Ok().body("Logged in")
 }
@@ -125,7 +138,8 @@ async fn main() -> Result<()> {
         args.oidc_client_secret,
         args.oidc_issuer,
         args.oidc_redirect_uri,
-    )?;
+    )
+    .await?;
     let oidc_ref = web::Data::new(oidc);
 
     let server = HttpServer::new(move || {
