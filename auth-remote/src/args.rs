@@ -16,7 +16,7 @@ pub struct Args {
     #[arg(long, env = "OIDC_CLIENT_SECRET")]
     pub oidc_client_secret: String,
     #[arg(long, env = "OIDC_ISSUER")]
-    pub oidc_issuer: Url,
+    pub oidc_issuer: String,
     #[arg(long, env = "OIDC_REDIRECT_URI")]
     pub oidc_redirect_uri: Url,
 }

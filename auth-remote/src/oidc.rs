@@ -114,7 +114,13 @@ impl Oidc {
         };
 
         let subject = claims.subject().as_str();
-        dbg!(subject);
+
+        let Some(username) = claims.preferred_username() else {
+            return false;
+        };
+        let username = username.to_string();
+
+        dbg!((subject, username));
 
         true
     }
@@ -123,7 +129,7 @@ impl Oidc {
 pub async fn client(
     client_id: String,
     client_secret: String,
-    issuer: Url,
+    issuer: String,
     redirect_url: Url,
 ) -> Result<Oidc> {
     let http = reqwest::ClientBuilder::new()
@@ -134,7 +140,7 @@ pub async fn client(
     let client_id = ClientId::new(client_id);
     let client_secret = ClientSecret::new(client_secret);
 
-    let issuer = IssuerUrl::from_url(issuer);
+    let issuer = IssuerUrl::new(issuer)?;
     let redirect_url = RedirectUrl::from_url(redirect_url);
 
     let provider_metadata = CoreProviderMetadata::discover_async(issuer, &http).await?;
