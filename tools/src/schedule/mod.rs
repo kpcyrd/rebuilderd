@@ -5,6 +5,7 @@ use std::fs;
 pub mod archlinux;
 pub mod debian;
 pub mod fedora;
+pub mod repomd;
 pub mod tails;
 
 pub async fn fetch_url_or_path(client: &http::Client, path: &str) -> Result<Vec<u8>> {
