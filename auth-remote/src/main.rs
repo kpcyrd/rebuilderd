@@ -1,9 +1,11 @@
 mod args;
 mod background;
 mod oidc;
+mod session;
 
 use crate::args::Args;
 use crate::oidc::Oidc;
+use actix_web::cookie::Cookie;
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer, Responder, get, post, web};
 use arc_swap::ArcSwap;
 use clap::Parser;
@@ -43,11 +45,14 @@ pub struct Source {
 
 #[get("/")]
 async fn index(
+    req: HttpRequest,
     hbs: web::Data<Handlebars<'_>>,
     cache: web::Data<Arc<ArcSwap<Cache>>>,
     oidc: web::Data<Oidc>,
 ) -> impl Responder {
     let cache = cache.load();
+
+    let session = oidc.session.from_request(&req);
 
     let Ok(html) = hbs
         .render(
@@ -56,6 +61,7 @@ async fn index(
                 "binary_pkgs": cache.binary_pkgs,
                 "source_pkgs": cache.source_pkgs,
                 "architectures": cache.architectures,
+                "auth": session,
                 "authed": false, // TODO
             }),
         )
@@ -101,11 +107,20 @@ async fn auth_callback(
         return HttpResponse::BadRequest().body("Missing cookie");
     };
 
-    if !oidc.verify(&cookie, &query.code, &query.state).await {
+    let Some(login) = oidc.verify(&cookie, &query.code, &query.state).await else {
         return HttpResponse::BadRequest().body("Login failed");
-    }
+    };
 
-    HttpResponse::Ok().body("Logged in")
+    let Ok(cookie) = oidc.session.encrypt_session(&login) else {
+        return HttpResponse::InternalServerError().body("Failed to encrypt session");
+    };
+
+    let cookie = Cookie::new(session::COOKIE_NAME, cookie);
+
+    HttpResponse::Found()
+        .append_header(("Location", "/"))
+        .cookie(cookie)
+        .finish()
 }
 
 #[post("/schedule")]

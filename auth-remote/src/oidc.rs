@@ -1,3 +1,4 @@
+use crate::session::{Session, SessionData};
 use actix_web::cookie::Cookie;
 use openidconnect::core::{
     CoreAuthDisplay, CoreAuthPrompt, CoreAuthenticationFlow, CoreClient, CoreErrorResponseType,
@@ -54,6 +55,7 @@ pub struct Oidc {
     http: reqwest::Client,
     client: Client,
     verify: Mutex<lru::LruCache<String, (CsrfToken, Nonce, PkceCodeVerifier)>>,
+    pub session: Session,
 }
 
 impl Oidc {
@@ -81,48 +83,41 @@ impl Oidc {
         (auth_url, cookie)
     }
 
-    pub async fn verify(&self, cookie: &Cookie<'_>, code: &str, state: &str) -> bool {
-        let Some((csrf_token, nonce, pkce_verifier)) = self.verify.lock().await.pop(cookie.value())
-        else {
-            return false;
-        };
+    pub async fn verify(
+        &self,
+        cookie: &Cookie<'_>,
+        code: &str,
+        state: &str,
+    ) -> Option<SessionData> {
+        let (csrf_token, nonce, pkce_verifier) = self.verify.lock().await.pop(cookie.value())?;
 
         if state != csrf_token.secret().as_str() {
-            return false;
+            return None;
         }
 
         let code = AuthorizationCode::new(code.to_string());
+        let request = self.client.exchange_code(code).ok()?;
 
-        let Ok(request) = self.client.exchange_code(code) else {
-            return false;
-        };
-
-        let Ok(token_response) = request
+        let token_response = request
             .set_pkce_verifier(pkce_verifier)
             .request_async(&self.http)
             .await
-        else {
-            return false;
-        };
+            .ok()?;
 
-        let Some(id_token) = token_response.id_token() else {
-            return false;
-        };
-
-        let Ok(claims) = id_token.claims(&self.client.id_token_verifier(), &nonce) else {
-            return false;
-        };
+        let claims = token_response
+            .id_token()?
+            .claims(&self.client.id_token_verifier(), &nonce)
+            .ok()?;
 
         let subject = claims.subject().as_str();
+        let username = claims.preferred_username()?.to_string();
 
-        let Some(username) = claims.preferred_username() else {
-            return false;
-        };
-        let username = username.to_string();
+        debug!(
+            "User {:?} logged in with OIDC subject {:?}",
+            username, subject
+        );
 
-        dbg!((subject, username));
-
-        true
+        Some(SessionData::new(username))
     }
 }
 
@@ -149,9 +144,12 @@ pub async fn client(
         CoreClient::from_provider_metadata(provider_metadata, client_id, Some(client_secret))
             .set_redirect_uri(redirect_url);
 
+    let session = Session::new();
+
     Ok(Oidc {
         http,
         client,
         verify: Mutex::new(lru::LruCache::new(VERIFY_LRU_SIZE)),
+        session,
     })
 }

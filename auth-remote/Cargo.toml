@@ -6,7 +6,10 @@ edition = "2024"
 [dependencies]
 actix-web.workspace = true
 arc-swap = "1"
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
+crypto_secretbox = "0.1"
+data-encoding = "2"
 env_logger.workspace = true
 handlebars = { version = "6", features = ["dir_source"] }
 lru = "0.18"
