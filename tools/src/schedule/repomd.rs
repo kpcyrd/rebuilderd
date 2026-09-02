@@ -63,7 +63,8 @@ pub(crate) fn parse_package_index<R: Read>(r: R) -> Result<Vec<PackagesXmlItem>>
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PackagesXml {
-    #[serde(rename = "#content")]
+    // an empty repository has no children at all
+    #[serde(rename = "#content", default)]
     pub packages: Vec<PackagesXmlItem>,
 }
 
