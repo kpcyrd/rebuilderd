@@ -24,7 +24,7 @@ impl Session {
 
     pub fn encrypt(&self, plaintext: &[u8]) -> Vec<u8> {
         let cipher = XSalsa20Poly1305::new(&self.secret_key);
-        let nonce = XSalsa20Poly1305::generate_nonce(&mut OsRng); // unique per message
+        let nonce = XSalsa20Poly1305::generate_nonce(&mut OsRng);
         let ciphertext = cipher
             .encrypt(&nonce, plaintext)
             .expect("encryption failure!");

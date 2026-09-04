@@ -5,7 +5,7 @@ mod session;
 
 use crate::args::Args;
 use crate::oidc::Oidc;
-use actix_web::cookie::Cookie;
+use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer, Responder, get, post, web};
 use arc_swap::ArcSwap;
 use clap::Parser;
@@ -62,7 +62,6 @@ async fn index(
                 "source_pkgs": cache.source_pkgs,
                 "architectures": cache.architectures,
                 "auth": session,
-                "authed": false, // TODO
             }),
         )
         .inspect_err(|err| error!("Template error: {err:#}"))
@@ -115,7 +114,11 @@ async fn auth_callback(
         return HttpResponse::InternalServerError().body("Failed to encrypt session");
     };
 
-    let cookie = Cookie::new(session::COOKIE_NAME, cookie);
+    let cookie = Cookie::build(session::COOKIE_NAME, cookie)
+        .path("/")
+        .same_site(SameSite::Lax)
+        .http_only(true)
+        .finish();
 
     HttpResponse::Found()
         .append_header(("Location", "/"))

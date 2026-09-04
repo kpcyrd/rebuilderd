@@ -165,11 +165,15 @@
                 </p>
             </header>
 
-            {{#if (not authed)}}
+            {{#if (not auth)}}
             <div class="auth-notice">
                 Please
                 <a class="auth-link" href="/auth">login</a>
                 to schedule retries.
+            </div>
+            {{else}}
+            <div class="auth-notice">
+                Logged in as <b>{{auth.username}}</b>.
             </div>
             {{/if}}
 
@@ -191,7 +195,7 @@
                         {{/each}}
                     </select>
 
-                    <input class="button" type="submit" value="Retry" {{#if (not authed)}}disabled{{/if}}>
+                    <input class="button" type="submit" value="Retry" {{#if (not auth)}}disabled{{/if}}>
                 </fieldset>
             </form>
 
@@ -213,7 +217,7 @@
                         {{/each}}
                     </select>
 
-                    <input class="button" type="submit" value="Retry" {{#if (not authed)}}disabled{{/if}}>
+                    <input class="button" type="submit" value="Retry" {{#if (not auth)}}disabled{{/if}}>
                 </fieldset>
             </form>
         </section>
