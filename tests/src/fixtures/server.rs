@@ -2,6 +2,7 @@ use actix_web::dev::{Server, ServerHandle};
 use in_toto::crypto::{PrivateKey, PublicKey};
 use rebuilderd::config::Config;
 use rebuilderd::db::Pool;
+use rebuilderd::stats_config::StatsConfigFile;
 use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::bail;
 use std::io;
@@ -24,7 +25,8 @@ impl ServerHolder {
         config: Config,
         private_key: PrivateKey,
     ) -> rebuilderd_common::errors::Result<Self> {
-        let (server, address) = rebuilderd::build_server(pool, config, private_key)?;
+        let (server, address) =
+            rebuilderd::build_server(pool, config, private_key, StatsConfigFile::default())?;
 
         Ok(Self {
             server: Some(server),
