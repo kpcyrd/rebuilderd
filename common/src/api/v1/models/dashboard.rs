@@ -6,7 +6,7 @@ pub struct DashboardState {
     pub jobs: DashboardJobState,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DashboardRebuildState {
     pub good: i64,
     pub bad: i64,
