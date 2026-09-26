@@ -21,6 +21,7 @@ pub struct BinaryPackage {
     pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
+    pub seen_in_last_sync: bool,
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
@@ -33,6 +34,7 @@ pub struct NewBinaryPackage {
     pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
+    pub seen_in_last_sync: bool,
 }
 
 impl NewBinaryPackage {
@@ -58,6 +60,7 @@ impl NewBinaryPackage {
                 component.eq(excluded(component)),
                 architecture.eq(excluded(architecture)),
                 artifact_url.eq(excluded(artifact_url)),
+                seen_in_last_sync.eq(excluded(seen_in_last_sync)),
             ))
             .returning(BinaryPackage::as_select())
             .get_result::<BinaryPackage>(connection)?;
