@@ -6,6 +6,7 @@ use rebuilderd_common::utils::{is_zstd_compressed, zstd_decompress};
 
 pub mod v0;
 pub mod v1;
+pub mod well_known;
 
 pub async fn forward_compressed_data(
     request: HttpRequest,

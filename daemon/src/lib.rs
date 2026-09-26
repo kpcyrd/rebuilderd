@@ -109,6 +109,7 @@ pub fn build_server(
                             ),
                     ),
             )
+            .service(api::well_known::get_did_document)
     })
     .bind(&bind_addr)?;
 
