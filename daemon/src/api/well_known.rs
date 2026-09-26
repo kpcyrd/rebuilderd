@@ -1,7 +1,7 @@
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get};
 use data_encoding::BASE64URL_NOPAD;
-use in_toto::crypto::{PrivateKey, PublicKey};
+use in_toto::crypto::{PrivateKey, PublicKey, SignatureScheme};
 use rebuilderd_common::errors::*;
 use serde_json::json;
 use std::sync::Arc;
@@ -15,8 +15,28 @@ use std::sync::Arc;
 fn did_document(host: &str, public_key: &PublicKey) -> Result<serde_json::Value> {
     // did:web requires the port separator to be percent-encoded
     let did = format!("did:web:{}", host.replace(':', "%3A"));
+    // This is currently the only way to get the string out of in_toto::crypto::KeyId:
+    // https://github.com/in-toto/in-toto-rs/issues/114
     let key_id: String = serde_json::from_value(serde_json::to_value(public_key.key_id())?)?;
-    let verification_method = format!("{did}#{key_id}");
+    let did_with_key_id = format!("{did}#{key_id}");
+
+    let (verification_methods, assertion_methods) = match public_key.scheme() {
+        // Rebuilderd only generates ed25519 keys, an in-toto key could in theory have other schemes
+        SignatureScheme::Ed25519 => (
+            json!([{
+                "id": did_with_key_id,
+                "type": "JsonWebKey2020",
+                "controller": did,
+                "publicKeyJwk": {
+                    "kty": "OKP",
+                    "crv": "Ed25519",
+                    "x": BASE64URL_NOPAD.encode(public_key.as_bytes()),
+                },
+            }]),
+            json!([did_with_key_id]),
+        ),
+        _ => (json!([]), json!([])),
+    };
 
     Ok(json!({
         "@context": [
@@ -24,17 +44,8 @@ fn did_document(host: &str, public_key: &PublicKey) -> Result<serde_json::Value>
             "https://w3id.org/security/suites/jws-2020/v1",
         ],
         "id": did,
-        "verificationMethod": [{
-            "id": verification_method,
-            "type": "JsonWebKey2020",
-            "controller": did,
-            "publicKeyJwk": {
-                "kty": "OKP",
-                "crv": "Ed25519",
-                "x": BASE64URL_NOPAD.encode(public_key.as_bytes()),
-            },
-        }],
-        "assertionMethod": [verification_method],
+        "verificationMethod": verification_methods,
+        "assertionMethod": assertion_methods,
     }))
 }
 
@@ -43,6 +54,10 @@ pub async fn get_did_document(
     request: HttpRequest,
     private_key: web::Data<Arc<PrivateKey>>,
 ) -> web::Result<impl Responder> {
+    // We take the Host header from the incoming request to construct the did:web DID.
+    // This is because a rebuilderd instance doesn't know it's own domain name or public port.
+    // This is a user-provided value, but it's never signed, and the only way to get
+    // a "weird response" is to send a "weird request", so I can't think of a way this could be a problem.
     let document = did_document(request.connection_info().host(), private_key.public())?;
     Ok(HttpResponse::Ok().json(document))
 }
