@@ -17,6 +17,7 @@ diesel::table! {
         component -> Nullable<Text>,
         architecture -> Text,
         artifact_url -> Text,
+        seen_in_last_sync -> Bool,
     }
 }
 
