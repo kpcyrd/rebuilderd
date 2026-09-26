@@ -41,6 +41,30 @@ pub async fn get_dashboard(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
+    /*
+    SELECT
+        COALESCE(
+            (
+                SELECT r.status
+                FROM rebuilds r
+                WHERE r.build_input_id = i.id
+                ORDER BY r.id DESC
+                LIMIT 1
+            ),
+            'UNKWN'
+        ) AS status,
+        COUNT(*) AS count
+    FROM build_inputs i
+    WHERE EXISTS (
+        SELECT 1
+        FROM binary_packages b
+        WHERE b.build_input_id = i.id
+          AND b.seen_in_last_sync
+          AND b.architecture = 'amd64'
+    )
+    GROUP BY status;
+    */
+
     let mut sql = source_packages::table
         .inner_join(build_inputs::table)
         .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
