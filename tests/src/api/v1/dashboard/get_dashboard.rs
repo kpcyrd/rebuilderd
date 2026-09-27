@@ -1,7 +1,9 @@
+use crate::actions::request_rebuild_of_all_bad_packages;
+use crate::data::{DUMMY_ARCHITECTURE, DUMMY_OTHER_ARCHITECTURE};
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
-use rebuilderd_common::api::v1::DashboardRestApi;
+use rebuilderd_common::api::v1::{DashboardRestApi, OriginFilter};
 use rstest::rstest;
 
 #[rstest]
@@ -90,6 +92,94 @@ pub async fn returns_correct_sums_for_database_with_failed_package(
     assert_eq!(0, result.rebuilds.bad);
     assert_eq!(1, result.rebuilds.fail);
     assert_eq!(0, result.rebuilds.good);
+    assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn returns_correct_sums_for_database_with_multiple_architectures(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
+
+    setup::single_good_rebuild(client).await;
+    setup::single_good_rebuild_with_different_architecture(client).await;
+
+    let result = client.get_dashboard(None).await.unwrap();
+
+    assert_eq!(0, result.rebuilds.bad);
+    assert_eq!(0, result.rebuilds.fail);
+    assert_eq!(2, result.rebuilds.good);
+    assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn returns_correct_sums_for_database_with_multiple_rebuilds_and_architectures(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
+
+    setup::single_bad_rebuild(client).await;
+    request_rebuild_of_all_bad_packages(client).await;
+    setup::single_good_rebuild(client).await;
+
+    setup::single_bad_rebuild_with_different_architecture(client).await;
+    request_rebuild_of_all_bad_packages(client).await;
+    setup::single_good_rebuild_with_different_architecture(client).await;
+
+    let result = client.get_dashboard(None).await.unwrap();
+
+    assert_eq!(0, result.rebuilds.bad);
+    assert_eq!(0, result.rebuilds.fail);
+    assert_eq!(2, result.rebuilds.good);
+    assert_eq!(0, result.rebuilds.unknown);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn returns_correct_filtered_sums_for_database_with_multiple_architectures(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
+
+    setup::single_good_rebuild(client).await;
+    setup::single_good_rebuild_with_different_architecture(client).await;
+
+    let result = client
+        .get_dashboard(Some(&OriginFilter {
+            distribution: None,
+            release: None,
+            component: None,
+            architecture: Some(DUMMY_ARCHITECTURE.into()),
+        }))
+        .await
+        .unwrap();
+
+    assert_eq!(0, result.rebuilds.bad);
+    assert_eq!(0, result.rebuilds.fail);
+    assert_eq!(1, result.rebuilds.good);
+    assert_eq!(0, result.rebuilds.unknown);
+
+    let result = client
+        .get_dashboard(Some(&OriginFilter {
+            distribution: None,
+            release: None,
+            component: None,
+            architecture: Some(DUMMY_OTHER_ARCHITECTURE.into()),
+        }))
+        .await
+        .unwrap();
+
+    assert_eq!(0, result.rebuilds.bad);
+    assert_eq!(0, result.rebuilds.fail);
+    assert_eq!(1, result.rebuilds.good);
     assert_eq!(0, result.rebuilds.unknown);
 
     isolated_server.shutdown().await;
