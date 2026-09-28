@@ -5,6 +5,7 @@ use std::fs;
 pub mod archlinux;
 pub mod debian;
 pub mod fedora;
+pub mod openwrt;
 pub mod repomd;
 pub mod tails;
 
