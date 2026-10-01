@@ -78,6 +78,7 @@ pub struct IsolatedServer {
     pub _tmp_dir: Option<TempDir>,
     pub public_key: PublicKey,
     pub client: Client,
+    pub pool: Option<Pool>,
 }
 
 impl IsolatedServer {
@@ -86,12 +87,14 @@ impl IsolatedServer {
         tmp_dir: Option<TempDir>,
         public_key: PublicKey,
         client: Client,
+        pool: Option<Pool>,
     ) -> Self {
         Self {
             server,
             _tmp_dir: tmp_dir,
             public_key,
             client,
+            pool,
         }
     }
 

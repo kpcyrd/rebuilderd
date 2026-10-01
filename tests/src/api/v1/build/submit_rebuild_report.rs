@@ -5,10 +5,13 @@ use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use chrono::Utc;
+use rebuilderd::attestation::Attestation;
+use rebuilderd::models::AttestationLog;
 use rebuilderd_common::api::v1::{
     ArtifactStatus, BuildRestApi, BuildStatus, PackageRestApi, Priority, QueueRestApi,
 };
 use rebuilderd_common::config::ConfigFile;
+use rebuilderd_common::utils::zstd_decompress;
 use rstest::rstest;
 
 #[rstest]
@@ -367,6 +370,99 @@ pub async fn can_report_good_rebuild_with_unsigned_attestation(
     let report = good_rebuild_report_with_unsigned_attestation(&job).await;
 
     client.submit_build_report(report).await.unwrap();
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn malformed_attestation_does_not_persist_a_partial_rebuild(
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
+
+    register_worker(client).await;
+    import_single_package(client).await;
+
+    let job = pick_up_job(client).await;
+    let mut report = good_rebuild_report_with_unsigned_attestation(&job).await;
+
+    for artifact in &mut report.artifacts {
+        artifact.attestation = Some(b"not an attestation".to_vec());
+    }
+
+    assert!(client.submit_build_report(report).await.is_err());
+
+    let builds = client.get_builds(None, None, None).await.unwrap().records;
+    assert!(builds.is_empty());
+
+    let jobs = client
+        .get_queued_jobs(None, None, None)
+        .await
+        .unwrap()
+        .records;
+    assert_eq!(1, jobs.len());
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[case(true)]
+#[case(false)]
+#[tokio::test]
+pub async fn attestation_is_signed_by_server_immediately_on_submit(
+    #[case] compressed: bool,
+    mut isolated_server: IsolatedServer,
+) {
+    // this reads the database directly, which is only available with an in-process daemon
+    let Some(pool) = isolated_server.pool.clone() else {
+        isolated_server.shutdown().await;
+        return;
+    };
+
+    let client = &isolated_server.client;
+
+    register_worker(client).await;
+    import_single_package(client).await;
+
+    let job = pick_up_job(client).await;
+    let mut report = good_rebuild_report_with_unsigned_attestation(&job).await;
+
+    if !compressed {
+        for artifact in &mut report.artifacts {
+            let attestation = artifact.attestation.as_ref().unwrap();
+            artifact.attestation = Some(zstd_decompress(attestation).await.unwrap());
+        }
+    }
+
+    client.submit_build_report(report).await.unwrap();
+
+    let package = client
+        .get_binary_packages(None, None, None)
+        .await
+        .map(|p| p.records)
+        .unwrap()
+        .pop()
+        .unwrap();
+
+    // Read the stored attestation directly from the database, without ever calling the
+    // `.../attestation` GET endpoint, so the legacy "sign on GET" migration path can't be the
+    // one putting the daemon's signature on it.
+    let mut connection = pool.get().unwrap();
+    let compressed_attestation = AttestationLog::get_for_artifact(
+        package.build_id.unwrap(),
+        package.artifact_id.unwrap(),
+        connection.as_mut(),
+    )
+    .unwrap()
+    .unwrap();
+
+    let decompressed_attestation = zstd_decompress(&compressed_attestation).await.unwrap();
+    let attestation = Attestation::parse(&decompressed_attestation).unwrap();
+
+    attestation
+        .verify(1, [&isolated_server.public_key])
+        .unwrap();
 
     isolated_server.shutdown().await;
 }

@@ -9,8 +9,8 @@ use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
 use crate::models::{
-    NewAttestationLog, NewBuildLog, NewDiffoscopeLog, NewQueued, NewRebuild, NewRebuildArtifact,
-    Queued,
+    AttestationLog, NewAttestationLog, NewBuildLog, NewDiffoscopeLog, NewQueued, NewRebuild,
+    NewRebuildArtifact, Queued,
 };
 use crate::schema::{
     attestation_logs, build_inputs, build_logs, diffoscope_logs, queue, rebuild_artifacts,
@@ -106,6 +106,7 @@ pub async fn submit_rebuild_report(
     cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     request: web::Json<RebuildReport>,
+    private_key: web::Data<Arc<PrivateKey>>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
     if auth::worker(&cfg, &req, connection.as_mut()).is_err() {
@@ -130,6 +131,41 @@ pub async fn submit_rebuild_report(
             .await
             .map_err(Error::from)?
     };
+
+    let mut encoded_artifact_logs = HashMap::new();
+
+    for artifact_report in &report.artifacts {
+        if let Entry::Vacant(vc) = encoded_artifact_logs.entry(&artifact_report.name) {
+            let encoded_diffoscope = if let Some(diffoscope) = &artifact_report.diffoscope {
+                Some(if is_zstd_compressed(diffoscope) {
+                    diffoscope.clone()
+                } else {
+                    zstd_compress(&diffoscope[..]).await.map_err(Error::from)?
+                })
+            } else {
+                None::<Vec<u8>>
+            };
+
+            let encoded_attestation = if let Some(attestation) = &artifact_report.attestation {
+                Some(if cfg.transparently_sign_attestations {
+                    attestation::compressed_attestation_sign_if_necessary(
+                        attestation.clone(),
+                        &private_key,
+                    )
+                    .await?
+                    .0
+                } else if is_zstd_compressed(attestation) {
+                    attestation.clone()
+                } else {
+                    zstd_compress(&attestation[..]).await.map_err(Error::from)?
+                })
+            } else {
+                None::<Vec<u8>>
+            };
+
+            vc.insert((encoded_diffoscope, encoded_attestation));
+        }
+    }
 
     let new_log = NewBuildLog {
         build_log: encoded_log,
@@ -156,30 +192,14 @@ pub async fn submit_rebuild_report(
             let logs = match entry {
                 Entry::Occupied(oc) => oc.into_mut(),
                 Entry::Vacant(vc) => {
-                    let encoded_diffoscope = if let Some(diffoscope) = &artifact_report.diffoscope {
-                        Some(if is_zstd_compressed(diffoscope) {
-                            diffoscope.clone()
-                        } else {
-                            zstd_compress(&diffoscope[..]).await.map_err(Error::from)?
-                        })
-                    } else {
-                        None::<Vec<u8>>
-                    };
-
-                    let encoded_attestation =
-                        if let Some(attestation) = &artifact_report.attestation {
-                            Some(if is_zstd_compressed(attestation) {
-                                attestation.clone()
-                            } else {
-                                zstd_compress(&attestation[..]).await.map_err(Error::from)?
-                            })
-                        } else {
-                            None::<Vec<u8>>
-                        };
+                    // take ownership so each encoded log is freed once it's been inserted
+                    let (encoded_diffoscope, encoded_attestation) = encoded_artifact_logs
+                        .remove(&artifact_report.name)
+                        .expect("every artifact name was encoded above");
 
                     let new_diffoscope_id = if let Some(encoded_diffoscope) = encoded_diffoscope {
                         let new_diffoscope_log = NewDiffoscopeLog {
-                            diffoscope_log: encoded_diffoscope.clone(),
+                            diffoscope_log: encoded_diffoscope,
                         };
 
                         Some(new_diffoscope_log.insert(connection.as_mut())?)
@@ -190,7 +210,7 @@ pub async fn submit_rebuild_report(
                     let new_attestation_id = if let Some(encoded_attestation) = encoded_attestation
                     {
                         let new_attestation_log = NewAttestationLog {
-                            attestation_log: encoded_attestation.clone(),
+                            attestation_log: encoded_attestation,
                         };
 
                         Some(new_attestation_log.insert(connection.as_mut())?)
@@ -402,16 +422,9 @@ pub async fn get_build_artifact_attestation(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let attestation = rebuilds::table
-        .inner_join(rebuild_artifacts::table.left_join(attestation_logs::table))
-        .filter(rebuilds::id.is(path.0))
-        .filter(rebuild_artifacts::id.is(path.1))
-        .select(attestation_logs::attestation_log.nullable())
-        .first::<Option<Vec<u8>>>(connection.as_mut())
-        .optional()
-        .map_err(Error::from)?;
+    let attestation = AttestationLog::get_for_artifact(path.0, path.1, connection.as_mut())?;
 
-    let Some(mut attestation) = attestation.flatten() else {
+    let Some(mut attestation) = attestation else {
         return Ok(HttpResponse::NotFound().finish());
     };
 
@@ -429,7 +442,8 @@ pub async fn get_build_artifact_attestation(
                 .get_result::<i32>(connection.as_mut())
                 .map_err(Error::from)?;
 
-            // TODO: GET with side effects?
+            // TODO: Remove after migration period since signing happens now
+            // after receiving the attestation
             update(attestation_logs::table)
                 .filter(attestation_logs::id.is(attestation_id))
                 .set(attestation_logs::attestation_log.eq(bytes.clone()))
