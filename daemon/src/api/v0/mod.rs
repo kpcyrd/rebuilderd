@@ -426,7 +426,7 @@ pub async fn get_build_log(
 
     // get log of the latest rebuild - v0 has no concept of multiple successful builds
     let build_log = rebuild_artifacts::table
-        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+        .filter(rebuild_artifacts::rebuild_id.eq(id.into_inner()))
         .inner_join(rebuilds::table.inner_join(build_logs::table))
         .select(build_logs::build_log)
         .order_by(rebuilds::built_at.desc())
