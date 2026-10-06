@@ -2137,6 +2137,7 @@ dependencies = [
  "rebuilderd-common",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-test",
  "toml 1.1.4+spec-1.1.0",
