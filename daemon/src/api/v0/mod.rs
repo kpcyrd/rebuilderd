@@ -426,7 +426,7 @@ pub async fn get_build_log(
 
     // get log of the latest rebuild - v0 has no concept of multiple successful builds
     let build_log = rebuild_artifacts::table
-        .filter(rebuild_artifacts::id.eq(id.into_inner()))
+        .filter(rebuild_artifacts::rebuild_id.eq(id.into_inner()))
         .inner_join(rebuilds::table.inner_join(build_logs::table))
         .select(build_logs::build_log)
         .order_by(rebuilds::built_at.desc())
@@ -523,4 +523,48 @@ pub async fn get_public_key(privkey: web::Data<Arc<PrivateKey>>) -> web::Result<
     Ok(HttpResponse::Ok().json(PublicKeys {
         current: vec![pubkey],
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{App, test};
+    use diesel::connection::SimpleConnection;
+
+    #[actix_web::test]
+    async fn build_log_is_looked_up_by_rebuild_id() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool = crate::db::setup_pool(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+
+        // rebuild 1 has artifacts 1 and 2, rebuild 2 has artifact 3,
+        // so rebuild ids and artifact ids don't line up
+        pool.get()
+            .unwrap()
+            .batch_execute(
+                "
+                INSERT INTO source_packages (id, name, version, distribution, last_seen, seen_in_last_sync)
+                    VALUES (1, 'foo', '1', 'archlinux', '2026-01-01 00:00:00', 1);
+                INSERT INTO build_inputs (id, source_package_id, url, backend, architecture, retries)
+                    VALUES (1, 1, 'https://example.com', 'archlinux', 'x86_64', 0);
+                INSERT INTO build_logs (id, build_log) VALUES (1, CAST('log of rebuild 1' AS BLOB));
+                INSERT INTO build_logs (id, build_log) VALUES (2, CAST('log of rebuild 2' AS BLOB));
+                INSERT INTO rebuilds (id, build_input_id, built_at, build_log_id) VALUES (1, 1, '2026-01-01 00:00:00', 1);
+                INSERT INTO rebuilds (id, build_input_id, built_at, build_log_id) VALUES (2, 1, '2026-01-02 00:00:00', 2);
+                INSERT INTO rebuild_artifacts (id, rebuild_id, name) VALUES (1, 1, 'foo');
+                INSERT INTO rebuild_artifacts (id, rebuild_id, name) VALUES (2, 1, 'foo-docs');
+                INSERT INTO rebuild_artifacts (id, rebuild_id, name) VALUES (3, 2, 'foo');
+                ",
+            )
+            .unwrap();
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(pool))
+                .service(get_build_log),
+        )
+        .await;
+        let req = test::TestRequest::get().uri("/builds/2/log").to_request();
+        let body = test::call_and_read_body(&app, req).await;
+        assert_eq!(body, "log of rebuild 2");
+    }
 }
