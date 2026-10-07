@@ -7,6 +7,7 @@ use rebuilderd_common::api::v1::{BinaryPackageReport, PackageReport, SourcePacka
 use rebuilderd_common::errors::*;
 use rebuilderd_common::http;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::iter;
@@ -156,7 +157,7 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
 
 #[derive(Debug, Default)]
 pub struct BuildGroups {
-    bases: BTreeMap<String, SourcePackageReport>,
+    bases: BTreeMap<(String, String), SourcePackageReport>,
 }
 
 impl BuildGroups {
@@ -170,27 +171,29 @@ impl BuildGroups {
             url: url.clone(),
         };
 
-        if let Some(group) = self.bases.get_mut(&pkg.base) {
-            // TODO: multiple architectures could have the exact same package with arch=any
+        // TODO: multiple architectures could have the exact same package with arch=any
+        match self.bases.entry((pkg.base.clone(), pkg.version.clone())) {
+            Entry::Occupied(mut entry) => {
+                let group = entry.get_mut();
 
-            // Ensure the build input url is stable, regardless of the insert order
-            if url < group.url {
-                group.url = url;
+                // Ensure the build input url is stable, regardless of the insert order
+                if url < group.url {
+                    group.url = url;
+                }
+
+                // Add this package to artifact list
+                group.artifacts.push(artifact);
+                group.artifacts.sort();
             }
-
-            // Add this package to artifact list
-            group.artifacts.push(artifact);
-            group.artifacts.sort();
-        } else {
-            let mut group = SourcePackageReport {
-                name: pkg.base.clone(),
-                version: pkg.version.clone(),
-                url: url.clone(), // use first artifact's url as the source URL for now
-                artifacts: Vec::new(),
-            };
-
-            group.artifacts.push(artifact);
-            self.bases.insert(pkg.base, group);
+            Entry::Vacant(entry) => {
+                let group = SourcePackageReport {
+                    name: pkg.base,
+                    version: pkg.version,
+                    url, // use first artifact's url as the source URL for now
+                    artifacts: vec![artifact],
+                };
+                entry.insert(group);
+            }
         }
 
         Ok(())
@@ -282,7 +285,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             groups.into_vec(),
-            vec![SourcePackageReport {
+            &[SourcePackageReport {
                 name: "bash".to_string(),
                 version: "5.3.15-1".to_string(),
                 url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
@@ -492,22 +495,28 @@ mod tests {
             )
             .unwrap();
 
-        // TODO: the current behavior is incorrect
         assert_eq!(
             groups.into_vec(),
             &[
                 SourcePackageReport {
                     name: "perl".to_string(),
                     version: "5.42.2-1".to_string(),
-                    url: "https://mirrors.kernel.org/archlinux/core-testing/os/x86_64/perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/perl-5.42.2-1-x86_64.pkg.tar.zst".to_string(),
                     artifacts: vec![
-                            BinaryPackageReport {
+                        BinaryPackageReport {
                             name: "perl".to_string(),
                             version: "5.42.2-1".to_string(),
                             component: Some("core".to_string()),
                             architecture: "x86_64".to_string(),
                             url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/perl-5.42.2-1-x86_64.pkg.tar.zst".to_string(),
                         },
+                    ],
+                },
+                SourcePackageReport {
+                    name: "perl".to_string(),
+                    version: "5.42.3-1".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core-testing/os/x86_64/perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
+                    artifacts: vec![
                         BinaryPackageReport {
                             name: "perl".to_string(),
                             version: "5.42.3-1".to_string(),
@@ -516,7 +525,7 @@ mod tests {
                             url: "https://mirrors.kernel.org/archlinux/core-testing/os/x86_64/perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
                         },
                     ],
-                }
+                },
             ]
         );
     }
