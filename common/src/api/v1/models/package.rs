@@ -20,7 +20,7 @@ pub struct SourcePackageReport {
     pub artifacts: Vec<BinaryPackageReport>,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BinaryPackageReport {
     pub name: String,
     pub version: String,

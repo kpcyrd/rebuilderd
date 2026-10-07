@@ -38,7 +38,7 @@ fn mirror_to_url(mut mirror: &str, repo: &str, arch: &str, file: &str) -> Result
     Ok(url)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ArchPkg {
     pub name: String,
     pub base: String,
@@ -154,6 +154,53 @@ pub fn extract_pkgs(bytes: &[u8]) -> Result<Vec<ArchPkg>> {
     Ok(pkgs)
 }
 
+#[derive(Debug, Default)]
+pub struct BuildGroups {
+    bases: BTreeMap<String, SourcePackageReport>,
+}
+
+impl BuildGroups {
+    pub fn add(&mut self, source: &str, arch: &str, component: String, pkg: ArchPkg) -> Result<()> {
+        let url = mirror_to_url(source, &component, arch, &pkg.filename)?;
+        let artifact = BinaryPackageReport {
+            name: pkg.name,
+            version: pkg.version.clone(),
+            component: Some(component),
+            architecture: pkg.architecture,
+            url: url.clone(),
+        };
+
+        if let Some(group) = self.bases.get_mut(&pkg.base) {
+            // TODO: multiple architectures could have the exact same package with arch=any
+
+            // Ensure the build input url is stable, regardless of the insert order
+            if url < group.url {
+                group.url = url;
+            }
+
+            // Add this package to artifact list
+            group.artifacts.push(artifact);
+            group.artifacts.sort();
+        } else {
+            let mut group = SourcePackageReport {
+                name: pkg.base.clone(),
+                version: pkg.version.clone(),
+                url: url.clone(), // use first artifact's url as the source URL for now
+                artifacts: Vec::new(),
+            };
+
+            group.artifacts.push(artifact);
+            self.bases.insert(pkg.base, group);
+        }
+
+        Ok(())
+    }
+
+    pub fn into_vec(self) -> Vec<SourcePackageReport> {
+        self.bases.into_values().collect()
+    }
+}
+
 pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageReport>> {
     let source = if sync.source.ends_with(".db") {
         warn!(
@@ -173,7 +220,7 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
             packages: Vec::new(),
         };
 
-        let mut bases: BTreeMap<_, SourcePackageReport> = BTreeMap::new();
+        let mut bases = BuildGroups::default();
 
         for component in &sync.components {
             let db = mirror_to_url(source, component, arch, &format!("{}.db", component))?;
@@ -185,33 +232,11 @@ pub async fn sync(http: &http::Client, sync: &PkgsSync) -> Result<Vec<PackageRep
                     continue;
                 }
 
-                let url = mirror_to_url(source, component, arch, &pkg.filename)?;
-                let artifact = BinaryPackageReport {
-                    name: pkg.name,
-                    version: pkg.version.clone(),
-                    component: Some(component.clone()),
-                    architecture: pkg.architecture,
-                    url: url.clone(),
-                };
-
-                if let Some(group) = bases.get_mut(&pkg.base) {
-                    // TODO: multiple architectures could have the exact same package with arch=any
-                    group.artifacts.push(artifact);
-                } else {
-                    let mut group = SourcePackageReport {
-                        name: pkg.base.clone(),
-                        version: pkg.version.clone(),
-                        url: url.clone(), // use first artifact's url as the source URL for now
-                        artifacts: Vec::new(),
-                    };
-
-                    group.artifacts.push(artifact);
-                    bases.insert(pkg.base, group);
-                }
+                bases.add(source, arch, component.clone(), pkg)?;
             }
         }
 
-        report.packages = bases.into_values().collect();
+        report.packages = bases.into_vec();
         reports.push(report);
     }
 
@@ -234,6 +259,265 @@ mod tests {
         assert_eq!(
             url,
             "https://ftp.halifax.rwth-aachen.de/archlinux/core/os/x86_64/core.db"
+        );
+    }
+
+    #[test]
+    fn test_simple_build_group() {
+        let mut groups = BuildGroups::default();
+        groups
+            .add(
+                "https://mirrors.kernel.org/archlinux/$repo/os/$arch",
+                "x86_64",
+                "core".to_string(),
+                ArchPkg {
+                    name: "bash".to_string(),
+                    base: "bash".to_string(),
+                    filename: "bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                    version: "5.3.15-1".to_string(),
+                    architecture: "x86_64".to_string(),
+                    packager: "John Doe <john.doe@example.com>".to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            groups.into_vec(),
+            vec![SourcePackageReport {
+                name: "bash".to_string(),
+                version: "5.3.15-1".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                artifacts: vec![BinaryPackageReport {
+                    name: "bash".to_string(),
+                    version: "5.3.15-1".to_string(),
+                    component: Some("core".to_string()),
+                    architecture: "x86_64".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                }],
+            }]
+        );
+    }
+
+    #[test]
+    fn test_two_build_groups() {
+        let mut groups = BuildGroups::default();
+
+        let source = "https://mirrors.kernel.org/archlinux/$repo/os/$arch";
+        let arch = "x86_64";
+        let component = "core";
+
+        groups
+            .add(
+                source,
+                arch,
+                component.to_string(),
+                ArchPkg {
+                    name: "bash".to_string(),
+                    base: "bash".to_string(),
+                    filename: "bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                    version: "5.3.15-1".to_string(),
+                    architecture: "x86_64".to_string(),
+                    packager: "John Doe <john.doe@example.com>".to_string(),
+                },
+            )
+            .unwrap();
+
+        groups
+            .add(
+                source,
+                arch,
+                component.to_string(),
+                ArchPkg {
+                    name: "btrfs-progs".to_string(),
+                    base: "btrfs-progs".to_string(),
+                    filename: "btrfs-progs-7.1-1-x86_64.pkg.tar.zst".to_string(),
+                    version: "7.1-1".to_string(),
+                    architecture: "x86_64".to_string(),
+                    packager: "John Doe <john.doe@example.com>".to_string(),
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            groups.into_vec(),
+            &[
+                SourcePackageReport {
+                    name: "bash".to_string(),
+                    version: "5.3.15-1".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                    artifacts: vec![BinaryPackageReport {
+                        name: "bash".to_string(),
+                        version: "5.3.15-1".to_string(),
+                        component: Some("core".to_string()),
+                        architecture: "x86_64".to_string(),
+                        url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/bash-5.3.15-1-x86_64.pkg.tar.zst".to_string(),
+                    }],
+                },
+                SourcePackageReport {
+                    name: "btrfs-progs".to_string(),
+                    version: "7.1-1".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/btrfs-progs-7.1-1-x86_64.pkg.tar.zst".to_string(),
+                    artifacts: vec![BinaryPackageReport {
+                        name: "btrfs-progs".to_string(),
+                        version: "7.1-1".to_string(),
+                        component: Some("core".to_string()),
+                        architecture: "x86_64".to_string(),
+                        url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/btrfs-progs-7.1-1-x86_64.pkg.tar.zst".to_string(),
+                    }],
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn test_split_pkg() {
+        let source = "https://mirrors.kernel.org/archlinux/$repo/os/$arch";
+        let arch = "x86_64";
+        let component = "extra";
+
+        // 3 packages in variables since we are going to use them twice
+        let bitcoin_daemon = ArchPkg {
+            name: "bitcoin-daemon".to_string(),
+            base: "bitcoin".to_string(),
+            filename: "bitcoin-daemon-31.1-3-x86_64.pkg.tar.zst".to_string(),
+            version: "31.1-3".to_string(),
+            architecture: "x86_64".to_string(),
+            packager: "John Doe <john.doe@example.com>".to_string(),
+        };
+
+        let bitcoin_tx = ArchPkg {
+            name: "bitcoin-tx".to_string(),
+            base: "bitcoin".to_string(),
+            filename: "bitcoin-tx-31.1-3-x86_64.pkg.tar.zst".to_string(),
+            version: "31.1-3".to_string(),
+            architecture: "x86_64".to_string(),
+            packager: "John Doe <john.doe@example.com>".to_string(),
+        };
+
+        let bitcoin_qt = ArchPkg {
+            name: "bitcoin-qt".to_string(),
+            base: "bitcoin".to_string(),
+            filename: "bitcoin-qt-31.1-3-x86_64.pkg.tar.zst".to_string(),
+            version: "31.1-3".to_string(),
+            architecture: "x86_64".to_string(),
+            packager: "John Doe <john.doe@example.com>".to_string(),
+        };
+
+        // Setup groups and convert to list
+        let mut groups = BuildGroups::default();
+        for pkg in [&bitcoin_daemon, &bitcoin_tx, &bitcoin_qt] {
+            groups
+                .add(source, arch, component.to_string(), pkg.clone())
+                .unwrap();
+        }
+        let packages = groups.into_vec();
+
+        assert_eq!(packages, &[SourcePackageReport {
+                name: "bitcoin".to_string(),
+                version: "31.1-3".to_string(),
+                url: "https://mirrors.kernel.org/archlinux/extra/os/x86_64/bitcoin-daemon-31.1-3-x86_64.pkg.tar.zst".to_string(),
+                artifacts: vec![
+                    BinaryPackageReport {
+                        name: "bitcoin-daemon".to_string(),
+                        version: "31.1-3".to_string(),
+                        component: Some("extra".to_string()),
+                        architecture: "x86_64".to_string(),
+                        url: "https://mirrors.kernel.org/archlinux/extra/os/x86_64/bitcoin-daemon-31.1-3-x86_64.pkg.tar.zst".to_string(),
+                    },
+                    BinaryPackageReport {
+                        name: "bitcoin-qt".to_string(),
+                        version: "31.1-3".to_string(),
+                        component: Some("extra".to_string()),
+                        architecture: "x86_64".to_string(),
+                        url: "https://mirrors.kernel.org/archlinux/extra/os/x86_64/bitcoin-qt-31.1-3-x86_64.pkg.tar.zst".to_string(),
+                    },
+                    BinaryPackageReport {
+                        name: "bitcoin-tx".to_string(),
+                        version: "31.1-3".to_string(),
+                        component: Some("extra".to_string()),
+                        architecture: "x86_64".to_string(),
+                        url: "https://mirrors.kernel.org/archlinux/extra/os/x86_64/bitcoin-tx-31.1-3-x86_64.pkg.tar.zst".to_string(),
+                    },
+                ],
+        }]);
+
+        // Ensure add-order doesn't affect resolved groups
+        let mut groups = BuildGroups::default();
+        for pkg in [bitcoin_qt, bitcoin_tx, bitcoin_daemon] {
+            groups
+                .add(source, arch, component.to_string(), pkg)
+                .unwrap();
+        }
+        let packages2 = groups.into_vec();
+        assert_eq!(packages, packages2);
+    }
+
+    #[test]
+    fn test_groups_core_and_core_testing_regression_271() {
+        // https://github.com/kpcyrd/rebuilderd/issues/271
+
+        let mut groups = BuildGroups::default();
+
+        let source = "https://mirrors.kernel.org/archlinux/$repo/os/$arch";
+        let arch = "x86_64";
+
+        groups
+            .add(
+                source,
+                arch,
+                "core".to_string(),
+                ArchPkg {
+                    name: "perl".to_string(),
+                    base: "perl".to_string(),
+                    filename: "perl-5.42.2-1-x86_64.pkg.tar.zst".to_string(),
+                    version: "5.42.2-1".to_string(),
+                    architecture: "x86_64".to_string(),
+                    packager: "John Doe <john.doe@example.com>".to_string(),
+                },
+            )
+            .unwrap();
+
+        groups
+            .add(
+                source,
+                arch,
+                "core-testing".to_string(),
+                ArchPkg {
+                    name: "perl".to_string(),
+                    base: "perl".to_string(),
+                    filename: "perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
+                    version: "5.42.3-1".to_string(),
+                    architecture: "x86_64".to_string(),
+                    packager: "John Doe <john.doe@example.com>".to_string(),
+                },
+            )
+            .unwrap();
+
+        // TODO: the current behavior is incorrect
+        assert_eq!(
+            groups.into_vec(),
+            &[
+                SourcePackageReport {
+                    name: "perl".to_string(),
+                    version: "5.42.2-1".to_string(),
+                    url: "https://mirrors.kernel.org/archlinux/core-testing/os/x86_64/perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
+                    artifacts: vec![
+                            BinaryPackageReport {
+                            name: "perl".to_string(),
+                            version: "5.42.2-1".to_string(),
+                            component: Some("core".to_string()),
+                            architecture: "x86_64".to_string(),
+                            url: "https://mirrors.kernel.org/archlinux/core/os/x86_64/perl-5.42.2-1-x86_64.pkg.tar.zst".to_string(),
+                        },
+                        BinaryPackageReport {
+                            name: "perl".to_string(),
+                            version: "5.42.3-1".to_string(),
+                            component: Some("core-testing".to_string()),
+                            architecture: "x86_64".to_string(),
+                            url: "https://mirrors.kernel.org/archlinux/core-testing/os/x86_64/perl-5.42.3-1-x86_64.pkg.tar.zst".to_string(),
+                        },
+                    ],
+                }
+            ]
         );
     }
 }
