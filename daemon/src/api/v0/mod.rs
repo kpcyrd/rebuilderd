@@ -67,7 +67,7 @@ pub async fn list_workers(
     let mut connection = pool.get().map_err(Error::from)?;
 
     // mark stale workers as offline before returning any results
-    models::Worker::mark_stale_offline(connection.as_mut())?;
+    models::Worker::mark_stale_offline(connection.as_mut(), cfg.worker.offline_deadline())?;
 
     // grab online workers
     let workers = workers::table
