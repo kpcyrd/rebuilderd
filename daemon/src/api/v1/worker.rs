@@ -3,7 +3,7 @@ use crate::api::v1::util::auth;
 use crate::api::v1::util::pagination::PaginateDsl;
 use crate::config::Config;
 use crate::db::Pool;
-use crate::models::NewWorker;
+use crate::models::{NewWorker, Worker};
 use crate::schema::workers;
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, delete, get, post};
@@ -28,10 +28,12 @@ fn workers_base() -> _ {
 
 #[get("")]
 pub async fn get_workers(
+    cfg: web::Data<Config>,
     pool: web::Data<Pool>,
     page: web::Query<Page>,
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+    Worker::mark_stale_offline(connection.as_mut(), cfg.worker.offline_deadline())?;
 
     let records = workers_base()
         .paginate(page.into_inner())
@@ -85,8 +87,13 @@ pub async fn register_worker(
 }
 
 #[get("/{id}")]
-pub async fn get_worker(pool: web::Data<Pool>, id: web::Path<i32>) -> web::Result<impl Responder> {
+pub async fn get_worker(
+    cfg: web::Data<Config>,
+    pool: web::Data<Pool>,
+    id: web::Path<i32>,
+) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
+    Worker::mark_stale_offline(connection.as_mut(), cfg.worker.offline_deadline())?;
 
     if let Some(record) = workers_base()
         .filter(workers::id.is(id.into_inner()))

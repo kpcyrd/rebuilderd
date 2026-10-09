@@ -1,4 +1,5 @@
 use crate::schema::*;
+use chrono::Duration;
 use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
@@ -30,6 +31,26 @@ impl Worker {
             .get_result(connection)?;
 
         Ok(worker)
+    }
+
+    pub fn mark_stale_offline(
+        connection: &mut SqliteConnection,
+        offline_deadline: Duration,
+    ) -> Result<usize> {
+        let deadline = Utc::now().naive_utc() - offline_deadline;
+
+        let updated = diesel::update(
+            workers::table
+                .filter(workers::online.eq(true))
+                .filter(workers::last_ping.lt(deadline)),
+        )
+        .set((
+            workers::online.eq(false),
+            workers::status.eq(None as Option<String>),
+        ))
+        .execute(connection)?;
+
+        Ok(updated)
     }
 }
 
@@ -63,5 +84,106 @@ impl NewWorker {
             .get_result::<Worker>(connection)?;
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use rebuilderd_common::config::PING_DEADLINE;
+
+    fn deadline() -> Duration {
+        Duration::seconds(PING_DEADLINE)
+    }
+
+    fn insert_worker(
+        connection: &mut SqliteConnection,
+        key: &str,
+        last_ping: NaiveDateTime,
+    ) -> Worker {
+        NewWorker {
+            key: key.to_string(),
+            name: key.to_string(),
+            address: "127.0.0.1".to_string(),
+            status: Some("working hard".to_string()),
+            last_ping,
+            online: true,
+        }
+        .upsert(connection)
+        .unwrap()
+    }
+
+    fn load_worker(connection: &mut SqliteConnection, id: i32) -> Worker {
+        workers::table
+            .find(id)
+            .select(Worker::as_select())
+            .get_result(connection)
+            .unwrap()
+    }
+
+    #[test]
+    fn mark_stale_offline_only_affects_workers_past_the_deadline() {
+        let mut connection = db::setup(":memory:").unwrap();
+        let now = Utc::now().naive_utc();
+
+        let fresh = insert_worker(&mut connection, "fresh", now);
+        let stale = insert_worker(
+            &mut connection,
+            "stale",
+            now - Duration::seconds(PING_DEADLINE + 60),
+        );
+
+        assert_eq!(1, Worker::mark_stale_offline(&mut connection, deadline()).unwrap());
+
+        let fresh = load_worker(&mut connection, fresh.id);
+        assert!(fresh.online);
+        assert_eq!(Some("working hard".to_string()), fresh.status);
+
+        let stale = load_worker(&mut connection, stale.id);
+        assert!(!stale.online);
+        assert_eq!(None, stale.status);
+
+        // workers that are already offline are left alone
+        assert_eq!(0, Worker::mark_stale_offline(&mut connection, deadline()).unwrap());
+    }
+
+    #[test]
+    fn ping_brings_stale_worker_back_online() {
+        let mut connection = db::setup(":memory:").unwrap();
+        let stale = insert_worker(
+            &mut connection,
+            "stale",
+            Utc::now().naive_utc() - Duration::seconds(PING_DEADLINE + 60),
+        );
+
+        Worker::mark_stale_offline(&mut connection, deadline()).unwrap();
+        let worker = Worker::get_and_refresh(&stale.key, &mut connection).unwrap();
+
+        assert!(worker.online);
+    }
+
+    #[test]
+    fn mark_stale_offline_uses_the_given_deadline() {
+        let mut connection = db::setup(":memory:").unwrap();
+        let worker = insert_worker(
+            &mut connection,
+            "idle",
+            Utc::now().naive_utc() - Duration::seconds(PING_DEADLINE + 60),
+        );
+
+        // a longer deadline keeps the worker online
+        let longer = Duration::seconds(PING_DEADLINE * 2);
+        assert_eq!(
+            0,
+            Worker::mark_stale_offline(&mut connection, longer).unwrap()
+        );
+        assert!(load_worker(&mut connection, worker.id).online);
+
+        assert_eq!(
+            1,
+            Worker::mark_stale_offline(&mut connection, deadline()).unwrap()
+        );
+        assert!(!load_worker(&mut connection, worker.id).online);
     }
 }
