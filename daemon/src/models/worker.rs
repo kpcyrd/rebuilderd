@@ -157,9 +157,33 @@ mod tests {
             Utc::now().naive_utc() - Duration::seconds(PING_DEADLINE + 60),
         );
 
-        Worker::mark_stale_offline(&mut connection).unwrap();
+        Worker::mark_stale_offline(&mut connection, deadline()).unwrap();
         let worker = Worker::get_and_refresh(&stale.key, &mut connection).unwrap();
 
         assert!(worker.online);
+    }
+
+    #[test]
+    fn mark_stale_offline_uses_the_given_deadline() {
+        let mut connection = db::setup(":memory:").unwrap();
+        let worker = insert_worker(
+            &mut connection,
+            "idle",
+            Utc::now().naive_utc() - Duration::seconds(PING_DEADLINE + 60),
+        );
+
+        // a longer deadline keeps the worker online
+        let longer = Duration::seconds(PING_DEADLINE * 2);
+        assert_eq!(
+            0,
+            Worker::mark_stale_offline(&mut connection, longer).unwrap()
+        );
+        assert!(load_worker(&mut connection, worker.id).online);
+
+        assert_eq!(
+            1,
+            Worker::mark_stale_offline(&mut connection, deadline()).unwrap()
+        );
+        assert!(!load_worker(&mut connection, worker.id).online);
     }
 }

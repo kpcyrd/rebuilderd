@@ -22,6 +22,7 @@ pub fn config_file(
     #[default(None)] retry_delay_base: Option<i64>,
     #[default(None)] max_retries: Option<i32>,
     #[default(None)] initial_delay: Option<i64>,
+    #[default(None)] offline_deadline: Option<u32>,
     program_arguments: Args,
 ) -> ConfigFile {
     let mut config = ConfigFile::default();
@@ -51,6 +52,7 @@ pub fn config_file(
     config.schedule.retry_delay_base = retry_delay_base;
     config.schedule.max_retries = max_retries;
     config.schedule.initial_delay = initial_delay;
+    config.worker.offline_deadline = offline_deadline;
 
     config
 }
