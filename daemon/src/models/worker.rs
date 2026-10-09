@@ -3,7 +3,6 @@ use chrono::Duration;
 use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
-use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
 use serde::{Deserialize, Serialize};
 
@@ -34,8 +33,11 @@ impl Worker {
         Ok(worker)
     }
 
-    pub fn mark_stale_offline(connection: &mut SqliteConnection) -> Result<usize> {
-        let deadline = Utc::now().naive_utc() - Duration::seconds(PING_DEADLINE);
+    pub fn mark_stale_offline(
+        connection: &mut SqliteConnection,
+        offline_deadline: Duration,
+    ) -> Result<usize> {
+        let deadline = Utc::now().naive_utc() - offline_deadline;
 
         let updated = diesel::update(
             workers::table
@@ -89,6 +91,11 @@ impl NewWorker {
 mod tests {
     use super::*;
     use crate::db;
+    use rebuilderd_common::config::PING_DEADLINE;
+
+    fn deadline() -> Duration {
+        Duration::seconds(PING_DEADLINE)
+    }
 
     fn insert_worker(
         connection: &mut SqliteConnection,
@@ -127,7 +134,7 @@ mod tests {
             now - Duration::seconds(PING_DEADLINE + 60),
         );
 
-        assert_eq!(1, Worker::mark_stale_offline(&mut connection).unwrap());
+        assert_eq!(1, Worker::mark_stale_offline(&mut connection, deadline()).unwrap());
 
         let fresh = load_worker(&mut connection, fresh.id);
         assert!(fresh.online);
@@ -138,7 +145,7 @@ mod tests {
         assert_eq!(None, stale.status);
 
         // workers that are already offline are left alone
-        assert_eq!(0, Worker::mark_stale_offline(&mut connection).unwrap());
+        assert_eq!(0, Worker::mark_stale_offline(&mut connection, deadline()).unwrap());
     }
 
     #[test]
