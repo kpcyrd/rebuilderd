@@ -15,14 +15,12 @@ use crate::models::{BinaryPackage, BuildInput, Queued, SourcePackage};
 use crate::schema::*;
 use crate::web;
 use actix_web::{HttpRequest, HttpResponse, Responder, get, http, post};
-use chrono::Duration;
 use chrono::prelude::*;
 pub(crate) use dashboard::DashboardState;
 use diesel::dsl::auto_type;
 use diesel::{QueryDsl, RunQueryDsl};
 use in_toto::crypto::PrivateKey;
 use rebuilderd_common::api::v0::*;
-use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
@@ -69,16 +67,7 @@ pub async fn list_workers(
     let mut connection = pool.get().map_err(Error::from)?;
 
     // mark stale workers as offline before returning any results
-    let now = Utc::now().naive_utc();
-    let deadline = now - Duration::seconds(PING_DEADLINE);
-
-    diesel::update(workers::table.filter(workers::last_ping.lt(deadline)))
-        .set((
-            workers::online.eq(false),
-            workers::status.eq(None as Option<String>),
-        ))
-        .execute(connection.as_mut())
-        .map_err(Error::from)?;
+    models::Worker::mark_stale_offline(connection.as_mut())?;
 
     // grab online workers
     let workers = workers::table
