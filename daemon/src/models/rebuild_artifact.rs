@@ -38,6 +38,24 @@ pub struct AttestationLog {
     pub attestation_log: Vec<u8>,
 }
 
+impl AttestationLog {
+    pub fn get_for_artifact(
+        build_id: i32,
+        artifact_id: i32,
+        connection: &mut SqliteConnection,
+    ) -> Result<Option<Vec<u8>>> {
+        let attestation = rebuilds::table
+            .inner_join(rebuild_artifacts::table.left_join(attestation_logs::table))
+            .filter(rebuilds::id.is(build_id))
+            .filter(rebuild_artifacts::id.is(artifact_id))
+            .select(attestation_logs::attestation_log.nullable())
+            .first::<Option<Vec<u8>>>(connection)
+            .optional()?;
+
+        Ok(attestation.flatten())
+    }
+}
+
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
 #[diesel(table_name = attestation_logs)]
 pub struct NewAttestationLog {

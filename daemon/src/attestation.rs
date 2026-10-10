@@ -126,21 +126,27 @@ impl Attestation {
 }
 
 /// Makes sure the attestation is signed by our private key
+/// Accepts compressed or uncompressed input and always returns zstd-compressed bytes
 /// Returns true if a signature was created, returns false if attestation was already signed by us
 pub async fn compressed_attestation_sign_if_necessary(
     bytes: Vec<u8>,
     privkey: &PrivateKey,
 ) -> Result<(Vec<u8>, bool)> {
-    let decompressed = if is_zstd_compressed(&bytes) {
-        let decompressed = zstd_decompress(&bytes).await.map_err(Error::from)?;
-        Cow::Owned(decompressed)
+    let was_compressed = is_zstd_compressed(&bytes);
+    let decompressed = if was_compressed {
+        Cow::Owned(zstd_decompress(&bytes).await.map_err(Error::from)?)
     } else {
         Cow::Borrowed(&bytes)
     };
 
     let mut attestation = Attestation::parse(&decompressed)?;
     if attestation.has_signature(privkey.public()) {
-        Ok((bytes, false))
+        if was_compressed {
+            Ok((bytes, false))
+        } else {
+            let compressed = zstd_compress(&decompressed).await.map_err(Error::from)?;
+            Ok((compressed, false))
+        }
     } else {
         attestation.sign(privkey)?;
 
