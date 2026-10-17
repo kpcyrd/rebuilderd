@@ -271,6 +271,15 @@ cargo run --bin rebuilderd-worker -- \
 
 Debian: pkg-config liblzma-dev libsqlite3-dev libzstd-dev
 
+# AI Policy
+
+Using LLMs for contributions is allowed, but contributors are expected to
+review, understand and personally vouch for the code they submit, regardless of
+which tools they use.
+
+You may disclose AI usage in the PR text, or the Git commit message, but you
+may not credit an AI model as co-author; authorship is reserved for humans.
+
 # Funding
 
 Rebuilderd development is currently funded by:
