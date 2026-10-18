@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>rebuilderd stats</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h3 { margin-top: 2rem; }
+    h4 { margin: 1rem 0 .25rem; color: #555; font-weight: normal; }
+  </style>
+</head>
+<body>
+  <h2>rebuilderd stats</h2>
+  <label>period
+    <select id="period">
+      <option value="1">1 day</option>
+      <option value="3">3 days</option>
+      <option value="7">1 week</option>
+      <option value="30">1 month</option>
+      <option value="365">1 year</option>
+      <option value="" selected>full</option>
+    </select>
+  </label>
+  <div id="charts"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const STATUS_COLORS = { good: '#00a950', bad: '#f67019', fail: '#f53794', unknown: '#537bc4' };
+    const CAT_COLORS    = ['#4dc9f6','#acc236','#166a8f','#58595b','#e8c534','#9b59b6','#e74c3c','#1abc9c'];
+
+    function addChart(container, title, labels, datasets) {
+      const h = document.createElement('h4');
+      h.textContent = title;
+      container.appendChild(h);
+      const canvas = document.createElement('canvas');
+      container.appendChild(canvas);
+      new Chart(canvas, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: { scales: { x: { stacked: true }, y: { beginAtZero: true, stacked: true } } },
+      });
+    }
+
+    async function render() {
+      const days = document.getElementById('period').value;
+      const params = new URLSearchParams({ limit: 10000 });
+      if (days) {
+        const since = new Date(Date.now() - days * 86400 * 1000).toISOString().slice(0, 19);
+        params.set('since', since);
+      }
+
+      const res = await fetch('http://localhost:8484/api/v1/stats?' + params);
+      const all = await res.json();
+      all.sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+
+      const groups = {};
+      for (const s of all) {
+        const key = [s.distribution, s.release, s.architecture].filter(Boolean).join(' / ');
+        (groups[key] = groups[key] || []).push(s);
+      }
+
+const container = document.getElementById('charts');
+      container.innerHTML = '';
+
+      for (const [key, snapshots] of Object.entries(groups).sort(([a], [b]) => a.localeCompare(b))) {
+        const h = document.createElement('h3');
+        h.textContent = key || 'all';
+        container.appendChild(h);
+
+        const labels = snapshots.map(s => s.captured_at.slice(0, 10));
+
+        addChart(container, 'status', labels,
+          ['good', 'bad', 'fail', 'unknown'].map(status => ({
+            label: status,
+            data: snapshots.map(s => s[status]),
+            backgroundColor: STATUS_COLORS[status],
+          }))
+        );
+
+        const catNames = [...new Set(snapshots.flatMap(s => s.categories.map(c => c.category)))];
+        if (catNames.length) {
+          addChart(container, 'failure categories', labels,
+            catNames.map((cat, i) => ({
+              label: cat,
+              data: snapshots.map(s => {
+                const c = s.categories.find(c => c.category === cat);
+                return c ? c.count : 0;
+              }),
+              backgroundColor: CAT_COLORS[i % CAT_COLORS.length],
+            }))
+          );
+        }
+      }
+    }
+
+    document.getElementById('period').addEventListener('change', render);
+    render();
+  </script>
+</body>
+</html>
