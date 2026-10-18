@@ -11,6 +11,7 @@ use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::zstd_compress;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -139,21 +140,21 @@ pub async fn rebuild(
         artifacts.push((artifact.clone(), artifact_filename, artifact_path));
     }
 
-    let input_filename = if let Some(input_url) = &ctx.input_url {
-        download(input_url, &inputs_dir)
+    let (input_filename, input_url) = if let Some(input_url) = &ctx.input_url {
+        let filename = download(input_url, &inputs_dir)
             .await
-            .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?
+            .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?;
+        (filename, input_url.clone())
     } else {
-        artifacts
+        let (artifact, filename, _) = artifacts
             .first()
-            .context("Failed to use first artifact as build input")?
-            .1
-            .to_owned()
+            .context("Failed to use first artifact as build input")?;
+        (filename.to_owned(), artifact.url.clone())
     };
     let input_path = inputs_dir.join(&input_filename);
 
     // rebuild
-    verify(ctx, log, &out_dir, &input_path).await?;
+    verify(ctx, log, &out_dir, &input_path, &input_url).await?;
 
     // process results
     let mut results = Vec::new();
@@ -255,6 +256,7 @@ async fn verify(
     log: &mut log::Buffer,
     out_dir: &Path,
     input_path: &Path,
+    input_url: &str,
 ) -> Result<()> {
     let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
@@ -269,7 +271,11 @@ async fn verify(
         envs,
     };
 
-    proc::run(bin.as_ref(), &[input_path], opts, log).await?;
+    // Backends are invoked as `<backend> <path> <url>`: the downloaded build
+    // input and the URL it was fetched from, so backends whose input isn't
+    // self-describing can recover build identity from the URL.
+    let args = [input_path.as_os_str(), OsStr::new(input_url)];
+    proc::run(bin.as_ref(), &args, opts, log).await?;
 
     Ok(())
 }
