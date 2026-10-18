@@ -126,29 +126,63 @@ pub async fn rebuild(
 
     // download
     let mut artifacts = Vec::new();
+    let mut unavailable = Vec::new();
     for artifact in &ctx.artifacts {
-        let artifact_filename = download(&artifact.url, &inputs_dir)
-            .await
-            .with_context(|| {
-                anyhow!(
-                    "Failed to download original package from {:?}",
-                    artifact.url
-                )
-            })?;
-        let artifact_path = inputs_dir.join(&artifact_filename);
-        artifacts.push((artifact.clone(), artifact_filename, artifact_path));
+        match download(&artifact.url, &inputs_dir).await {
+            Ok(artifact_filename) => {
+                let artifact_path = inputs_dir.join(&artifact_filename);
+                artifacts.push((artifact.clone(), artifact_filename, artifact_path));
+            }
+            Err(err) => {
+                let msg = format!(
+                    "Failed to download original artifact from {:?}, marking as BAD: {:#}",
+                    artifact.url, err
+                );
+                warn!("{msg}");
+                log.push_bytes(format!("rebuilderd: {msg}\n").as_bytes());
+                unavailable.push(artifact.clone());
+            }
+        }
     }
 
-    let input_filename = if let Some(input_url) = &ctx.input_url {
-        download(input_url, &inputs_dir)
-            .await
-            .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?
-    } else {
-        artifacts
+    // The build input often is one of the artifacts: the archlinux, fedora and
+    // tails importers use the first artifact's url as the source url, and the
+    // worker passes that as the input url. Reuse the copy we just downloaded
+    // instead of fetching it twice, and fall back to another artifact if that
+    // artifact is one of the unavailable ones — otherwise a single missing
+    // artifact would still discard the results of all the others.
+    let input_filename = match &ctx.input_url {
+        Some(input_url) => {
+            if let Some((_, artifact_filename, _)) = artifacts
+                .iter()
+                .find(|(artifact, _, _)| artifact.url == *input_url)
+            {
+                artifact_filename.to_owned()
+            } else if unavailable
+                .iter()
+                .any(|artifact| artifact.url == *input_url)
+            {
+                let (_, artifact_filename, _) = artifacts.first().with_context(|| {
+                    anyhow!("Build input {input_url:?} and every artifact are unavailable")
+                })?;
+                let msg = format!(
+                    "Build input {input_url:?} is unavailable, building from {:?} instead",
+                    artifact_filename
+                );
+                warn!("{msg}");
+                log.push_bytes(format!("rebuilderd: {msg}\n").as_bytes());
+                artifact_filename.to_owned()
+            } else {
+                download(input_url, &inputs_dir)
+                    .await
+                    .with_context(|| anyhow!("Failed to download build input from {input_url:?}"))?
+            }
+        }
+        None => artifacts
             .first()
             .context("Failed to use first artifact as build input")?
             .1
-            .to_owned()
+            .to_owned(),
     };
     let input_path = inputs_dir.join(&input_filename);
 
@@ -245,6 +279,15 @@ pub async fn rebuild(
         };
 
         results.push(result);
+    }
+
+    for artifact in unavailable {
+        results.push(RebuildArtifactReport {
+            name: artifact.name,
+            diffoscope: None,
+            attestation: None,
+            status: ArtifactStatus::Bad,
+        });
     }
 
     Ok(results)
