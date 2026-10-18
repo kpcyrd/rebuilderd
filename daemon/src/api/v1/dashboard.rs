@@ -34,6 +34,26 @@ fn queue_count_base<'a>() -> _ {
     sql
 }
 
+#[diesel::dsl::auto_type]
+fn build_inputs_with_latest_rebuilds() -> _ {
+    build_inputs::table
+        .left_join(
+            rebuilds::table.left_join(
+                r1.on(r1
+                    .field(rebuilds::build_input_id)
+                    .eq(rebuilds::build_input_id)
+                    .and(
+                        rebuilds::built_at
+                            .lt(r1.field(rebuilds::built_at))
+                            .or(rebuilds::built_at
+                                .eq(r1.field(rebuilds::built_at))
+                                .and(rebuilds::id.lt(r1.field(rebuilds::id)))),
+                    )),
+            ),
+        )
+        .filter(r1.field(rebuilds::built_at).is_null())
+}
+
 #[get("")]
 pub async fn get_dashboard(
     pool: web::Data<Pool>,
@@ -41,21 +61,8 @@ pub async fn get_dashboard(
 ) -> web::Result<impl Responder> {
     let mut connection = pool.get().map_err(Error::from)?;
 
-    let mut sql = source_packages::table
-        .inner_join(build_inputs::table)
-        .left_join(r1.on(r1.field(rebuilds::build_input_id).is(build_inputs::id)))
-        .left_join(
-            r2.on(r2.field(rebuilds::build_input_id).is(build_inputs::id).and(
-                r1.field(rebuilds::built_at)
-                    .lt(r2.field(rebuilds::built_at))
-                    .or(r1.fields(
-                        rebuilds::built_at
-                            .eq(r2.field(rebuilds::built_at))
-                            .and(r1.field(rebuilds::id).lt(r2.field(rebuilds::id))),
-                    )),
-            )),
-        )
-        .filter(r2.field(rebuilds::id).is_null())
+    let mut rebuilds = build_inputs_with_latest_rebuilds()
+        .inner_join(source_packages::table)
         .filter(
             origin_filter
                 .clone()
@@ -65,27 +72,18 @@ pub async fn get_dashboard(
         .into_boxed();
 
     // dashboards rarely care about historical data for sums
-    sql = sql.filter(source_packages::seen_in_last_sync.is(true));
+    rebuilds = rebuilds.filter(source_packages::seen_in_last_sync.is(true));
 
-    let sums = sql
+    let sums = rebuilds
         .select((
-            sum(
-                case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("GOOD"), 1)
-                    .otherwise(0),
-            ),
-            sum(
-                case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("BAD"), 1)
-                    .otherwise(0),
-            ),
-            sum(
-                case_when::<_, _, Integer>(r1.field(rebuilds::status).nullable().eq("FAIL"), 1)
-                    .otherwise(0),
-            ),
+            sum(case_when::<_, _, Integer>(rebuilds::status.nullable().is("GOOD"), 1).otherwise(0)),
+            sum(case_when::<_, _, Integer>(rebuilds::status.nullable().is("BAD"), 1).otherwise(0)),
+            sum(case_when::<_, _, Integer>(rebuilds::status.nullable().is("FAIL"), 1).otherwise(0)),
             sum(case_when::<_, _, Integer>(
-                r1.field(rebuilds::status)
+                rebuilds::status
                     .nullable()
-                    .eq("UNKWN")
-                    .or(r1.field(rebuilds::status).nullable().is_null()),
+                    .is("UNKWN")
+                    .or(rebuilds::status.nullable().is_null()),
                 1,
             )
             .otherwise(0)),
