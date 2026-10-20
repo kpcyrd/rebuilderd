@@ -2171,6 +2171,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "clap",
+ "diesel",
  "in-toto",
  "rand",
  "rebuilderd",

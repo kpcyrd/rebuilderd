@@ -1,10 +1,11 @@
 use crate::actions::*;
+use crate::database::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
+use crate::setup;
 use rebuilderd_common::api::v1::WorkerRestApi;
-use rebuilderd_common::config::ConfigFile;
+use rebuilderd_common::config::PING_DEADLINE;
 use rstest::rstest;
-use std::time::Duration;
 
 #[rstest]
 #[tokio::test]
@@ -61,19 +62,17 @@ pub async fn does_not_need_authentication(mut isolated_server: IsolatedServer) {
 
 #[rstest]
 #[tokio::test]
-pub async fn reports_worker_past_offline_deadline_as_offline(
-    #[with(None, None, None, Some(0))] config_file: ConfigFile,
-    #[with(config_file.clone())] mut isolated_server: IsolatedServer,
-) {
+pub async fn reports_worker_past_offline_deadline_as_offline(mut isolated_server: IsolatedServer) {
     let client = &isolated_server.client;
-    let _config_file = config_file;
 
-    register_worker(client).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
+    setup::build_ready_database(client).await;
+    pick_up_job(client).await;
+    set_worker_last_ping(&isolated_server, seconds_ago(PING_DEADLINE + 60));
 
     let result = client.get_worker(1).await.unwrap();
 
     assert!(!result.is_online);
+    assert_eq!(None, result.status);
 
     isolated_server.shutdown().await;
 }

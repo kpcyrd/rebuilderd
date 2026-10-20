@@ -92,7 +92,7 @@ pub fn isolated_server(
     )
     .unwrap();
 
-    let (server, tmp_dir, endpoint) = if !program_arguments.no_daemon {
+    let (server, pool, tmp_dir, endpoint) = if !program_arguments.no_daemon {
         let tmp_dir = TempDir::new().unwrap();
         let database_path = tmp_dir.path().join("rebuilderd.db");
 
@@ -102,17 +102,17 @@ pub fn isolated_server(
         server.start().unwrap();
 
         let endpoint = format!("http://{}", server.address);
-        (Some(server), Some(tmp_dir), endpoint)
+        (Some(server), Some(pool), Some(tmp_dir), endpoint)
     } else {
         let addr = program_arguments.bind_addr;
         let endpoint = program_arguments
             .endpoint
             .unwrap_or_else(|| format!("http://{}", addr));
 
-        (None, None, endpoint)
+        (None, None, None, endpoint)
     };
 
     let client = make_client(config_file, endpoint);
 
-    IsolatedServer::new(server, tmp_dir, public_key, client)
+    IsolatedServer::new(server, pool, tmp_dir, public_key, client)
 }
