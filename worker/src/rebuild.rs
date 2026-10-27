@@ -11,7 +11,6 @@ use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::zstd_compress;
 use std::collections::HashMap;
-use std::ffi::OsStr;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -144,17 +143,17 @@ pub async fn rebuild(
         let filename = download(input_url, &inputs_dir)
             .await
             .with_context(|| anyhow!("Failed to download build input from {:?}", input_url))?;
-        (filename, input_url.clone())
+        (filename, input_url)
     } else {
         let (artifact, filename, _) = artifacts
             .first()
             .context("Failed to use first artifact as build input")?;
-        (filename.to_owned(), artifact.url.clone())
+        (filename.to_owned(), &artifact.url)
     };
     let input_path = inputs_dir.join(&input_filename);
 
     // rebuild
-    verify(ctx, log, &out_dir, &input_path, &input_url).await?;
+    verify(ctx, log, &out_dir, &input_path, input_url).await?;
 
     // process results
     let mut results = Vec::new();
@@ -274,7 +273,7 @@ async fn verify(
     // Backends are invoked as `<backend> <path> <url>`: the downloaded build
     // input and the URL it was fetched from, so backends whose input isn't
     // self-describing can recover build identity from the URL.
-    let args = [input_path.as_os_str(), OsStr::new(input_url)];
+    let args = [input_path.as_os_str(), input_url.as_ref()];
     proc::run(bin.as_ref(), &args, opts, log).await?;
 
     Ok(())
