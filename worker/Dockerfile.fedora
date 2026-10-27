@@ -1,6 +1,6 @@
 FROM fedora
 WORKDIR /usr/src/rebuilderd
-RUN dnf -y install cargo rust
+RUN dnf -y install cargo rust libzstd-devel
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
     CARGO_HOME=/var/cache/buildkit/cargo \
@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/fedora/target/release/rebuilderd-worker /
 
 FROM fedora
+RUN dnf -y install libzstd
 COPY --from=0 \
     /usr/src/rebuilderd/worker/rebuilder-fedora.sh \
     /usr/local/libexec/rebuilderd/
