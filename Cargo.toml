@@ -13,3 +13,4 @@ rand = "0.10"
 rebuilderd = { version = "=0.28.0", path = "daemon" }
 rebuilderd-common = { version = "=0.28.0", path = "common" }
 toml = "1"
+zstd = { version = "0.14", features = ["pkg-config"] }

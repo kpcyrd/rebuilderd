@@ -39,7 +39,7 @@ toml.workspace = true
 tree_magic_mini = "3.0.3"
 url = "2.2.2"
 xz2 = "0.1"
-zstd = { version = "0.13", features = ["pkg-config"] }
+zstd.workspace = true
 
 [dev-dependencies]
 data-encoding = "2"
