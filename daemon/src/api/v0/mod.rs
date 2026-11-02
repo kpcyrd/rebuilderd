@@ -433,6 +433,7 @@ pub async fn get_build_log(
         .first::<Vec<u8>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
+    drop(connection);
 
     if let Some(build_log) = build_log {
         forward_compressed_data(req, "text/plain; charset=utf-8", build_log).await
@@ -460,6 +461,7 @@ pub async fn get_attestation(
         .first::<Vec<u8>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
+    drop(connection);
 
     if let Some(attestation) = attestation {
         // v0 used to transparently sign attestations here, but for now v0 is entirely read-only
@@ -485,6 +487,7 @@ pub async fn get_diffoscope(
         .first::<Vec<u8>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
+    drop(connection);
 
     if let Some(diffoscope) = diffoscope {
         forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await

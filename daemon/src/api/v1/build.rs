@@ -305,6 +305,7 @@ pub async fn get_build_log(
         .select(build_logs::build_log)
         .first::<Vec<u8>>(connection.as_mut())
         .map_err(Error::from)?;
+    drop(connection);
 
     forward_compressed_data(req, "text/plain; charset=utf-8", build_log).await
 }
@@ -384,6 +385,7 @@ pub async fn get_build_artifact_diffoscope(
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
+    drop(connection);
 
     if let Some(diffoscope) = diffoscope.flatten() {
         forward_compressed_data(req, "text/plain; charset=utf-8", diffoscope).await
@@ -410,6 +412,7 @@ pub async fn get_build_artifact_attestation(
         .first::<Option<Vec<u8>>>(connection.as_mut())
         .optional()
         .map_err(Error::from)?;
+    drop(connection);
 
     let Some(mut attestation) = attestation.flatten() else {
         return Ok(HttpResponse::NotFound().finish());
@@ -423,6 +426,8 @@ pub async fn get_build_artifact_attestation(
         .await?;
 
         if has_new_signature {
+            let mut connection = pool.get().map_err(Error::from)?;
+
             let attestation_id = rebuild_artifacts::table
                 .filter(rebuild_artifacts::id.is(path.1))
                 .select(rebuild_artifacts::attestation_log_id.assume_not_null())
