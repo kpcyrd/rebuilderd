@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Copyright © 2024-2026 Jochen Sprickerhof <jspricke@debian.org>
+# Copyright © 2024-2026 Holger Levsen <holger@layer-acht.org>
+#
+# Released under GPL-2.0-or-later
 
 set -e
 
