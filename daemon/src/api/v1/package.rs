@@ -102,7 +102,7 @@ fn binary_packages_base() -> _ {
             rebuild_artifacts::id.nullable(),
             rebuild_artifacts::diffoscope_log_id.nullable(),
             rebuild_artifacts::attestation_log_id.nullable(),
-            source_packages::last_seen,
+            binary_packages::last_seen,
             binary_packages::seen_in_last_sync,
         ))
 }

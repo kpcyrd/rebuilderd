@@ -23,9 +23,10 @@ SELECT b.id,
        b.component,
        b.architecture,
        b.artifact_url,
-       datetime(),
-       false
-FROM binary_packages b;
+       s.last_seen,
+       s.seen_in_last_sync
+FROM binary_packages b
+LEFT JOIN source_packages s ON b.source_package_id = s.id;
 
 DROP TABLE binary_packages;
 ALTER TABLE _new_binary_packages
