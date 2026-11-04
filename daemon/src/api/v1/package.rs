@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{
-    IntoBinaryIdentityFilter, IntoFilter, IntoOriginFilter, IntoSourceIdentityFilter,
+    IntoBinaryIdentityFilter, IntoFreshnessFilter, IntoOriginFilter, IntoSourceIdentityFilter,
 };
 use crate::api::v1::util::friends::{
     build_input_friends, get_largest_retry_count_among_friends, has_queued_friend,
@@ -440,7 +440,12 @@ pub async fn get_source_packages(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
-        .filter(freshness_filter.clone().into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
@@ -458,7 +463,11 @@ pub async fn get_source_packages(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -507,7 +516,12 @@ pub async fn get_binary_packages(
             binary_packages::version,
             source_packages::name,
         ))
-        .filter(freshness_filter.clone().into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .clone()
+                .into_inner()
+                .into_filter(binary_packages::seen_in_last_sync),
+        )
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
@@ -519,7 +533,11 @@ pub async fn get_binary_packages(
                 .into_inner()
                 .into_filter(binary_packages::architecture),
         )
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(binary_packages::seen_in_last_sync),
+        )
         .filter(binary_identity_filter.clone().into_inner().into_filter(
             binary_packages::name,
             binary_packages::version,

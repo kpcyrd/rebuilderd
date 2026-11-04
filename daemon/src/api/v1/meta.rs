@@ -1,4 +1,4 @@
-use crate::api::v1::util::filters::IntoFilter;
+use crate::api::v1::util::filters::IntoFreshnessFilter;
 use crate::db::Pool;
 use crate::schema::{build_inputs, source_packages};
 use crate::{attestation, web};
@@ -24,7 +24,11 @@ pub async fn get_distributions(
     let mut connection = pool.get().map_err(Error::from)?;
 
     let distributions = source_packages::table
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .select(source_packages::distribution)
         .distinct()
         .load::<String>(connection.as_mut())
@@ -43,7 +47,11 @@ pub async fn get_distribution_releases(
 
     let distribution_releases = source_packages::table
         .filter(source_packages::distribution.is(distribution.into_inner()))
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .select(source_packages::release)
         .distinct()
         .load::<Option<String>>(connection.as_mut())
@@ -63,7 +71,11 @@ pub async fn get_distribution_architectures(
     let distribution_architectures = source_packages::table
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(distribution.into_inner()))
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .select(build_inputs::architecture)
         .distinct()
         .load::<String>(connection.as_mut())
@@ -85,7 +97,11 @@ pub async fn get_distribution_release_architectures(
         .inner_join(build_inputs::table)
         .filter(source_packages::distribution.is(&path.0))
         .filter(source_packages::release.is(release))
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .select(build_inputs::architecture)
         .distinct()
         .load::<String>(connection.as_mut())
