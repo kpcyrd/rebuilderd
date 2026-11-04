@@ -122,6 +122,7 @@ pub struct WorkerConfig {
     #[serde(default)]
     pub authorized_workers: Vec<String>,
     pub signup_secret: Option<String>,
+    pub offline_deadline: Option<u32>,
 }
 
 impl WorkerConfig {
@@ -132,6 +133,15 @@ impl WorkerConfig {
         if c.signup_secret.is_some() {
             self.signup_secret = c.signup_secret;
         }
+        if c.offline_deadline.is_some() {
+            self.offline_deadline = c.offline_deadline;
+        }
+    }
+
+    pub fn offline_deadline(&self) -> Duration {
+        self.offline_deadline
+            .map(|seconds| Duration::seconds(seconds.into()))
+            .unwrap_or_else(|| Duration::seconds(PING_DEADLINE))
     }
 }
 

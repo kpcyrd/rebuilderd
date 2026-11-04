@@ -11,6 +11,7 @@ publish = false
 actix-web = "4.1.0"
 clap = { version = "4", features = ["derive"] }
 chrono = { version = "0.4.19", features = ["serde"] }
+diesel = { version = "2", features = ["sqlite", "chrono"] }
 in-toto = "0.4.0"
 rebuilderd.workspace = true
 rebuilderd-common.workspace = true

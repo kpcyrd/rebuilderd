@@ -1,12 +1,13 @@
 use crate::actions::*;
 use crate::data::*;
+use crate::database::*;
 use crate::fixtures::server::IsolatedServer;
 use crate::fixtures::*;
 use crate::setup;
 use rebuilderd_common::api::v1::{
     JobAssignment, PopQueuedJobRequest, Priority, QueueJobRequest, QueueRestApi,
 };
-use rebuilderd_common::config::ConfigFile;
+use rebuilderd_common::config::{ConfigFile, PING_DEADLINE};
 use rstest::rstest;
 
 #[rstest]
@@ -46,6 +47,59 @@ pub async fn registered_worker_can_request_work(mut isolated_server: IsolatedSer
     let job = client.request_work(job_request()).await.unwrap();
 
     assert!(matches!(job, JobAssignment::Rebuild(_)));
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn running_job_is_not_handed_out_again(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
+
+    setup::build_ready_database(client).await;
+    pick_up_job(client).await;
+
+    let job = client.request_work(job_request()).await.unwrap();
+
+    assert!(matches!(job, JobAssignment::Nothing));
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn job_past_offline_deadline_is_handed_out_again(mut isolated_server: IsolatedServer) {
+    let client = &isolated_server.client;
+
+    setup::build_ready_database(client).await;
+    let first = pick_up_job(client).await;
+    set_job_last_ping(&isolated_server, seconds_ago(PING_DEADLINE + 60));
+
+    let job = client.request_work(job_request()).await.unwrap();
+
+    let JobAssignment::Rebuild(second) = job else {
+        panic!("expected the stale job to be handed out again");
+    };
+    assert_eq!(first.job.id, second.job.id);
+
+    isolated_server.shutdown().await;
+}
+
+#[rstest]
+#[tokio::test]
+pub async fn job_within_configured_offline_deadline_is_not_handed_out_again(
+    #[with(config_file::partial_4(None, None, None, Some(PING_DEADLINE as u32 * 2)))]
+    mut isolated_server: IsolatedServer,
+) {
+    let client = &isolated_server.client;
+
+    setup::build_ready_database(client).await;
+    pick_up_job(client).await;
+    set_job_last_ping(&isolated_server, seconds_ago(PING_DEADLINE + 60));
+
+    let job = client.request_work(job_request()).await.unwrap();
+
+    assert!(matches!(job, JobAssignment::Nothing));
 
     isolated_server.shutdown().await;
 }

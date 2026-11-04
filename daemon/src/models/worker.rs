@@ -1,4 +1,5 @@
 use crate::schema::*;
+use chrono::Duration;
 use chrono::prelude::*;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
@@ -30,6 +31,26 @@ impl Worker {
             .get_result(connection)?;
 
         Ok(worker)
+    }
+
+    pub fn mark_stale_offline(
+        connection: &mut SqliteConnection,
+        offline_deadline: Duration,
+    ) -> Result<()> {
+        let deadline = Utc::now().naive_utc() - offline_deadline;
+
+        diesel::update(
+            workers::table
+                .filter(workers::online.eq(true))
+                .filter(workers::last_ping.lt(deadline)),
+        )
+        .set((
+            workers::online.eq(false),
+            workers::status.eq(None as Option<String>),
+        ))
+        .execute(connection)?;
+
+        Ok(())
     }
 }
 
@@ -65,3 +86,4 @@ impl NewWorker {
         Ok(result)
     }
 }
+
