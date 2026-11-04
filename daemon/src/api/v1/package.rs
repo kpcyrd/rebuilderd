@@ -241,6 +241,7 @@ pub async fn submit_package_report(
                     component: artifact_report.component.clone(),
                     architecture: artifact_report.architecture.clone(),
                     artifact_url: artifact_report.url.clone(),
+                    last_seen: now.naive_utc(),
                     seen_in_last_sync: true,
                 };
 
