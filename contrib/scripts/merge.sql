@@ -54,8 +54,8 @@ SELECT (SELECT id
        component,
        architecture,
        artifact_url,
-       datetime(),
-       FALSE
+       last_seen,
+       seen_in_last_sync
 FROM other.binary_packages
 WHERE TRUE
 ON CONFLICT DO NOTHING;
