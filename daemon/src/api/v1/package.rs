@@ -1,6 +1,6 @@
 use crate::api::v1::util::auth;
 use crate::api::v1::util::filters::{
-    IntoBinaryIdentityFilter, IntoFilter, IntoOriginFilter, IntoSourceIdentityFilter,
+    IntoBinaryIdentityFilter, IntoFreshnessFilter, IntoOriginFilter, IntoSourceIdentityFilter,
 };
 use crate::api::v1::util::friends::{
     build_input_friends, get_largest_retry_count_among_friends, has_queued_friend,
@@ -102,8 +102,8 @@ fn binary_packages_base() -> _ {
             rebuild_artifacts::id.nullable(),
             rebuild_artifacts::diffoscope_log_id.nullable(),
             rebuild_artifacts::attestation_log_id.nullable(),
-            source_packages::last_seen,
-            source_packages::seen_in_last_sync,
+            binary_packages::last_seen,
+            binary_packages::seen_in_last_sync,
         ))
 }
 
@@ -116,27 +116,41 @@ fn mark_scoped_packages_unseen(
     connection: &mut SqliteConnection,
     report: &PackageReport,
 ) -> Result<(), Error> {
-    // mark all packages potentially affected by this report as unseen
-    update(source_packages::table)
+    let source_pkg_id_filter = build_inputs::table
+        .inner_join(
+            sp.on(sp
+                .field(source_packages::id)
+                .is(build_inputs::source_package_id)),
+        )
         .filter(
-            source_packages::id.eq_any(
+            sp.field(source_packages::distribution)
+                .is(&report.distribution),
+        )
+        .filter(sp.field(source_packages::release).is(&report.release))
+        .filter(build_inputs::architecture.is(&report.architecture))
+        .group_by(sp.field(source_packages::id))
+        .select(sp.field(source_packages::id));
+
+    // mark all source packages potentially affected by this report as unseen
+    update(source_packages::table)
+        .filter(source_packages::id.eq_any(source_pkg_id_filter))
+        .set(source_packages::seen_in_last_sync.eq(false))
+        .execute(connection)
+        .map_err(Error::from)?;
+
+    // mark all binary packages potentially affected by this report as unseen
+    update(binary_packages::table)
+        .filter(binary_packages::source_package_id.eq_any(source_pkg_id_filter))
+        // Consulting the build_inputs table is necessary because `libaudit-common_2.6.7-2_all.deb` has architecture `all`,
+        // but is built from `audit_2.6.7-2_amd64.buildinfo`, which has architecture `amd64`
+        .filter(
+            binary_packages::build_input_id.eq_any(
                 build_inputs::table
-                    .inner_join(
-                        sp.on(sp
-                            .field(source_packages::id)
-                            .is(build_inputs::source_package_id)),
-                    )
-                    .filter(
-                        sp.field(source_packages::distribution)
-                            .is(&report.distribution),
-                    )
-                    .filter(sp.field(source_packages::release).is(&report.release))
                     .filter(build_inputs::architecture.is(&report.architecture))
-                    .group_by(sp.field(source_packages::id))
-                    .select(sp.field(source_packages::id)),
+                    .select(build_inputs::id),
             ),
         )
-        .set(source_packages::seen_in_last_sync.eq(false))
+        .set(binary_packages::seen_in_last_sync.eq(false))
         .execute(connection)
         .map_err(Error::from)?;
 
@@ -236,6 +250,8 @@ pub async fn submit_package_report(
                     component: artifact_report.component.clone(),
                     architecture: artifact_report.architecture.clone(),
                     artifact_url: artifact_report.url.clone(),
+                    last_seen: now.naive_utc(),
+                    seen_in_last_sync: true,
                 };
 
                 new_binary_package.upsert(conn.as_mut())?;
@@ -424,7 +440,12 @@ pub async fn get_source_packages(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
-        .filter(freshness_filter.clone().into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .clone()
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::SourcePackage>(connection.as_mut())
         .map_err(Error::from)?;
@@ -442,7 +463,11 @@ pub async fn get_source_packages(
                 .into_inner()
                 .into_filter(source_packages::name, source_packages::version),
         )
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(source_packages::seen_in_last_sync),
+        )
         .count()
         .get_result::<i64>(connection.as_mut())
         .map_err(Error::from)?;
@@ -491,7 +516,12 @@ pub async fn get_binary_packages(
             binary_packages::version,
             source_packages::name,
         ))
-        .filter(freshness_filter.clone().into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .clone()
+                .into_inner()
+                .into_filter(binary_packages::seen_in_last_sync),
+        )
         .paginate(page.into_inner())
         .load::<rebuilderd_common::api::v1::BinaryPackage>(connection.as_mut())
         .map_err(Error::from)?;
@@ -503,7 +533,11 @@ pub async fn get_binary_packages(
                 .into_inner()
                 .into_filter(binary_packages::architecture),
         )
-        .filter(freshness_filter.into_inner().into_filter())
+        .filter(
+            freshness_filter
+                .into_inner()
+                .into_filter(binary_packages::seen_in_last_sync),
+        )
         .filter(binary_identity_filter.clone().into_inner().into_filter(
             binary_packages::name,
             binary_packages::version,

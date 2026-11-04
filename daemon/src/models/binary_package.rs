@@ -1,6 +1,7 @@
 use crate::models::BuildInput;
 use crate::models::SourcePackage;
 use crate::schema::*;
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::upsert::excluded;
 use rebuilderd_common::errors::*;
@@ -21,6 +22,8 @@ pub struct BinaryPackage {
     pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }
 
 #[derive(Insertable, PartialEq, Eq, Debug, Clone)]
@@ -33,6 +36,8 @@ pub struct NewBinaryPackage {
     pub component: Option<String>,
     pub architecture: String,
     pub artifact_url: String,
+    pub last_seen: NaiveDateTime,
+    pub seen_in_last_sync: bool,
 }
 
 impl NewBinaryPackage {
@@ -58,6 +63,8 @@ impl NewBinaryPackage {
                 component.eq(excluded(component)),
                 architecture.eq(excluded(architecture)),
                 artifact_url.eq(excluded(artifact_url)),
+                last_seen.eq(excluded(last_seen)),
+                seen_in_last_sync.eq(excluded(seen_in_last_sync)),
             ))
             .returning(BinaryPackage::as_select())
             .get_result::<BinaryPackage>(connection)?;

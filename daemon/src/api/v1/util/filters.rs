@@ -256,7 +256,7 @@ where
     }
 }
 
-pub trait IntoFilter<QS, DB>
+pub trait IntoFreshnessFilter<QS, DB>
 where
     DB: Backend,
 {
@@ -264,10 +264,21 @@ where
 
     type Output;
 
-    fn into_filter(self) -> Self::Output;
+    fn into_filter<SeenInLastSyncColumn>(
+        self,
+        seen_in_last_sync_column: SeenInLastSyncColumn,
+    ) -> Self::Output
+    where
+        SeenInLastSyncColumn: SelectableExpression<QS>
+            + Expression<SqlType = Bool>
+            + QueryFragment<DB>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + 'static;
 }
 
-impl<T: 'static> IntoFilter<T, Sqlite> for FreshnessFilter
+impl<T: 'static> IntoFreshnessFilter<T, Sqlite> for FreshnessFilter
 where
     source_packages::seen_in_last_sync: SelectableExpression<T>,
 {
@@ -275,9 +286,22 @@ where
 
     type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
 
-    fn into_filter(self) -> Self::Output {
+    fn into_filter<SeenInLastSyncColumn>(
+        self,
+        seen_in_last_sync_column: SeenInLastSyncColumn,
+    ) -> Self::Output
+    where
+        SeenInLastSyncColumn: SelectableExpression<T>
+            + Expression<SqlType = Bool>
+            + QueryFragment<Sqlite>
+            + ValidGrouping<(), IsAggregate = No>
+            + ExpressionMethods
+            + Send
+            + SqliteExpressionMethods
+            + 'static,
+    {
         match self.seen_only {
-            Some(seen_only) => Box::new(source_packages::seen_in_last_sync.is(seen_only)),
+            Some(seen_only) => Box::new(seen_in_last_sync_column.is(seen_only)),
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         }
     }
