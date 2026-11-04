@@ -32,7 +32,7 @@ WHERE TRUE
 ON CONFLICT DO NOTHING;
 
 -- binary packages, mapped to source packages and build inputs
-INSERT INTO binary_packages (source_package_id, build_input_id, name, version, component, architecture, artifact_url)
+INSERT INTO binary_packages (source_package_id, build_input_id, name, version, component, architecture, artifact_url, last_seen, seen_in_last_sync)
 SELECT (SELECT id
         FROM source_packages
         WHERE (name, version, distribution, "release") IS
@@ -53,7 +53,9 @@ SELECT (SELECT id
        version,
        component,
        architecture,
-       artifact_url
+       artifact_url,
+       datetime(),
+       FALSE
 FROM other.binary_packages
 WHERE TRUE
 ON CONFLICT DO NOTHING;
