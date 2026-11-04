@@ -141,6 +141,15 @@ fn mark_scoped_packages_unseen(
     // mark all binary packages potentially affected by this report as unseen
     update(binary_packages::table)
         .filter(binary_packages::source_package_id.eq_any(source_pkg_id_filter))
+        // Consulting the build_inputs table is necessary because `libaudit-common_2.6.7-2_all.deb` has architecture `all`,
+        // but is built from `audit_2.6.7-2_amd64.buildinfo`, which has architecture `amd64`
+        .filter(
+            binary_packages::build_input_id.eq_any(
+                build_inputs::table
+                    .filter(build_inputs::architecture.is(&report.architecture))
+                    .select(build_inputs::id),
+            ),
+        )
         .set(binary_packages::seen_in_last_sync.eq(false))
         .execute(connection)
         .map_err(Error::from)?;
