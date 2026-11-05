@@ -30,6 +30,13 @@ pub async fn import_single_package(client: &Client) {
         .unwrap();
 }
 
+pub async fn import_single_package_with_different_architecture(client: &Client) {
+    client
+        .submit_package_report(&single_package_report_with_different_architecture())
+        .await
+        .unwrap();
+}
+
 pub async fn import_single_package_with_multiple_artifacts(client: &Client) {
     client
         .submit_package_report(&single_package_with_multiple_artifacts_report())

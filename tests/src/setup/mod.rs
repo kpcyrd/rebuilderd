@@ -27,9 +27,21 @@ pub async fn single_bad_rebuild(client: &Client) {
     report_bad_rebuild(client).await;
 }
 
+pub async fn single_bad_rebuild_with_different_architecture(client: &Client) {
+    register_worker(client).await;
+    import_single_package_with_different_architecture(client).await;
+    report_good_rebuild(client).await;
+}
+
 pub async fn single_good_rebuild(client: &Client) {
     register_worker(client).await;
     import_single_package(client).await;
+    report_good_rebuild(client).await;
+}
+
+pub async fn single_good_rebuild_with_different_architecture(client: &Client) {
+    register_worker(client).await;
+    import_single_package_with_different_architecture(client).await;
     report_good_rebuild(client).await;
 }
 

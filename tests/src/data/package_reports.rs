@@ -28,6 +28,26 @@ pub fn single_package_report() -> PackageReport {
     }
 }
 
+pub fn single_package_report_with_different_architecture() -> PackageReport {
+    PackageReport {
+        distribution: DUMMY_DISTRIBUTION.to_string(),
+        release: Some(DUMMY_RELEASE.to_string()),
+        architecture: DUMMY_OTHER_ARCHITECTURE.to_string(),
+        packages: vec![SourcePackageReport {
+            name: DUMMY_SOURCE_PACKAGE.to_string(),
+            version: DUMMY_SOURCE_PACKAGE_VERSION.to_string(),
+            url: DUMMY_SOURCE_PACKAGE_URL.to_string(),
+            artifacts: vec![BinaryPackageReport {
+                name: DUMMY_BINARY_PACKAGE.to_string(),
+                version: DUMMY_BINARY_PACKAGE_VERSION.to_string(),
+                component: Some(DUMMY_COMPONENT.to_string()),
+                architecture: DUMMY_ARCHITECTURE.to_string(),
+                url: DUMMY_BINARY_PACKAGE_URL.to_string(),
+            }],
+        }],
+    }
+}
+
 pub const DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE: &str = "barbaz";
 pub const DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_VERSION: &str = "2";
 pub const DUMMY_MULTI_ARTIFACT_SOURCE_PACKAGE_URL: &str =
