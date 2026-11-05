@@ -1,0 +1,23 @@
+name: Authorship
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  human-authorship:
+    name: Verify Human-Only Attribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check authorship attribution
+        run: ./contrib/ai-policy.sh
