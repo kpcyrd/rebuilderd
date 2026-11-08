@@ -19,7 +19,7 @@ assets = [
 ]
 
 [dependencies]
-actix-web = "4.1.0"
+actix-web.workspace = true
 chrono = { version = "0.4.19", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
 data-encoding = "2"
