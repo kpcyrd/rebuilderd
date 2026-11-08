@@ -13,11 +13,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, Command};
 use tokio::time;
 
-const SIGKILL_DELAY: u64 = 10;
-
 pub struct Options {
     pub timeout: Duration,
     pub kill_at_size_limit: bool,
+    pub sigkill_delay: Duration,
     pub passthrough: bool,
     pub envs: HashMap<String, String>,
 }
@@ -26,6 +25,7 @@ pub struct Capture<'a> {
     output: &'a mut log::Buffer,
     timeout: Duration,
     kill_at_size_limit: bool,
+    sigkill_delay: Duration,
     start: Instant,
     sigterm_sent: Option<Instant>,
 }
@@ -36,6 +36,7 @@ pub fn capture(output: &mut log::Buffer, opts: Options) -> Capture<'_> {
         output,
         timeout: opts.timeout,
         kill_at_size_limit: opts.kill_at_size_limit,
+        sigkill_delay: opts.sigkill_delay,
         start,
         sigterm_sent: None,
     }
@@ -78,12 +79,13 @@ impl Capture<'_> {
     ) -> Result<Duration> {
         // check if we need to SIGKILL due to SIGTERM timeout
         if let Some(sigterm_sent) = self.sigterm_sent
-            && sigterm_sent.elapsed() > Duration::from_secs(SIGKILL_DELAY)
+            && sigterm_sent.elapsed() > self.sigkill_delay
             && let Some(pid) = child.id()
         {
             warn!(
                 "child(pid={}) didn't terminate {}s after SIGTERM, sending SIGKILL",
-                pid, SIGKILL_DELAY
+                pid,
+                self.sigkill_delay.as_secs()
             );
             // child.id is going to return None after this
             Self::kill(pid, Signal::SIGKILL)?;
@@ -105,7 +107,7 @@ impl Capture<'_> {
         }
 
         // if we don't need any timeouts anymore we just return any value
-        Ok(Duration::from_secs(SIGKILL_DELAY))
+        Ok(self.sigkill_delay)
     }
 }
 

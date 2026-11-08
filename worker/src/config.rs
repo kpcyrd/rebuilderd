@@ -5,6 +5,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+// 15min, serde needs this as a function instead of a constant
+fn sigkill_default_delay() -> u64 {
+    900
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct ConfigFile {
     pub endpoint: Option<String>,
@@ -24,6 +29,8 @@ pub struct ConfigFile {
 pub struct Build {
     pub timeout: Option<u64>,
     pub max_bytes: Option<usize>,
+    #[serde(default = "sigkill_default_delay")]
+    pub sigkill_delay: u64,
     #[serde(default)]
     pub silent: bool,
 }
@@ -35,6 +42,8 @@ pub struct Diffoscope {
     #[serde(default)]
     pub args: Vec<String>,
     pub timeout: Option<u64>,
+    #[serde(default = "sigkill_default_delay")]
+    pub sigkill_delay: u64,
     pub max_bytes: Option<usize>,
 }
 

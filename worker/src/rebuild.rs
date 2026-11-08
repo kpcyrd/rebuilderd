@@ -19,6 +19,8 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::time;
 
+const BUILD_DEFAULT_TIMEOUT: u64 = 3600 * 24; // 24h
+
 pub struct Context<'a> {
     pub artifacts: Vec<QueuedJobArtifact>,
     pub input_url: Option<String>,
@@ -258,7 +260,7 @@ async fn verify(
     input_url: &str,
 ) -> Result<()> {
     let bin = &ctx.backend.path;
-    let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
+    let timeout = ctx.build.timeout.unwrap_or(BUILD_DEFAULT_TIMEOUT);
 
     let mut envs = HashMap::new();
     envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?);
@@ -266,6 +268,7 @@ async fn verify(
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
         kill_at_size_limit: false,
+        sigkill_delay: Duration::from_secs(ctx.build.sigkill_delay),
         passthrough: !ctx.build.silent,
         envs,
     };
