@@ -202,6 +202,8 @@ where
 mod tests {
     use super::*;
 
+    const TEST_SIGKILL_DELAY: Duration = Duration::from_secs(10);
+
     async fn script(
         script: &str,
         opts: Options,
@@ -224,6 +226,7 @@ mod tests {
             Options {
                 timeout: Duration::from_secs(600),
                 kill_at_size_limit: false,
+                sigkill_delay: TEST_SIGKILL_DELAY,
                 passthrough: false,
                 envs: HashMap::new(),
             },
@@ -247,6 +250,7 @@ mod tests {
             Options {
                 timeout: Duration::from_secs(600),
                 kill_at_size_limit: false,
+                sigkill_delay: TEST_SIGKILL_DELAY,
                 passthrough: false,
                 envs: HashMap::new(),
             },
@@ -274,6 +278,7 @@ mod tests {
             Options {
                 timeout: Duration::from_secs(600),
                 kill_at_size_limit: true,
+                sigkill_delay: TEST_SIGKILL_DELAY,
                 passthrough: false,
                 envs: HashMap::new(),
             },
@@ -303,6 +308,7 @@ mod tests {
             Options {
                 timeout: Duration::from_millis(1500),
                 kill_at_size_limit: false,
+                sigkill_delay: TEST_SIGKILL_DELAY,
                 passthrough: false,
                 envs: HashMap::new(),
             },
@@ -332,6 +338,7 @@ mod tests {
             Options {
                 timeout: Duration::from_millis(1500),
                 kill_at_size_limit: false,
+                sigkill_delay: TEST_SIGKILL_DELAY,
                 passthrough: false,
                 envs: HashMap::new(),
             },
