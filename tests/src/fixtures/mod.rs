@@ -2,6 +2,7 @@ pub mod server;
 
 use crate::args::Args;
 use crate::fixtures::server::{IsolatedServer, ServerHolder};
+use async_tempfile::TempDir;
 use clap::Parser;
 use in_toto::crypto::{KeyType, PrivateKey, SignatureScheme};
 use rand::distr::{Alphanumeric, SampleString};
@@ -10,7 +11,6 @@ use rebuilderd_common::api::Client;
 use rebuilderd_common::config::{ConfigFile, EndpointConfig};
 use rebuilderd_common::errors::info;
 use rstest::fixture;
-use tempfile::TempDir;
 
 #[fixture]
 pub fn program_arguments() -> Args {
@@ -91,8 +91,11 @@ pub fn isolated_server(
     .unwrap();
 
     let (server, tmp_dir, endpoint) = if !program_arguments.no_daemon {
-        let tmp_dir = TempDir::new().unwrap();
-        let database_path = tmp_dir.path().join("rebuilderd.db");
+        let tmp_dir = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(TempDir::new())
+            .unwrap();
+        let database_path = tmp_dir.join("rebuilderd.db");
 
         let pool = db::setup_pool(database_path.to_str().unwrap()).unwrap();
 

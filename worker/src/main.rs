@@ -285,15 +285,19 @@ async fn main() -> Result<()> {
             }
         }
         SubCommand::Diffoscope(diffoscope) => {
-            let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+            let tmp = async_tempfile::TempDir::builder()
+                .prefix("rebuilderd-")
+                .create()
+                .await?;
             let output = diffoscope::diffoscope(
                 &diffoscope.a,
                 &diffoscope.b,
-                tmp.path(),
+                tmp.dir_path(),
                 &config.diffoscope,
             )
             .await?;
             print!("{}", output);
+            tmp.drop_async().await;
         }
         SubCommand::CheckConfig => {
             let json = serde_json::to_string_pretty(&config)?;

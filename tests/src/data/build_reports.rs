@@ -65,7 +65,7 @@ pub async fn good_rebuild_report_with_signed_attestation(
 
     let mut artifacts = Vec::new();
     for artifact in job.artifacts.clone() {
-        let attestation = create_dummy_signed_attestation(input, &artifact.name);
+        let attestation = create_dummy_signed_attestation(input, &artifact.name).await;
 
         artifacts.push(RebuildArtifactReport {
             name: artifact.name.clone(),
@@ -91,7 +91,7 @@ pub async fn good_rebuild_report_with_unsigned_attestation(
 
     let mut artifacts = Vec::new();
     for artifact in job.artifacts.clone() {
-        let attestation = create_dummy_unsigned_attestation(input, &artifact.name);
+        let attestation = create_dummy_unsigned_attestation(input, &artifact.name).await;
 
         artifacts.push(RebuildArtifactReport {
             name: artifact.name.clone(),

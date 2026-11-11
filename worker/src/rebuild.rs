@@ -110,16 +110,19 @@ pub async fn rebuild(
     log: &mut log::Buffer,
 ) -> Result<Vec<RebuildArtifactReport>> {
     // setup
-    let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+    let tmp = async_tempfile::TempDir::builder()
+        .prefix("rebuilderd-")
+        .create()
+        .await?;
 
-    let inputs_dir = tmp.path().join("inputs");
+    let inputs_dir = tmp.join("inputs");
     fs::create_dir(&inputs_dir).context("Failed to create inputs/ temp dir")?;
 
-    let out_dir = tmp.path().join("out");
+    let out_dir = tmp.join("out");
     fs::create_dir(&out_dir).context("Failed to create out/ temp dir")?;
 
     // This is used as TMPDIR for containment so we can clean up left-over files instead of polluting /tmp
-    let tmpdir = tmp.path().join("tmp");
+    let tmpdir = tmp.join("tmp");
     fs::create_dir(&tmpdir).context("Failed to create tmp/ temp dir")?;
 
     // download
@@ -245,6 +248,9 @@ pub async fn rebuild(
         results.push(result);
     }
 
+    // Explicitly invoke cleanup (without hanging the runtime)
+    tmp.drop_async().await;
+
     Ok(results)
 }
 
@@ -281,6 +287,10 @@ async fn verify(
 mod tests {
     use super::*;
 
+    async fn tempdir() -> async_tempfile::TempDir {
+        async_tempfile::TempDir::new().await.unwrap()
+    }
+
     #[tokio::test]
     async fn compare_files_equal() {
         let equal = compare_files(Path::new("src/main.rs"), Path::new("src/main.rs"))
@@ -307,23 +317,27 @@ mod tests {
 
     #[tokio::test]
     async fn compare_large_files_equal() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), [0u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
-            .await
-            .unwrap();
+        let dir = tempdir().await;
+
+        let path_a = dir.join("a");
+        let path_b = dir.join("b");
+
+        fs::write(&path_a, [0u8; 4096 * 100]).unwrap();
+        fs::write(&path_b, [0u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&path_a, &path_b).await.unwrap();
         assert!(equal);
     }
 
     #[tokio::test]
     async fn compare_large_files_not_equal() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), [1u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
-            .await
-            .unwrap();
+        let dir = tempdir().await;
+
+        let path_a = dir.join("a");
+        let path_b = dir.join("b");
+
+        fs::write(&path_a, [0u8; 4096 * 100]).unwrap();
+        fs::write(&path_b, [1u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&path_a, &path_b).await.unwrap();
         assert!(!equal);
     }
 }

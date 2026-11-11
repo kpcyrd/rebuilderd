@@ -277,6 +277,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-tempfile"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64782aa61953a4fa6f6ddc6b510942adffa37315f1cbf8ca7a96fdc990f913d5"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -860,12 +869,6 @@ dependencies = [
  "libc",
  "windows-sys 0.61.2",
 ]
-
-[[package]]
-name = "fastrand"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "filetime"
@@ -2003,6 +2006,7 @@ name = "rebuilderd"
 version = "0.29.0"
 dependencies = [
  "actix-web",
+ "async-tempfile",
  "chrono",
  "clap",
  "data-encoding",
@@ -2018,7 +2022,6 @@ dependencies = [
  "rebuilderd-common",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
  "tokio-test",
  "toml 1.2.1+spec-1.1.0",
@@ -2051,6 +2054,7 @@ name = "rebuilderd-tests"
 version = "0.28.0"
 dependencies = [
  "actix-web",
+ "async-tempfile",
  "chrono",
  "clap",
  "in-toto",
@@ -2059,7 +2063,6 @@ dependencies = [
  "rebuilderd-common",
  "rstest",
  "serde_json",
- "tempfile",
  "tokio",
  "tokio-util",
 ]
@@ -2068,6 +2071,7 @@ dependencies = [
 name = "rebuilderd-worker"
 version = "0.29.0"
 dependencies = [
+ "async-tempfile",
  "async-trait",
  "chrono",
  "clap",
@@ -2080,7 +2084,6 @@ dependencies = [
  "rebuilderd-common",
  "serde",
  "serde_json",
- "tempfile",
  "tokio",
  "toml 1.2.1+spec-1.1.0",
  "url",
@@ -2690,19 +2693,6 @@ dependencies = [
  "filetime",
  "libc",
  "xattr",
-]
-
-[[package]]
-name = "tempfile"
-version = "3.27.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
-dependencies = [
- "fastrand",
- "getrandom 0.4.3",
- "once_cell",
- "rustix",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
