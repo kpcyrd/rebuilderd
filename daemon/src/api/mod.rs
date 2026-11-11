@@ -74,14 +74,12 @@ mod tests {
     /// connection can't resume to release it.
     #[actix_web::test]
     async fn decompressing_does_not_hold_database_connection() {
-        let dir = tempfile::tempdir().unwrap();
-        let url = dir.path().join("db.sqlite");
-        let url = url.to_str().unwrap();
-        db::setup(url).unwrap();
+        let (_dir, db_path) = crate::db::temp_db().await.unwrap();
+        db::setup(&db_path).unwrap();
         let pool = r2d2::Pool::builder()
             .max_size(1)
             .connection_timeout(Duration::from_secs(1))
-            .build(ConnectionManager::<SqliteConnectionWrap>::new(url))
+            .build(ConnectionManager::<SqliteConnectionWrap>::new(&db_path))
             .unwrap();
 
         let data = HEXLOWER.encode(&zstd_compress("data".as_bytes()).await.unwrap());

@@ -40,7 +40,5 @@ toml.workspace = true
 zstd.workspace = true
 
 [dev-dependencies]
-tempfile = "3.3.0"
+async-tempfile.workspace = true
 tokio-test = "0.4.4"
-
-# https://crates.io/crates/deb-version
