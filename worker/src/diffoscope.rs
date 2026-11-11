@@ -2,7 +2,6 @@ use crate::config;
 use crate::log;
 use crate::proc;
 use rebuilderd_common::errors::*;
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
 use std::time::Duration;
@@ -11,7 +10,12 @@ const DIFF_DEFAULT_TIMEOUT: u64 = 3600; // 1h
 // Add a grace period to --timeout before sending SIGTERM (followed by sigkill_delay, then SIGKILL)
 const SIGTERM_DELAY: u64 = 600;
 
-pub async fn diffoscope(a: &Path, b: &Path, settings: &config::Diffoscope) -> Result<String> {
+pub async fn diffoscope(
+    a: &Path,
+    b: &Path,
+    tmpdir: &Path,
+    settings: &config::Diffoscope,
+) -> Result<String> {
     let mut args = settings.args.iter().map(OsString::from).collect::<Vec<_>>();
     let timeout = settings.timeout.unwrap_or(DIFF_DEFAULT_TIMEOUT);
 
@@ -27,7 +31,7 @@ pub async fn diffoscope(a: &Path, b: &Path, settings: &config::Diffoscope) -> Re
         kill_at_size_limit: true,
         sigkill_delay,
         passthrough: false,
-        envs: HashMap::new(),
+        envs: [("TMPDIR".into(), tmpdir.into())].into_iter().collect(),
     };
     let bin = Path::new("diffoscope");
 

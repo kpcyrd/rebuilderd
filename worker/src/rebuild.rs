@@ -10,7 +10,6 @@ use rebuilderd_common::api::v1::{ArtifactStatus, QueuedJobArtifact, RebuildArtif
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::zstd_compress;
-use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -28,13 +27,6 @@ pub struct Context<'a> {
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
     pub privkey: &'a PrivateKey,
-}
-
-fn path_to_string(path: &Path) -> Result<String> {
-    let s = path
-        .to_str()
-        .with_context(|| anyhow!("Path contains invalid characters: {:?}", path))?;
-    Ok(s.to_string())
 }
 
 pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
@@ -125,6 +117,10 @@ pub async fn rebuild(
 
     let out_dir = tmp.path().join("out");
     fs::create_dir(&out_dir).context("Failed to create out/ temp dir")?;
+
+    // This is used as TMPDIR for containment so we can clean up left-over files instead of polluting /tmp
+    let tmpdir = tmp.path().join("tmp");
+    fs::create_dir(&tmpdir).context("Failed to create tmp/ temp dir")?;
 
     // download
     let mut artifacts = Vec::new();
@@ -233,7 +229,7 @@ pub async fn rebuild(
 
             // generate diffoscope diff if enabled
             if ctx.diffoscope.enabled {
-                let diff = diffoscope(&artifact_path, &output_path, &ctx.diffoscope)
+                let diff = diffoscope(&artifact_path, &output_path, &tmpdir, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
 
@@ -262,15 +258,14 @@ async fn verify(
     let bin = &ctx.backend.path;
     let timeout = ctx.build.timeout.unwrap_or(BUILD_DEFAULT_TIMEOUT);
 
-    let mut envs = HashMap::new();
-    envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?);
-
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
         kill_at_size_limit: false,
         sigkill_delay: Duration::from_secs(ctx.build.sigkill_delay),
         passthrough: !ctx.build.silent,
-        envs,
+        envs: [("REBUILDERD_OUTDIR".into(), out_dir.into())]
+            .into_iter()
+            .collect(),
     };
 
     // Backends are invoked as `<backend> <path> <url>`: the downloaded build

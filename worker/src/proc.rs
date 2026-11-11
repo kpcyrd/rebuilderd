@@ -4,7 +4,7 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use rebuilderd_common::errors::*;
 use std::collections::HashMap;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::Path;
 use std::process::Stdio;
@@ -18,7 +18,7 @@ pub struct Options {
     pub kill_at_size_limit: bool,
     pub sigkill_delay: Duration,
     pub passthrough: bool,
-    pub envs: HashMap<String, String>,
+    pub envs: HashMap<String, OsString>,
 }
 
 pub struct Capture<'a> {

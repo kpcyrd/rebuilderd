@@ -285,8 +285,14 @@ async fn main() -> Result<()> {
             }
         }
         SubCommand::Diffoscope(diffoscope) => {
-            let output =
-                diffoscope::diffoscope(&diffoscope.a, &diffoscope.b, &config.diffoscope).await?;
+            let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+            let output = diffoscope::diffoscope(
+                &diffoscope.a,
+                &diffoscope.b,
+                tmp.path(),
+                &config.diffoscope,
+            )
+            .await?;
             print!("{}", output);
         }
         SubCommand::CheckConfig => {
