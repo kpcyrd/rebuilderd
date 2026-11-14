@@ -223,12 +223,18 @@ async fn main() -> Result<()> {
                 cookie,
             )?;
 
-            client
+            while let Err(err) = client
                 .register_worker(RegisterWorkerRequest {
-                    name: args.name.unwrap_or("worker".to_string()),
+                    name: args.name.as_deref().unwrap_or("worker").to_string(),
                 })
                 .await
-                .context("Failed to register worker with rebuilderd daemon")?;
+            {
+                error!(
+                    "Failed to register worker with rebuilderd daemon, sleeping for {}s: {:#}",
+                    API_ERROR_DELAY, err
+                );
+                time::sleep(Duration::from_secs(API_ERROR_DELAY)).await;
+            }
 
             run_worker_loop(&client, &profile.privkey, &config).await?;
         }
