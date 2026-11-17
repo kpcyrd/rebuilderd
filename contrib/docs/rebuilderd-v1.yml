@@ -534,13 +534,29 @@ paths:
   /dashboard:
     get:
       summary: Gets precomputed information useful for dashboards and data presentations
+      description: |-
+        Rebuild counts are per build input with at least one binary seen in the last sync.
+        The latest rebuild is selected by built_at, then by id; missing or other statuses
+        count as unknown. Architecture filters the build input; component filters its seen binaries.
       tags:
         - miscellaneous
       parameters:
-        - $ref: '#/components/parameters/distribution'
-        - $ref: '#/components/parameters/release'
+        - in: query
+          name: distribution
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: release
+          required: true
+          schema:
+            type: string
         - $ref: '#/components/parameters/component'
-        - $ref: '#/components/parameters/architecture'
+        - in: query
+          name: architecture
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Success
