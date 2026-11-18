@@ -59,3 +59,11 @@ pub struct BinaryIdentityFilter {
 pub struct FreshnessFilter {
     pub seen_only: Option<bool>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardFilter {
+    pub distribution: String,
+    pub release: String,
+    pub component: Option<String>,
+    pub architecture: String,
+}

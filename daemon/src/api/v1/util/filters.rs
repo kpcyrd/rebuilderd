@@ -1,4 +1,4 @@
-use crate::schema::source_packages;
+use crate::schema::{build_inputs, source_packages};
 use diesel::backend::Backend;
 use diesel::dsl::sql;
 use diesel::expression::is_aggregate::No;
@@ -9,7 +9,7 @@ use diesel::sqlite::Sqlite;
 use diesel::{BoolExpressionMethods, BoxableExpression, Expression, SelectableExpression};
 use diesel::{ExpressionMethods, SqliteExpressionMethods};
 use rebuilderd_common::api::v1::{
-    BinaryIdentityFilter, FreshnessFilter, OriginFilter, SourceIdentityFilter,
+    BinaryIdentityFilter, DashboardFilter, FreshnessFilter, OriginFilter, SourceIdentityFilter,
 };
 
 pub trait IntoSourceIdentityFilter<QS, DB>
@@ -304,5 +304,63 @@ where
             Some(seen_only) => Box::new(seen_in_last_sync_column.is(seen_only)),
             None => Box::new(AsExpression::<Bool>::as_expression(true)),
         }
+    }
+}
+
+pub trait IntoDashboardFilter<QS, DB>
+where
+    DB: Backend,
+{
+    type SqlType;
+
+    type Output;
+
+    fn into_filter(self) -> Self::Output;
+}
+
+impl<T: 'static> IntoDashboardFilter<T, Sqlite> for DashboardFilter
+where
+    build_inputs::architecture: SelectableExpression<T>,
+{
+    type SqlType = Bool;
+
+    type Output = Box<dyn BoxableExpression<T, Sqlite, SqlType = Self::SqlType>>;
+
+    fn into_filter(self) -> Self::Output {
+        let source_filter: Self::Output = Box::new(
+            sql::<Bool>(
+                "EXISTS (SELECT 1 FROM source_packages \
+             WHERE source_packages.id = build_inputs.source_package_id \
+             AND source_packages.distribution = ",
+            )
+            .bind::<Text, _>(self.distribution)
+            .sql(" AND source_packages.release = ")
+            .bind::<Text, _>(self.release)
+            .sql(")"),
+        );
+
+        let binary_filter: Self::Output = match self.component {
+            Some(component) => Box::new(
+                sql::<Bool>(
+                    "EXISTS (SELECT 1 FROM binary_packages \
+                     WHERE binary_packages.build_input_id = build_inputs.id \
+                     AND binary_packages.seen_in_last_sync \
+                     AND binary_packages.component = ",
+                )
+                .bind::<Text, _>(component)
+                .sql(")"),
+            ),
+            None => Box::new(sql::<Bool>(
+                "EXISTS (SELECT 1 FROM binary_packages \
+                 WHERE binary_packages.build_input_id = build_inputs.id \
+                 AND binary_packages.seen_in_last_sync)",
+            )),
+        };
+
+        Box::new(
+            source_filter
+                .and(binary_filter)
+                .and(build_inputs::architecture.is(self.architecture)),
+        )
     }
 }
