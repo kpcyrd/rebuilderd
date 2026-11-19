@@ -35,6 +35,7 @@ pub fn build_server(
             .wrap(Logger::default())
             .wrap(middleware::Compress::default())
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
+            .wrap(middleware::DefaultHeaders::new().add(("Access-Control-Allow-Origin", "*")))
             .app_data(json_config)
             .app_data(Data::new(pool.clone()))
             .app_data(Data::new(config.clone()))
