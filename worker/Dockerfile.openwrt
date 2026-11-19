@@ -1,0 +1,38 @@
+FROM rust:trixie
+WORKDIR /usr/src/rebuilderd
+COPY . .
+RUN --mount=type=cache,target=/var/cache/buildkit \
+    CARGO_HOME=/var/cache/buildkit/cargo \
+    CARGO_TARGET_DIR=/var/cache/buildkit/openwrt/target \
+    cargo build --release --locked -p rebuilderd-worker && \
+    cp -v /var/cache/buildkit/openwrt/target/release/rebuilderd-worker /
+
+FROM debian:trixie
+# OpenWrt's buildworker toolchain (openwrt/buildbot docker/buildworker/Dockerfile)
+# and diffoscope
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates ccache curl file gawk g++-multilib \
+        gcc-multilib genisoimage git libdw-dev libelf-dev libncurses-dev \
+        python3 python3-cryptography python3-dev python3-pip python3-pyelftools \
+        qemu-utils rsync signify-openbsd subversion swig unzip wget zstd \
+    && apt-get install -y diffoscope
+
+# diffoscope fork with .apk support, and the tool doing the actual rebuilds
+RUN pip install --break-system-packages --no-deps \
+        'git+https://salsa.debian.org/aparcar/diffoscope.git@staging' \
+    && pip install --break-system-packages \
+        'git+https://github.com/aparcar/openwrt-rebuilder.git'
+
+# OpenWrt refuses to build as root
+RUN useradd --create-home rebuilder
+
+COPY --from=0 \
+    /usr/src/rebuilderd/worker/rebuilder-openwrt.sh \
+    /usr/local/libexec/rebuilderd/
+COPY --from=0 /rebuilderd-worker /usr/local/bin/
+ENV LANG=C.UTF-8
+ENV REBUILDERD_WORKER_BACKEND=openwrt=/usr/local/libexec/rebuilderd/rebuilder-openwrt.sh
+USER rebuilder
+WORKDIR /home/rebuilder
+ENTRYPOINT ["rebuilderd-worker"]
