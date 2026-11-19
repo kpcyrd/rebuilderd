@@ -63,6 +63,16 @@ pub fn setup_pool(url: &str) -> Result<Pool> {
     Ok(pool)
 }
 
+#[cfg(test)]
+pub async fn temp_db() -> Result<(async_tempfile::TempDir, String)> {
+    let dir = async_tempfile::TempDir::new().await?;
+    let db_path = dir.join("db.sqlite");
+    let db_path = db_path
+        .to_str()
+        .context("Failed to convert database path to string")?;
+    Ok((dir, db_path.to_string()))
+}
+
 pub struct SqliteConnectionWrap(SqliteConnection);
 
 impl LoadConnection for SqliteConnectionWrap {

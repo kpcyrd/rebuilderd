@@ -536,8 +536,8 @@ mod tests {
 
     #[actix_web::test]
     async fn build_log_is_looked_up_by_rebuild_id() {
-        let dir = tempfile::tempdir().unwrap();
-        let pool = crate::db::setup_pool(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+        let (_dir, db_path) = crate::db::temp_db().await.unwrap();
+        let pool = crate::db::setup_pool(&db_path).unwrap();
 
         // rebuild 1 has artifacts 1 and 2, rebuild 2 has artifact 3,
         // so rebuild ids and artifact ids don't line up

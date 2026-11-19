@@ -1,4 +1,5 @@
 use actix_web::dev::{Server, ServerHandle};
+use async_tempfile::TempDir;
 use in_toto::crypto::{PrivateKey, PublicKey};
 use rebuilderd::config::Config;
 use rebuilderd::db::Pool;
@@ -8,7 +9,6 @@ use std::io;
 use std::net::{SocketAddr, TcpStream};
 use std::thread;
 use std::time::Duration;
-use tempfile::TempDir;
 use tokio_util::task::AbortOnDropHandle;
 
 pub struct ServerHolder {

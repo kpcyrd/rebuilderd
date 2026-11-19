@@ -28,7 +28,10 @@ _idle_delay=_
 ## [build]
 
 _timeout=_
-	Set a timeout in seconds after which diffoscope is terminated (defaults to 24 hours).
+	Set a timeout in seconds after which the build is terminated with SIGTERM (defaults to 24 hours).
+
+_sigkill_delay=_
+	After sending a SIGTERM, allow this many seconds for cleanup before terminating with SIGKILL (defaults to 15min).
 
 _max_bytes=_
 	Set a maximum diffoscope output limit in bytes (default: none).
@@ -48,7 +51,10 @@ _args=_
 	Pass additional arguments to diffoscope. Use wisely, some options might not work well.
 
 _timeout=_
-	Set a timeout in seconds after which diffoscope is terminated (defaults to 1 hour).
+	Set a timeout in seconds after which diffoscope is terminated with SIGTERM (defaults to 1 hour).
+
+_sigkill_delay=_
+	After sending a SIGTERM, allow this many seconds for cleanup before terminating with SIGKILL (defaults to 15min).
 
 _max_bytes=_
 	Set a maximum diffoscope output limit in bytes (default: none).

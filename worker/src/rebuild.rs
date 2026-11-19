@@ -10,7 +10,6 @@ use rebuilderd_common::api::v1::{ArtifactStatus, QueuedJobArtifact, RebuildArtif
 use rebuilderd_common::errors::Context as _;
 use rebuilderd_common::errors::*;
 use rebuilderd_common::utils::zstd_compress;
-use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -19,6 +18,8 @@ use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::time;
 
+const BUILD_DEFAULT_TIMEOUT: u64 = 3600 * 24; // 24h
+
 pub struct Context<'a> {
     pub artifacts: Vec<QueuedJobArtifact>,
     pub input_url: Option<String>,
@@ -26,13 +27,6 @@ pub struct Context<'a> {
     pub build: config::Build,
     pub diffoscope: config::Diffoscope,
     pub privkey: &'a PrivateKey,
-}
-
-fn path_to_string(path: &Path) -> Result<String> {
-    let s = path
-        .to_str()
-        .with_context(|| anyhow!("Path contains invalid characters: {:?}", path))?;
-    Ok(s.to_string())
 }
 
 pub async fn compare_files(a: &Path, b: &Path) -> Result<bool> {
@@ -116,13 +110,20 @@ pub async fn rebuild(
     log: &mut log::Buffer,
 ) -> Result<Vec<RebuildArtifactReport>> {
     // setup
-    let tmp = tempfile::Builder::new().prefix("rebuilderd").tempdir()?;
+    let tmp = async_tempfile::TempDir::builder()
+        .prefix("rebuilderd-")
+        .create()
+        .await?;
 
-    let inputs_dir = tmp.path().join("inputs");
+    let inputs_dir = tmp.join("inputs");
     fs::create_dir(&inputs_dir).context("Failed to create inputs/ temp dir")?;
 
-    let out_dir = tmp.path().join("out");
+    let out_dir = tmp.join("out");
     fs::create_dir(&out_dir).context("Failed to create out/ temp dir")?;
+
+    // This is used as TMPDIR for containment so we can clean up left-over files instead of polluting /tmp
+    let tmpdir = tmp.join("tmp");
+    fs::create_dir(&tmpdir).context("Failed to create tmp/ temp dir")?;
 
     // download
     let mut artifacts = Vec::new();
@@ -231,7 +232,7 @@ pub async fn rebuild(
 
             // generate diffoscope diff if enabled
             if ctx.diffoscope.enabled {
-                let diff = diffoscope(&artifact_path, &output_path, &ctx.diffoscope)
+                let diff = diffoscope(&artifact_path, &output_path, &tmpdir, &ctx.diffoscope)
                     .await
                     .context("Failed to run diffoscope")?;
 
@@ -247,6 +248,9 @@ pub async fn rebuild(
         results.push(result);
     }
 
+    // Explicitly invoke cleanup (without hanging the runtime)
+    tmp.drop_async().await;
+
     Ok(results)
 }
 
@@ -258,16 +262,16 @@ async fn verify(
     input_url: &str,
 ) -> Result<()> {
     let bin = &ctx.backend.path;
-    let timeout = ctx.build.timeout.unwrap_or(3600 * 24); // 24h
-
-    let mut envs = HashMap::new();
-    envs.insert("REBUILDERD_OUTDIR".into(), path_to_string(out_dir)?);
+    let timeout = ctx.build.timeout.unwrap_or(BUILD_DEFAULT_TIMEOUT);
 
     let opts = proc::Options {
         timeout: Duration::from_secs(timeout),
         kill_at_size_limit: false,
+        sigkill_delay: Duration::from_secs(ctx.build.sigkill_delay),
         passthrough: !ctx.build.silent,
-        envs,
+        envs: [("REBUILDERD_OUTDIR".into(), out_dir.into())]
+            .into_iter()
+            .collect(),
     };
 
     // Backends are invoked as `<backend> <path> <url>`: the downloaded build
@@ -282,6 +286,10 @@ async fn verify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn tempdir() -> async_tempfile::TempDir {
+        async_tempfile::TempDir::new().await.unwrap()
+    }
 
     #[tokio::test]
     async fn compare_files_equal() {
@@ -309,23 +317,27 @@ mod tests {
 
     #[tokio::test]
     async fn compare_large_files_equal() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), [0u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
-            .await
-            .unwrap();
+        let dir = tempdir().await;
+
+        let path_a = dir.join("a");
+        let path_b = dir.join("b");
+
+        fs::write(&path_a, [0u8; 4096 * 100]).unwrap();
+        fs::write(&path_b, [0u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&path_a, &path_b).await.unwrap();
         assert!(equal);
     }
 
     #[tokio::test]
     async fn compare_large_files_not_equal() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::write(dir.path().join("a"), [0u8; 4096 * 100]).unwrap();
-        fs::write(dir.path().join("b"), [1u8; 4096 * 100]).unwrap();
-        let equal = compare_files(&dir.path().join("a"), &dir.path().join("b"))
-            .await
-            .unwrap();
+        let dir = tempdir().await;
+
+        let path_a = dir.join("a");
+        let path_b = dir.join("b");
+
+        fs::write(&path_a, [0u8; 4096 * 100]).unwrap();
+        fs::write(&path_b, [1u8; 4096 * 100]).unwrap();
+        let equal = compare_files(&path_a, &path_b).await.unwrap();
         assert!(!equal);
     }
 }
