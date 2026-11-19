@@ -1,7 +1,8 @@
 use actix_web::dev::{Server, ServerHandle};
+use diesel::r2d2::{ConnectionManager, PooledConnection};
 use in_toto::crypto::{PrivateKey, PublicKey};
 use rebuilderd::config::Config;
-use rebuilderd::db::Pool;
+use rebuilderd::db::{Pool, SqliteConnectionWrap};
 use rebuilderd_common::api::Client;
 use rebuilderd_common::errors::bail;
 use std::io;
@@ -75,6 +76,7 @@ impl Drop for ServerHolder {
 
 pub struct IsolatedServer {
     server: Option<ServerHolder>,
+    pool: Option<Pool>,
     pub _tmp_dir: Option<TempDir>,
     pub public_key: PublicKey,
     pub client: Client,
@@ -83,16 +85,26 @@ pub struct IsolatedServer {
 impl IsolatedServer {
     pub fn new(
         server: Option<ServerHolder>,
+        pool: Option<Pool>,
         tmp_dir: Option<TempDir>,
         public_key: PublicKey,
         client: Client,
     ) -> Self {
         Self {
             server,
+            pool,
             _tmp_dir: tmp_dir,
             public_key,
             client,
         }
+    }
+
+    pub fn connection(&self) -> PooledConnection<ConnectionManager<SqliteConnectionWrap>> {
+        self.pool
+            .as_ref()
+            .expect("Direct database access is not available with --no-daemon")
+            .get()
+            .unwrap()
     }
 
     pub async fn shutdown(&mut self) {

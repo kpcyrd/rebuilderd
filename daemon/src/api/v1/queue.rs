@@ -18,7 +18,6 @@ use rebuilderd_common::api::v1::{
     QueuedJob, QueuedJobArtifact, QueuedJobWithArtifacts, ResultPage, SourceIdentityFilter,
     SuccessfullyQueued,
 };
-use rebuilderd_common::config::PING_DEADLINE;
 use rebuilderd_common::errors::*;
 use std::collections::BTreeSet;
 
@@ -372,7 +371,7 @@ pub async fn request_work(
 
     // clear any stale jobs before we consider available jobs in the queue
     let now = Utc::now();
-    let then = now - Duration::seconds(PING_DEADLINE);
+    let then = now - cfg.worker.offline_deadline();
 
     debug!("Clearing stale jobs last pinged before {then:?}...");
     update(
